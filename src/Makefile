@@ -39,7 +39,7 @@ SHELL = /bin/sh
 all:
 	@export CC=$(EPIC_CC) ; \
 	export FC="" ; \
-	export CXX="" ; \
+	export CXX="" ;
 	@if [ "$(EPIC_CFLAG)" = "-g" ] ; then \
 	  export CFLAGS="-g" ; \
 	  export LDFLAGS="-g" ; \
