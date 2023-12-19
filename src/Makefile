@@ -40,21 +40,6 @@ all:
 	@export CC=$(EPIC_CC) ; \
 	export FC="" ; \
 	export CXX="" ; \
-	cd $(EPIC_PATH)/netcdf/src ; \
-	if [ -f ./config.status ] ; then \
-	  echo "netCDF is built" ; \
-	else \
-	  echo "Configuring netCDF (Network Common Data Format)..." ; \
-	  ./configure --prefix=$(EPIC_PATH)/netcdf >& configure.log ; \
-	  echo "Making netCDF..." ; \
-	  make ; \
-	  echo "Installing netCDF..." ; \
-	  make install ; \
-	  cd .. ; \
-	  if [ -d lib64 ] ; then \
-	    ln -s lib64 lib ; \
-	  fi ; \
-	fi ;
 	@if [ "$(EPIC_CFLAG)" = "-g" ] ; then \
 	  export CFLAGS="-g" ; \
 	  export LDFLAGS="-g" ; \
@@ -177,8 +162,7 @@ distclean:
 	make clear ; \
 	cd $(EPIC_PATH) ; \
 	rm -f *BAK *bak *~ *% *.log ._*; \
-	cd $(EPIC_PATH)/tmp ; \
-	rm -f *; \
+	cd $(EPIC_PATH)/tmp && rm -f *; \
 	cd $(EPIC_PATH)/help ; \
 	rm -f *BAK *bak *~ *% *.log ._*; \
 	cd $(EPIC_PATH)/tools/idl ; \
@@ -199,10 +183,8 @@ distclean:
 	rm -f core *o *BAK *bak *~ *% *.log ._*; \
 	cd $(EPIC_PATH)/src/chemistry ; \
 	rm -f core *o *BAK *bak *~ *% *.log ._*; \
-	cd $(EPIC_PATH)/bin ; \
-	rm -f * ; \
-	cd $(EPIC_PATH)/data ; \
-	rm -f ._* ;
+	cd $(EPIC_PATH)/bin && rm -f * ; \
+	cd $(EPIC_PATH)/data && rm -f ._* ;
 
 clear: distclean
 
