@@ -200,7 +200,7 @@
 
 #if defined(EPIC_MPI)
   /* Defined in mpispec_init(): */
-  MPI_Datatype EPIC_MPI_COMPLEX;
+  extern MPI_Datatype EPIC_MPI_COMPLEX;
 #endif
  
 /*
@@ -347,7 +347,7 @@
 /* 
  * Time-index pointers: 
  */      
-int 
+extern int 
   IT_ZERO,IT_MINUS1,IT_MINUS2;
 
 /*

@@ -101,12 +101,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <epic_funcs_util.h>
-
-/*
- * Global declarations.
- */
-char
-  Message[256];
+#include <epic.h>
 
 /*
  * The following macro is useful to insert into code while trying to corral a problem.

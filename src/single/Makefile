@@ -166,7 +166,6 @@ DEFINES = -DEPIC_SINGLE \
 
 INCL = -I. \
        -I/usr/include \
-       -I$(EPIC_PATH)/netcdf/include \
        -I$(EPIC_PATH)/include
 
 C_FLAGS = $(CFLAGS) $(INCL) $(DEFINES) 
@@ -176,8 +175,7 @@ LINKER = $(EPIC_CC)
 
 LD_FLAGS = $(LDFLAGS) $(XLDFLAGS)
 
-LIB_PATH = -L$(EPIC_PATH)/netcdf/lib \
-           -L$(EPIC_PATH)/src/rt/cdisort \
+LIB_PATH = -L$(EPIC_PATH)/src/rt/cdisort \
            -L$(EPIC_PATH)/lib
 
 LIB_LIST = -lnetcdf \

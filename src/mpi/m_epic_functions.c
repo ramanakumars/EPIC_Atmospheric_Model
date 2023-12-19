@@ -24,6 +24,9 @@
 
 #include <epic.h>
 
+mpispec para;
+MPI_Datatype EPIC_MPI_COMPLEX;
+
 /*====================== mpispec_init() ======================================*/ 
 
 /*

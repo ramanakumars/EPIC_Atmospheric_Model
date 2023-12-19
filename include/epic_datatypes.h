@@ -772,7 +772,7 @@ typedef struct {
     comm_ijk,
     comm_ij;
 } mpispec;
-mpispec para;
+extern mpispec para;
 #endif
 
 /*

@@ -29,8 +29,7 @@
 
 CC         = mpicc
 LINKER     = mpicc
-LIB_PATH   = -L$(EPIC_PATH)/netcdf/lib \
-             -L$(EPIC_PATH)/src/rt/cdisort \
+LIB_PATH   = -L$(EPIC_PATH)/src/rt/cdisort \
              -L$(EPIC_PATH)/lib
 LIB_LIST   = -lnetcdf -lmpg -lcdisort -lm 
 
@@ -41,8 +40,7 @@ HFILES = $(EPIC_PATH)/include/epic.h \
          $(EPIC_PATH)/include/rt_heating.h
 
 
-INCLUDE_DIR = -I$(EPIC_PATH)/include \
-              -I$(EPIC_PATH)/netcdf/include
+INCLUDE_DIR = -I$(EPIC_PATH)/include
 	      
 # EPIC_MPI indicates that the computer is using MPI:
 

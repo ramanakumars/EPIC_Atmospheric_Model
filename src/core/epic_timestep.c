@@ -38,6 +38,8 @@
 #include <epic.h>
 #include <epic_pv_schemes.h>
 
+int IT_ZERO, IT_MINUS1, IT_MINUS2;
+
 /*
  * Local function prototypes.
  */
