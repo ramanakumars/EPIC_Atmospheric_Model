@@ -2742,6 +2742,19 @@ void init_species(planetspec        *planet,
             break;
           }
         break;
+        case H_2O_INDEX:
+          switch (planet->index) {
+            case JUPITER_INDEX:
+            case SATURN_INDEX:
+              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+            break;
+            default:
+              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+            break;
+          }
+        break;
         case CH_4_INDEX:
           switch (planet->index) {
             case JUPITER_INDEX:
