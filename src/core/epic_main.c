@@ -159,6 +159,7 @@ int main(int   argc,
   grid.itrun             = INT_MAX;
 
   var.extract_time_index = 0;
+  var.extract_num = 0;
 
   grid.extract_append[0] = '\0';
   if (argc == 1) {

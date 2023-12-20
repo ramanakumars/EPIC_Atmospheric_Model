@@ -674,7 +674,7 @@ typedef struct {
     start_time,
     model_time;
   size_t
-    extract_time_index;
+    extract_num, extract_time_index;
   wind_variable
     u,
     v;

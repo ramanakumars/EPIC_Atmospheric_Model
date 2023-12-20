@@ -83,6 +83,8 @@ void timestep(planetspec  *planet,
     nbytes_3d;
   static int
     initialized = FALSE;
+  char
+    filename[100];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -156,13 +158,27 @@ void timestep(planetspec  *planet,
          * The counter var.extract_time_index is incremented
          * after each use here.
          */
+        // if (grid.extract_append[0] != '\0') {
+        //   if (grid.itime > 0) {
+        //     var_write(planet,grid.extract_append,EXTRACT_DATA,var.extract_time_index++,0);
+        //   }
+        // }
+        // else {
+        //   var_write(planet,"extract.nc",EXTRACT_DATA,var.extract_time_index++,0);
+        // }
+        //
         if (grid.extract_append[0] != '\0') {
           if (grid.itime > 0) {
-            var_write(planet,grid.extract_append,EXTRACT_DATA,var.extract_time_index++,0);
+            // var_write(planet,grid.extract_append,EXTRACT_DATA,var.extract_time_index++,0);
+            sprintf(filename,"extract%ld.nc",100 + var.extract_num++);
+            var_write(planet,filename,EXTRACT_HEADER_DATA,var.extract_time_index,0);
+            var_write(planet,filename,EXTRACT_DATA,var.extract_time_index,0);
           }
-        }
-        else {
-          var_write(planet,"extract.nc",EXTRACT_DATA,var.extract_time_index++,0);
+        } else {
+          // var_write(planet,"extract.nc",EXTRACT_DATA,var.extract_time_index++,0);
+          sprintf(filename,"extract%ld.nc",100 + var.extract_num++);
+          var_write(planet,filename,EXTRACT_HEADER_DATA,var.extract_time_index,0);
+          var_write(planet,filename,EXTRACT_DATA,var.extract_time_index,0);     
         }
       }
       /*
