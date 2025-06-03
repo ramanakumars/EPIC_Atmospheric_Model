@@ -58,6 +58,9 @@
   -append extract.nc     Specifies that extracts should be appended to an
                          existing file of the given name, rather than starting
                          a new extract file.
+
+  -progress n            Prints a progress message every n timesteps showing
+                         the current timestep
               
 
  Example 
