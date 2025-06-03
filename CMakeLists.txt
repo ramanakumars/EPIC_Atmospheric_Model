@@ -1,11 +1,12 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.10)
 cmake_policy(SET CMP0060 NEW)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-project(epic VERSION 5.23)
+project(epic VERSION 5.30)
 
-set(ENV{EPIC_PRECISION} 8)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DEPIC_PRECISION=$ENV{EPIC_PRECISION} -DEPIC_PATH=\\\"$ENV{EPIC_PATH}\\\"")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DEPIC_PATH=\\\"$ENV{EPIC_PATH}\\\" -W")
+Message("CMAKE_C_FLAGS: ")
+Message(${CMAKE_C_FLAGS})
 
 file(GLOB_RECURSE SRC_FILES 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.c 
@@ -55,10 +56,10 @@ if(NOT NETCDF_LIB)
     add_dependencies(initial netCDF)
 
     SET(INCLUDES ${INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/include)
-    target_link_libraries(epic ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib/libnetcdf.so)
-    target_link_libraries(mpi_epic ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib/libnetcdf.so)
-    target_link_libraries(initial ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib/libnetcdf.so)
-    target_link_libraries(change ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib/libnetcdf.so)
+    target_link_libraries(epic ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
+    target_link_libraries(mpi_epic ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
+    target_link_libraries(initial ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
+    target_link_libraries(change ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
 else()
     SET(LIBS ${LIBS} netcdf)
 endif()

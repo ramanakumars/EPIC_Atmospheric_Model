@@ -6903,7 +6903,7 @@ double galileo_u(double pressure, double lat)
 #if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(m_dat,"%lf %le",latdat+j,mdat+j);
 #else
-        fscanf(if_dat,"%f %e",latdat+j,ifdat+j);
+        fscanf(m_dat,"%f %e",latdat+j,mdat+j);
 #endif
 
       }
