@@ -1,0 +1,935 @@
+cdisort.c:                     When only fluxes are calculated (ds->flag.onlyfl is TRUE), or there is no beam source (FBEAM=0.0), or there
+cdisort.c:   U0U(iu,lu)........If ds->flag.onlyfl = FALSE, azimuthally-averaged intensity at user angles and user levels
+cdisort.c:                     If ds->flag.onlyfl = TRUE, azimuthally-averaged intensity at computational
+cdisort.c:    ipvt[ds->nstr*ds->nlyr],
+cdisort.c:    layru[ds->ntau];
+cdisort.c:  if (!ds->flag.usrtau) {
+cdisort.c:    ds->ntau = ds->nlyr+1;
+cdisort.c:  if ( (!ds->flag.usrang || ds->flag.onlyfl)  && (ds->flag.ibcnd != SPECIAL_BC)) {
+cdisort.c:    ds->numu = ds->nstr;
+cdisort.c:  if (ds->flag.usrang && ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:    ds->numu *= 2;
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:    for (lc=1; lc<=ds->nlyr; lc++)
+cdisort.c:      if ( PMOM(ds->nstr,lc) != 0.0 )
+cdisort.c:  corint = ds->flag.intensity_correction;
+cdisort.c:  if (ds->flag.onlyfl || ds->bc.fbeam == 0. || !scat_yes || !deltam) 
+cdisort.c:  tauc = c_dbl_vector(0,ds->nlyr,"tauc");
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:  if (ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:    array    = c_dbl_vector(0,ds->nstr*ds->nstr-1,"array");
+cdisort.c:    b        = c_dbl_vector(0,ds->nstr*ds->nlyr-1,"b");
+cdisort.c:    bdr      = c_dbl_vector(0,((ds->nstr/2)+1)*(ds->nstr/2)-1,"bdr");
+cdisort.c:    cband    = c_dbl_vector(0,ds->nstr*ds->nlyr*(9*(ds->nstr/2)-2)-1,"cband");
+cdisort.c:    ch       = c_dbl_vector(0,ds->nlyr-1,"ch");
+cdisort.c:    chtau    = c_dbl_vector(0,(2*ds->nlyr+1)-1,"chtau");
+cdisort.c:    cc       = c_dbl_vector(0,ds->nstr*ds->nstr-1,"cc");
+cdisort.c:    cmu      = c_dbl_vector(0,ds->nstr-1,"cmu");
+cdisort.c:    cwt      = c_dbl_vector(0,ds->nstr-1,"cwt");
+cdisort.c:    dtaucpr  = c_dbl_vector(0,ds->nlyr-1,"dtaucpr");
+cdisort.c:    eval     = c_dbl_vector(0,(ds->nstr/2)-1,"eval");
+cdisort.c:    evecc    = c_dbl_vector(0,ds->nstr*ds->nstr-1,"evecc");
+cdisort.c:    expbea   = c_dbl_vector(0,ds->nlyr,"expbea");
+cdisort.c:    flyr     = c_dbl_vector(0,ds->nlyr-1,"flyr");
+cdisort.c:    gc       = c_dbl_vector(0,ds->nlyr*ds->nstr*ds->nstr-1,"gc");
+cdisort.c:    gl       = c_dbl_vector(0,ds->nlyr*(ds->nstr+1),"gl");
+cdisort.c:    gu       = c_dbl_vector(0,ds->nlyr*ds->nstr*ds->numu-1,"gu");
+cdisort.c:    kk       = c_dbl_vector(0,ds->nlyr*ds->nstr-1,"kk");
+cdisort.c:    ll       = c_dbl_vector(0,ds->nlyr*ds->nstr-1,"ll");
+cdisort.c:    oprim    = c_dbl_vector(0,ds->nlyr-1,"oprim");
+cdisort.c:    taucpr   = c_dbl_vector(0,ds->nlyr,"taucpr");
+cdisort.c:    utaupr   = c_dbl_vector(0,ds->ntau-1,"utaupr");
+cdisort.c:    wk       = c_dbl_vector(0,ds->nstr-1,"wk");
+cdisort.c:    ylmc     = c_dbl_vector(0,ds->nstr*(ds->nstr+1)-1,"ylmc");
+cdisort.c:    ylmu     = c_dbl_vector(0,(ds->numu)*(ds->nstr+1)-1,"ylmu");
+cdisort.c:    z        = c_dbl_vector(0,ds->nstr*ds->nlyr-1,"z");
+cdisort.c:    ab       = (disort_pair *)calloc((ds->nstr/2)*(ds->nstr/2),sizeof(disort_pair));
+cdisort.c:    if (!ds->flag.usrtau) {
+cdisort.c:      memset(ds->utau,0,ds->ntau*sizeof(double));
+cdisort.c:    if (!ds->flag.usrang || ds->flag.onlyfl) {
+cdisort.c:      memset(ds->umu,0,(ds->numu+1)*sizeof(double));
+cdisort.c:    memset(out->rad,   0,ds->ntau*sizeof(disort_radiant));
+cdisort.c:    memset(out->albmed,0,ds->numu*sizeof(double));
+cdisort.c:    memset(out->trnmed,0,ds->numu*sizeof(double));
+cdisort.c:    if (ds->flag.onlyfl == FALSE) {
+cdisort.c:      memset(out->uu,0,ds->numu*ds->ntau*ds->nphi*sizeof(double));
+cdisort.c:    if(ds->flag.prnt[0]) {
+cdisort.c:  array   = c_dbl_vector(0,ds->nstr*ds->nstr-1,"array");
+cdisort.c:  b       = c_dbl_vector(0,ds->nstr*ds->nlyr-1,"b");
+cdisort.c:  bdr     = c_dbl_vector(0,((ds->nstr/2)+1)*(ds->nstr/2)-1,"bdr");
+cdisort.c:  bem     = c_dbl_vector(0,(ds->nstr/2)-1,"bem");
+cdisort.c:  cband   = c_dbl_vector(0,ds->nstr*ds->nlyr*(9*(ds->nstr/2)-2)-1,"cband");
+cdisort.c:  cc      = c_dbl_vector(0,ds->nstr*ds->nstr-1,"cc");
+cdisort.c:  ch      = c_dbl_vector(0,ds->nlyr-1,"ch");
+cdisort.c:  chtau   = c_dbl_vector(0,(2*ds->nlyr+1)-1,"chtau");
+cdisort.c:  cmu     = c_dbl_vector(0,ds->nstr-1,"cmu");
+cdisort.c:  cwt     = c_dbl_vector(0,ds->nstr-1,"cwt");
+cdisort.c:  dtaucpr = c_dbl_vector(0,ds->nlyr-1,"dtaucpr");
+cdisort.c:  emu     = c_dbl_vector(0,ds->numu-1,"emu");
+cdisort.c:  eval    = c_dbl_vector(0,(ds->nstr/2)-1,"eval");
+cdisort.c:  evecc   = c_dbl_vector(0,ds->nstr*ds->nstr-1,"evecc");
+cdisort.c:  expbea  = c_dbl_vector(0,ds->nlyr,"expbea");
+cdisort.c:  flyr    = c_dbl_vector(0,ds->nlyr,"flyr");    // We need at least one element
+cdisort.c:  gc      = c_dbl_vector(0,ds->nlyr*ds->nstr*ds->nstr-1,"gc");
+cdisort.c:  gl      = c_dbl_vector(0,ds->nlyr*(ds->nstr+1),"gl");
+cdisort.c:  gu      = c_dbl_vector(0,ds->nlyr*ds->nstr*ds->numu-1,"gu");
+cdisort.c:  kk      = c_dbl_vector(0,ds->nlyr*ds->nstr-1,"kk");
+cdisort.c:  ll      = c_dbl_vector(0,ds->nlyr*ds->nstr-1,"ll");
+cdisort.c:  oprim   = c_dbl_vector(0,ds->nlyr-1,"oprim");
+cdisort.c:  phasa   = c_dbl_vector(0,ds->nlyr-1,"phasa");
+cdisort.c:  phast   = c_dbl_vector(0,ds->nlyr-1,"phast");
+cdisort.c:  phasm   = c_dbl_vector(0,ds->nlyr-1,"phasm");
+cdisort.c:  if (ds->nphi > 0) {
+cdisort.c:    phirad = c_dbl_vector(0,ds->nphi-1,"phirad");
+cdisort.c:  pkag   = c_dbl_vector(0,ds->nlyr,"pkag");
+cdisort.c:  rmu    = c_dbl_vector(0,((ds->nstr/2)+1)*ds->numu-1,"rmu");
+cdisort.c:  taucpr = c_dbl_vector(0,ds->nlyr,"taucpr");
+cdisort.c:  u0c    = c_dbl_vector(0,ds->ntau*ds->nstr-1,"u0c");
+cdisort.c:  utaupr = c_dbl_vector(0,ds->ntau-1,"utaupr");
+cdisort.c:  uum    = c_dbl_vector(0,ds->ntau*ds->numu-1,"uum");
+cdisort.c:  wk     = c_dbl_vector(0,ds->nstr-1,"wk");
+cdisort.c:  xba    = c_dbl_vector(0,ds->nlyr,"xba");
+cdisort.c:  ylm0   = c_dbl_vector(0,ds->nstr,"ylm0");
+cdisort.c:  ylmc   = c_dbl_vector(0,ds->nstr*(ds->nstr+1)-1,"ylmc");
+cdisort.c:  ylmu   = c_dbl_vector(0,ds->numu*(ds->nstr+1)-1,"ylmu");
+cdisort.c:  z      = c_dbl_vector(0,ds->nstr*ds->nlyr-1,"z");
+cdisort.c:  zbeam  = c_dbl_vector(0,ds->nlyr*ds->numu-1,"zbeam");
+cdisort.c:  zbeama = c_dbl_vector(0,ds->nlyr,"zbeama");
+cdisort.c:  zj     = c_dbl_vector(0,ds->nstr-1,"zj");
+cdisort.c:  zjg    = c_dbl_vector(0,ds->nstr-1,"zjg");
+cdisort.c:  zju    = c_dbl_vector(0,ds->numu,"zju");
+cdisort.c:  zgu    = c_dbl_vector(0,ds->nlyr*ds->numu-1,"zgu");
+cdisort.c:  zz     = c_dbl_vector(0,ds->nlyr*ds->nstr-1,"zz");
+cdisort.c:  zzg    = c_dbl_vector(0,ds->nlyr*ds->nstr-1,"zzg");
+cdisort.c:  fl     = (disort_pair *)calloc(ds->ntau,sizeof(disort_pair));                  if (!fl)      c_errmsg("disort alloc error for fl", DS_ERROR);
+cdisort.c:  plk    = (disort_pair *)calloc(ds->nlyr*ds->nstr,sizeof(disort_pair));         if (!plk)     c_errmsg("disort alloc error for plk",DS_ERROR);
+cdisort.c:  ab     = (disort_pair *)calloc((ds->nstr/2)*(ds->nstr/2),sizeof(disort_pair)); if (!ab)      c_errmsg("disort alloc error for ab", DS_ERROR);
+cdisort.c:  xr     = (disort_pair *)calloc(ds->nlyr,sizeof(disort_pair));                  if (!xr)      c_errmsg("disort alloc error for xr", DS_ERROR);
+cdisort.c:  psi    = (disort_pair *)calloc(ds->nstr,sizeof(disort_pair));                  if (!psi)     c_errmsg("disort alloc error for psi",DS_ERROR);
+cdisort.c:  xb     = (disort_pair *)calloc(ds->nlyr*ds->nstr,sizeof(disort_pair));         if (!xb)      c_errmsg("disort alloc error for xb",DS_ERROR);
+cdisort.c:  zbs    = (disort_pair *)calloc(ds->nstr,sizeof(disort_pair));                  if (!zbs)     c_errmsg("disort alloc error for zbs",DS_ERROR);
+cdisort.c:  zbeamsp= (disort_pair *)calloc(ds->nlyr*ds->nstr,sizeof(disort_pair));         if (!zbeamsp) c_errmsg("disort alloc error for zbeamsp",DS_ERROR);
+cdisort.c:  zee    = (disort_pair *)calloc(ds->nstr,sizeof(disort_pair));                  if (!zee)     c_errmsg("disort alloc error for zee",DS_ERROR);
+cdisort.c:  zu     = (disort_pair *)calloc(ds->nlyr*ds->numu,sizeof(disort_pair));         if (!zu)      c_errmsg("disort alloc error for zu", DS_ERROR);
+cdisort.c:  zbu    = (disort_triplet *)calloc(ds->nlyr*ds->numu,sizeof(disort_triplet));   if (!zbu)     c_errmsg("disort alloc error for zbu", DS_ERROR);
+cdisort.c:  if (!ds->flag.usrtau) {
+cdisort.c:    memset(ds->utau,0,ds->ntau*sizeof(double));
+cdisort.c:  if (!ds->flag.usrang || ds->flag.onlyfl) {
+cdisort.c:    memset(ds->umu,0,(ds->numu)*sizeof(double));
+cdisort.c:  memset(out->rad,0,ds->ntau*sizeof(disort_radiant));
+cdisort.c:  if (ds->flag.onlyfl == FALSE) {
+cdisort.c:    memset(out->uu,0,ds->numu*ds->ntau*ds->nphi*sizeof(double));
+cdisort.c:  if(ds->flag.prnt[0]) {
+cdisort.c:  if (!ds->flag.planck) {
+cdisort.c:    tplanck = c_planck_func1(ds->wvnmlo,ds->wvnmhi,ds->bc.ttemp)*ds->bc.temis;
+cdisort.c:    bplanck = c_planck_func1(ds->wvnmlo,ds->wvnmhi,ds->bc.btemp);
+cdisort.c:    for (lev = 0; lev <= ds->nlyr; lev++) {
+cdisort.c:      PKAG(lev) = c_planck_func1(ds->wvnmlo,ds->wvnmhi,TEMPER(lev));
+cdisort.c:  naz   = ds->nstr-1;
+cdisort.c:  if (ds->bc.fbeam == 0.                         || 
+cdisort.c:      fabs(1.-ds->bc.umu0) < 1.e-5               || 
+cdisort.c:      ds->flag.onlyfl                            || 
+cdisort.c:      (ds->numu == 1 && fabs(1.-UMU(1)) < 1.e-5) || 
+cdisort.c:      (ds->numu == 1 && fabs(1.+UMU(1)) < 1.e-5) || 
+cdisort.c:      (ds->numu == 2 && fabs(1.+UMU(1)) < 1.e-5 && fabs(1.-UMU(2)) < 1.e-5)) {
+cdisort.c:    if (ds->bc.fbeam > 0.) {
+cdisort.c:      angcos = -ds->bc.umu0;
+cdisort.c:      c_legendre_poly(ncos,mazim,ds->nstr,ds->nstr-1,&angcos,ylm0);
+cdisort.c:    if (!ds->flag.onlyfl && ds->flag.usrang) {
+cdisort.c:      c_legendre_poly(ds->numu,mazim,ds->nstr,ds->nstr-1,ds->umu,ylmu);
+cdisort.c:    c_legendre_poly(nn,mazim,ds->nstr,ds->nstr-1,cmu,ylmc);
+cdisort.c:    for (l = mazim; l <= ds->nstr-1; l++) {
+cdisort.c:      for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:      if (ds->bc.fbeam > 0.) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:	  c_set_coefficients_beam_source(ds,ch,chtau,cmu,delm0,ds->bc.fbeam,
+cdisort.c:					 gl,lc,mazim,ds->nstr,
+cdisort.c:	  if ( ds->flag.usrang == TRUE  ) {
+cdisort.c:	    c_interp_coefficients_beam_source(ds,chtau,delm0,ds->bc.fbeam,
+cdisort.c:					      gl,lc,mazim,ds->nstr,
+cdisort.c:					      ds->numu,taucpr,zbu,
+cdisort.c:      if (ds->flag.general_source) {
+cdisort.c:      if (ds->flag.planck && mazim == 0) {
+cdisort.c:      if (!ds->flag.onlyfl && ds->flag.usrang) {
+cdisort.c:    if (ds->flag.onlyfl) {
+cdisort.c:      for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:        for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:    memset(uum,0,ds->numu*ds->ntau*sizeof(double));
+cdisort.c:    if (ds->flag.usrang) {
+cdisort.c:      for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:        for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:          for (j = 1; j <= ds->nphi; j++) {
+cdisort.c:      if ( ds->flag.output_uum)
+cdisort.c:	for (lu = 1; lu <= ds->ntau; lu++) 
+cdisort.c:	  for (iu = 1; iu <= ds->numu; iu++)
+cdisort.c:        memset(phirad,0,ds->nphi*sizeof(double));
+cdisort.c:        for (j = 1; j <= ds->nphi; j++) {
+cdisort.c:          PHIRAD(j) = (PHI(j)-ds->bc.phi0)*DEG;
+cdisort.c:      for (j = 1; j <= ds->nphi; j++) {
+cdisort.c:        for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:          for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      if ( ds->flag.output_uum)
+cdisort.c:	for (lu = 1; lu <= ds->ntau; lu++) 
+cdisort.c:	  for (iu = 1; iu <= ds->numu; iu++) 
+cdisort.c:      if(azerr <= ds->accur) {
+cdisort.c:  for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:    lu = ds->ntau;
+cdisort.c:    if (!ds->flag.old_intensity_correction && self_tested == 1) {
+cdisort.c:      if (ds->flag.quiet==VERBOSE)
+cdisort.c:      if (ds->flag.quiet==VERBOSE) 
+cdisort.c:  for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:    lu = ds->ntau;
+cdisort.c:  if (ds->flag.prnt[2] && !ds->flag.onlyfl) {
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:    for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:      for (jq = nn+1; jq <=ds->nstr; jq++) {
+cdisort.c:      if (ds->bc.fbeam > 0.) {
+cdisort.c:        UUM(iq,lu) = zint+ZZ(iq,lyu)*exp(-UTAUPR(lu)/ds->bc.umu0);
+cdisort.c:      if (ds->flag.planck && mazim == 0) {
+cdisort.c:  if (ds->flag.prnt[1]) {
+cdisort.c:  memset(u0c,0,ds->ntau*ds->nstr*sizeof(double));
+cdisort.c:  memset(fl,0,ds->ntau*sizeof(disort_pair));
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:      if (ds->flag.prnt[1]) {
+cdisort.c:    if (ds->bc.fbeam > 0.) {
+cdisort.c:      if ( ds->flag.spher == TRUE ) {
+cdisort.c:	RFLDIR( lu ) = fabs(ds->bc.umu0)*ds->bc.fbeam*
+cdisort.c:	fact       = exp(-UTAUPR(lu)/ds->bc.umu0);
+cdisort.c:	RFLDIR(lu) = ds->bc.umu0*ds->bc.fbeam*exp(-UTAU(lu)/ds->bc.umu0);
+cdisort.c:      dirint     = ds->bc.fbeam*fact;
+cdisort.c:      FLDIR(lu)  = ds->bc.umu0*ds->bc.fbeam*fact;
+cdisort.c:      for (jq = nn+1; jq <= ds->nstr; jq++) {
+cdisort.c:      if (ds->bc.fbeam > 0. ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:      if ( ds->flag.general_source == TRUE ) {
+cdisort.c:    for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:      for (jq = nn+1; jq <= ds->nstr; jq++) {
+cdisort.c:      if (ds->bc.fbeam > 0.) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:      if ( ds->flag.general_source == TRUE ) {
+cdisort.c:    if (ds->flag.prnt[1]) {
+cdisort.c:    for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:                 iu=1,ds->numu; lu=1,ds->ntau; j=1,ds->nphi
+cdisort.c:  for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      theta0 = acos(-ds->bc.umu0)/DEG;
+cdisort.c:    for (jp = 1; jp <= ds->nphi; jp++) {
+cdisort.c:      ctheta = -ds->bc.umu0*UMU(iu)+sqrt((1.-SQR(ds->bc.umu0))*(1.-SQR(UMU(iu))))*cos(PHIRAD(jp));
+cdisort.c:      for (k = 1; k <= ds->nmom; k++) {
+cdisort.c:        if (k <= ds->nstr-1) {
+cdisort.c:      for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:          ussndm        = c_single_scat(dither,LAYRU(lu),ncut,phast,ds->ssalb,taucpr,UMU(iu),ds->bc.umu0,UTAUPR(lu),ds->bc.fbeam);
+cdisort.c:          ussp          = c_single_scat(dither,LAYRU(lu),ncut,phasm,oprim,    taucpr,UMU(iu),ds->bc.umu0,UTAUPR(lu),ds->bc.fbeam);
+cdisort.c:        for (lu = ltau; lu <= ds->ntau; lu++) {
+cdisort.c:  if (wbar <= tiny || fbar <= tiny || stau <= tiny || ds->bc.fbeam <= tiny) {
+cdisort.c:  for (k = 1; k <= ds->nstr-1; k++) {
+cdisort.c:  for (k = ds->nstr; k <= ds->nmom; k++) {
+cdisort.c:  umu0p = ds->bc.umu0/(1.-fbar*wbar);
+cdisort.c:  return ds->bc.fbeam/(4.*M_PI)*SQR(fbar*wbar)/(1.-fbar*wbar)*pspike*c_xi_func(-UMU(iu),umu0p,UTAU(lu));
+cdisort.c:                 iu=1,ds->numu; lu=1,ds->ntau; j=1,ds->nphi
+cdisort.c:                     (ds->phase) is defined
+cdisort.c:  int nphase=ds->nphase;
+cdisort.c:  for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      theta0 = acos(-ds->bc.umu0)/DEG;
+cdisort.c:    mu_eq  = c_dbl_vector(0,nf*ds->ntau-1,"mu_eq");
+cdisort.c:    norm_phas = c_dbl_vector(0,ds->ntau-1,"norm_phas");
+cdisort.c:    neg_phas  = c_int_vector(0,nf*ds->ntau-1,"neg_phas");
+cdisort.c:    phas2 = c_dbl_vector(0,ds->nphase*ds->ntau-1,"phas2");
+cdisort.c:    phasr = c_dbl_vector(0,ds->nlyr-1,"phasr");
+cdisort.c:    for (it=1; it<=ds->nphase; it++) {
+cdisort.c:      ctheta = ds->MUP(it);
+cdisort.c:      for (lc=1; lc<=ds->nlyr; lc++)
+cdisort.c:      for (k=1; k<=ds->nstr-1; k++) {
+cdisort.c:	for (lc=1; lc<=ds->nlyr; lc++)
+cdisort.c:      for (lu=1; lu<=ds->ntau; lu++) {
+cdisort.c:    for (lu=1; lu<=ds->ntau; lu++) {
+cdisort.c:      if ( fbar <= tiny || ds->bc.fbeam <= tiny )
+cdisort.c:	for (it=1; it<=ds->nphase; it++)
+cdisort.c:	for (it=1; it<=ds->nphase; it++)
+cdisort.c:      for (it=2; it<=ds->nphase; it++)
+cdisort.c:	  ( ds->MUP(it) - ds->MUP(it-1) ) * 0.5 *
+cdisort.c:	for (it=1; it<=ds->nphase; it++)
+cdisort.c:    prep_double_scat_integr (ds->nphase, ds->ntau, nf, ds->mu_phase,
+cdisort.c:  for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      theta0 = acos(-ds->bc.umu0)/DEG;
+cdisort.c:    for (jp = 1; jp <= ds->nphi; jp++) {
+cdisort.c:      ctheta = -ds->bc.umu0*UMU(iu)+sqrt((1.-SQR(ds->bc.umu0))*(1.-SQR(UMU(iu))))*cos(PHIRAD(jp));
+cdisort.c:      it = locate ( ds->mu_phase, ds->nphase, ctheta ) + 1;
+cdisort.c:	  + ( ctheta - ds->MUP(it) ) /
+cdisort.c:	  ( ds->MUP(it+1) - ds->MUP(it) ) *
+cdisort.c:      for (k = 1; k <= ds->nstr-1; k++) {
+cdisort.c:      for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:          ussndm        = c_single_scat(dither,LAYRU(lu),ncut,phast,ds->ssalb,taucpr,UMU(iu),ds->bc.umu0,UTAUPR(lu),ds->bc.fbeam);
+cdisort.c:          ussp          = c_single_scat(dither,LAYRU(lu),ncut,phasm,oprim,    taucpr,UMU(iu),ds->bc.umu0,UTAUPR(lu),ds->bc.fbeam);
+cdisort.c:        for (lu = ltau; lu <= ds->ntau; lu++) {
+cdisort.c:                     (ds->phase) is defined
+cdisort.c:                   (ds->phase) is defined
+cdisort.c:  int nphase=ds->nphase;
+cdisort.c:  if (wbar <= tiny || fbar <= tiny || stau <= tiny || ds->bc.fbeam <= tiny) {
+cdisort.c:  pspike1 = PHAS2(it,lu) + ( ctheta - ds->MUP(it) ) /
+cdisort.c:    ( ds->MUP(it+1) - ds->MUP(it) ) * ( PHAS2(it+1,lu) - PHAS2(it,lu) );
+cdisort.c:  pspike2 = calc_phase_squared (ds->nphase, lu, ctheta, nf,
+cdisort.c:				ds->mu_phase, phas2, mu_eq, neg_phas,
+cdisort.c:  umu0p = ds->bc.umu0/(1.-fbar*wbar);
+cdisort.c:  return ds->bc.fbeam/(4.*M_PI)*SQR(fbar*wbar)/(1.-fbar*wbar)*pspike*c_xi_func(-UMU(iu),umu0p,UTAU(lu));
+cdisort.c:                   (ds->phase) is defined
+cdisort.c:       If ds->flag.usrtau is FALSE
+cdisort.c:       ds->ntau
+cdisort.c:       ds->utau 
+cdisort.c:       If ds->flag.usrang is FALSE
+cdisort.c:       ds->numu
+cdisort.c:       ds->umu
+cdisort.c:       nn          ds->nstr/2
+cdisort.c:  if (!ds->flag.usrtau) {
+cdisort.c:    for (lc = 0;  lc <= ds->ntau-1; lc++) {
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:      for (k = 0; k <= ds->nstr-1; k++) {
+cdisort.c:      f           = PMOM(ds->nstr,lc);
+cdisort.c:      for (k = 0; k <= ds->nstr-1; k++) {
+cdisort.c:  if( (ds->flag.ibcnd == GENERAL_BC && ds->bc.fbeam > 0.) ||
+cdisort.c:      (ds->flag.ibcnd == GENERAL_BC && ds->flag.general_source )) {
+cdisort.c:    zenang    = acos(ds->bc.umu0)/DEG;
+cdisort.c:    if( ds->flag.spher == TRUE && ds->bc.umu0 < 0. ) {
+cdisort.c:      EXPBEA(0) = exp(-c_chapman(1,0.,tauc,ds->nlyr,ds->zd,
+cdisort.c:				 ds->dtauc,zenang,ds->radius));
+cdisort.c:    if ( ds->flag.spher == TRUE ) {
+cdisort.c:        CHTAU(lc  ) = c_chapman(lc, 0.,   taucpr,ds->nlyr,ds->zd,
+cdisort.c:				dtaucpr,zenang,ds->radius);
+cdisort.c:        chtau_tmp   = c_chapman(lc, 0.5,  taucpr,ds->nlyr,ds->zd,
+cdisort.c:				dtaucpr,zenang,ds->radius);
+cdisort.c:        CH(lc)     = ds->bc.umu0;
+cdisort.c:        EXPBEA(lc) = exp(-TAUCPR(lc)/ds->bc.umu0);
+cdisort.c:  if (abstau >= abscut && !ds->flag.planck && ds->flag.ibcnd != SPECIAL_BC && ds->nlyr > 1) {
+cdisort.c:  if(!*lyrcut) *ncut = ds->nlyr;
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:    for (lc = 1; lc < ds->nlyr; lc++) {
+cdisort.c:  *nn = ds->nstr/2;
+cdisort.c:  if (ds->flag.ibcnd == GENERAL_BC && ds->bc.fbeam > 0.) {
+cdisort.c:      if (fabs(ds->bc.umu0-CMU(iq))/fabs(ds->bc.umu0) < 1.e-4) {
+cdisort.c:  if (!ds->flag.usrang || ds->flag.onlyfl) {
+cdisort.c:    for (iu = *nn+1; iu <=ds->nstr; iu++) {
+cdisort.c:  if (ds->flag.usrang && ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:    for (iu = 1; iu <= ds->numu/2; iu++) {
+cdisort.c:      UMU(iu+ds->numu/2) = UMU(iu);
+cdisort.c:    for (iu = 1; iu <= ds->numu/2; iu++) {
+cdisort.c:      UMU(iu) = -UMU((ds->numu/2)+1-iu);
+cdisort.c:    mi     = ds->nstr/2,
+cdisort.c:    nnlyri = ds->nstr*ds->nlyr,
+cdisort.c:    nn     = ds->nstr/2;
+cdisort.c:  nshift = lda-2*ds->nstr+1;
+cdisort.c:      for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:        CBAND(irow+ds->nstr,*ncol) =  GC(jq,iq,lc);
+cdisort.c:    for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:      for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:        CBAND(irow+ds->nstr,*ncol) =  GC(jq,iq,lc)*WK(ds->nstr+1-iq);
+cdisort.c:  for (iq = nn+1; iq <=ds->nstr; iq++) {
+cdisort.c:  nncol = *ncol-ds->nstr;
+cdisort.c:    irow = nshift-jcol+ds->nstr;
+cdisort.c:    for (jq = nn+1; jq <= ds->nstr; jq++) {
+cdisort.c:      if (lyrcut || ( ds->flag.lamber && delm0 == 0. ) ) {
+cdisort.c:  for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:    irow = nshift-jcol+ds->nstr;
+cdisort.c:    expa = WK(ds->nstr+1-iq);
+cdisort.c:    for (jq = nn+1; jq <= ds->nstr; jq++) {
+cdisort.c:      if (lyrcut || (ds->flag.lamber && delm0 == 0.)) {
+cdisort.c:#define ARRAY(iq,jq) array[iq-1+(jq-1)*(ds->nstr/2)]
+cdisort.c:    for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:      for (l = mazim; l <= ds->nstr-1; l++) {
+cdisort.c:  c_asymmetric_matrix(array,evecc,eval,nn,ds->nstr/2,ds->nstr,&ier,wk);
+cdisort.c:  memset(b,0,ds->nstr*ds->nlyr*sizeof(double));
+cdisort.c:  if (mazim > 0 && ( ds->bc.fbeam > 0.  || ds->flag.general_source) ) {
+cdisort.c:    if ( lyrcut == TRUE || ds->flag.lamber == TRUE ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:	if ( ds->flag.general_source == TRUE ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:	if ( ds->flag.general_source == TRUE ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:	if ( ds->flag.general_source == TRUE ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:	  if ( ds->flag.general_source == TRUE ) {
+cdisort.c:        if (ds->bc.fbeam > 0.) {
+cdisort.c:	  if ( ds->flag.spher == TRUE ) {
+cdisort.c:	    B(ncol-nn+iq) += (BDR(iq,0)*ds->bc.umu0*ds->bc.fbeam/
+cdisort.c:	if ( ds->flag.general_source == TRUE ) {
+cdisort.c:      for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:	if ( ds->flag.general_source == TRUE ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:    if (ds->bc.fbeam == 0. && ds->flag.general_source == FALSE ) {
+cdisort.c:        B(iq) = -ZPLK0(nn+1-iq,1)+ds->bc.fisot+tplanck;
+cdisort.c:        for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:      if ( ds->flag.spher == TRUE ) {
+cdisort.c:	  B(iq) = -ZBEAM0(nn+1-iq,1)-ZPLK0(nn+1-iq,1)+ds->bc.fisot+tplanck;
+cdisort.c:	  B(iq) = -ZZ(nn+1-iq,1)-ZPLK0(nn+1-iq,1)+ds->bc.fisot+tplanck;
+cdisort.c:      if ( ds->flag.general_source == TRUE ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:	if ( ds->flag.general_source == TRUE ) {
+cdisort.c:	if ( ds->flag.spher == TRUE ) {
+cdisort.c:	      ( BDR(iq,0)*ds->bc.umu0*ds->bc.fbeam/M_PI) *EXPBEA(ncut)
+cdisort.c:	      +ds->bc.fluor;
+cdisort.c:	      (BDR(iq,0)*ds->bc.umu0*ds->bc.fbeam/M_PI-ZZ(iq+nn,ncut))
+cdisort.c:	      +ds->bc.fluor;
+cdisort.c:      if ( ds->flag.spher == TRUE ) {
+cdisort.c:	  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:	  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:  c_sgbco(cband,(9*(ds->nstr/2)-2),ncol,ncd,ncd,ipvt,&rcond,z);
+cdisort.c:  c_sgbsl(cband,(9*(ds->nstr/2)-2),ncol,ncd,ncd,ipvt,b,0);
+cdisort.c:  memset(cband,0,(9*(ds->nstr/2)-2)*(ds->nstr*ds->nlyr)*sizeof(double));
+cdisort.c:    ipnt = lc*ds->nstr-nn;
+cdisort.c:       nn     :  Order of Double-Gauss quadrature (ds->nstr/2)
+cdisort.c:  memset(bdr,0,(ds->nstr/2)*((ds->nstr/2)+1)*sizeof(double));
+cdisort.c:  memset(bem,0,(ds->nstr/2)*sizeof(double));
+cdisort.c:  if (ds->flag.lamber && mazim == 0) {
+cdisort.c:      BEM(iq) = 1.-ds->bc.albedo;
+cdisort.c:        BDR(iq,jq) = ds->bc.albedo;
+cdisort.c:  else if (!ds->flag.lamber) {
+cdisort.c:	    c_bidir_reflectivity ( ds->wvnmlo, ds->wvnmhi, CMU(iq), CMU(jq),
+cdisort.c:				   M_PI * GMU(k), ds->flag.brdf_type, &ds->brdf, callnum)
+cdisort.c:      if (ds->bc.fbeam > 0.) {
+cdisort.c:	    c_bidir_reflectivity ( ds->wvnmlo, ds->wvnmhi, CMU(iq), ds->bc.umu0,
+cdisort.c:				   M_PI * GMU(k), ds->flag.brdf_type, &ds->brdf, callnum )
+cdisort.c:	      c_bidir_reflectivity ( ds->wvnmlo, ds->wvnmhi, CMU(iq), GMU(k),
+cdisort.c:				     M_PI * GMU(jg), ds->flag.brdf_type, &ds->brdf, callnum );
+cdisort.c:  if(!ds->flag.onlyfl && ds->flag.usrang) {
+cdisort.c:    memset(emu,0,ds->numu*sizeof(double));
+cdisort.c:    memset(rmu,0,ds->numu*((ds->nstr/2)+1)*sizeof(double));
+cdisort.c:    for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:        if(ds->flag.lamber && mazim == 0) {
+cdisort.c:            RMU(iu,iq) = ds->bc.albedo;
+cdisort.c:          EMU(iu) = 1.-ds->bc.albedo;
+cdisort.c:        else if (!ds->flag.lamber) {
+cdisort.c:		c_bidir_reflectivity ( ds->wvnmlo, ds->wvnmhi, UMU(iu), CMU(iq),
+cdisort.c:				       M_PI * GMU(k), ds->flag.brdf_type, &ds->brdf, callnum )
+cdisort.c:          if (ds->bc.fbeam > 0.) {
+cdisort.c:		c_bidir_reflectivity ( ds->wvnmlo, ds->wvnmhi, UMU(iu),
+cdisort.c:				       ds->bc.umu0, M_PI * GMU(k),
+cdisort.c:				       ds->flag.brdf_type, &ds->brdf, callnum )
+cdisort.c:		  c_bidir_reflectivity ( ds->wvnmlo, ds->wvnmhi, UMU(iu), GMU(k),
+cdisort.c:					 M_PI*GMU(jg), ds->flag.brdf_type, &ds->brdf, callnum );
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:    for (l = mazim; l <= ds->nstr-1; l++) {
+cdisort.c:      for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:    for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      for (l = mazim; l <=ds->nstr-1; l++) {
+cdisort.c:        GU(iu,ds->nstr+1-iq,lc) = sum;
+cdisort.c:  if (ds->bc.fbeam > 0.) {
+cdisort.c:    if ( ds->flag.spher == TRUE ) {
+cdisort.c:      for (iq = mazim; iq <= ds->nstr-1; iq++) {
+cdisort.c:	for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:      for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:	for (iq = mazim; iq <= ds->nstr-1; iq++) {
+cdisort.c:      for (iq = mazim; iq <= ds->nstr-1; iq++) {
+cdisort.c:	for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:      fact = (2.-delm0)*ds->bc.fbeam/(4.*M_PI);
+cdisort.c:      for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:	for (iq = mazim; iq <= ds->nstr-1; iq++) {
+cdisort.c:  if (ds->flag.general_source > 0.) {
+cdisort.c:    for (iq = mazim; iq <= ds->nstr-1; iq++) {
+cdisort.c:      for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:    for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      for (iq = mazim; iq <= ds->nstr-1; iq++) {
+cdisort.c:  if (ds->flag.planck && mazim == 0) {
+cdisort.c:    for (iq = mazim; iq <=ds->nstr-1; iq++) {
+cdisort.c:      for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:    for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      for (iq = mazim; iq <= ds->nstr-1; iq++) {
+cdisort.c:#define ARRAY(iq,jq) array[iq-1+(jq-1)*ds->nstr]
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:    for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:    ARRAY(iq,iq) += 1.+CMU(iq)/ds->bc.umu0;
+cdisort.c:    for (k = mazim; k <=ds->nstr-1; k++) {
+cdisort.c:    ZJ(iq) = (2.-delm0)*ds->bc.fbeam*sum/(4.*M_PI);
+cdisort.c:  c_sgeco(array,ds->nstr,ds->nstr,ipvt,&rcond,wk);
+cdisort.c:  c_sgesl(array,ds->nstr,ds->nstr,ipvt,zj,0);
+cdisort.c:#define ARRAY(iq,jq) array[iq-1+(jq-1)*ds->nstr]
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:    for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:  c_sgeco(array,ds->nstr,ds->nstr,ipvt,&rcond,wk);
+cdisort.c:    for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:      for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:    c_sgeco(array,ds->nstr,ds->nstr,ipvt,&rcond,wk);               
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++)  WK(iq) = ZBS1(iq);
+cdisort.c:  c_sgesl( array, ds->nstr, ds->nstr, ipvt, wk, 0 );
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++)  WK(iq) = ZBS0(iq);
+cdisort.c:  c_sgesl( array, ds->nstr, ds->nstr, ipvt, wk, 0 );
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++)  ZBS0(iq) = WK(iq);
+cdisort.c:#define ARRAY(iq,jq) array[iq-1+(jq-1)*ds->nstr]
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:    for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:  c_sgeco(array,ds->nstr,ds->nstr,ipvt,&rcond,wk);
+cdisort.c:  c_sgesl(array,ds->nstr,ds->nstr,ipvt,zjg,0);
+cdisort.c:#define ARRAY(iq,jq) array[iq-1+(jq-1)*ds->nstr]
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:    for (jq = 1; jq <= ds->nstr; jq++) {
+cdisort.c:  c_sgeco(array,ds->nstr,ds->nstr,ipvt,&rcond,wk);
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:  c_sgesl(array,ds->nstr,ds->nstr,ipvt,wk,0);
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:  c_sgesl(array,ds->nstr,ds->nstr,ipvt,wk,0);
+cdisort.c:  for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:    for (iq = 1; iq <= ds->nstr; iq++) {
+cdisort.c:      for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:    if (ds->bc.fbeam > 0.) {
+cdisort.c:      exp0 = exp(-UTAUPR(lu)/ds->bc.umu0);
+cdisort.c:    for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:        if (ds->flag.planck && mazim == 0) {
+cdisort.c:        if (ds->bc.fbeam > 0.) {
+cdisort.c:	  if ( ds->flag.spher == TRUE ) {
+cdisort.c:	    denom = 1.+UMU(iu)/ds->bc.umu0;
+cdisort.c:	      expn = (dtau/ds->bc.umu0)*exp0;
+cdisort.c:	if ( ds->flag.general_source ) {
+cdisort.c:        for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:            expn = sgn*(exp1-exp2*WK(ds->nstr+1-iq))/denom;
+cdisort.c:        if (ds->bc.fbeam > 0.) {
+cdisort.c:	  if ( ds->flag.spher == TRUE ) {
+cdisort.c:	    denom = 1.+UMU(iu)/ds->bc.umu0;
+cdisort.c:	      expn = (dtau1/ds->bc.umu0)*exp0;
+cdisort.c:	if ( ds->flag.general_source ) {
+cdisort.c:        for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:        if (ds->flag.planck && mazim == 0) {
+cdisort.c:        bndint = (ds->bc.fisot+tplanck)*exp(UTAUPR(lu)/UMU(iu));
+cdisort.c:        if (lyrcut || ( ds->flag.lamber && mazim > 0 ) ) {
+cdisort.c:        for (jq = nn+1; jq <= ds->nstr; jq++) {
+cdisort.c:          WK(jq) = exp(-KK(jq,ds->nlyr)*DTAUCPR(ds->nlyr));
+cdisort.c:            dfuint += GC(iq,jq,ds->nlyr)*LL(jq,ds->nlyr);
+cdisort.c:          for (jq= nn+1; jq <= ds->nstr; jq++) {
+cdisort.c:            dfuint += GC(iq,jq,ds->nlyr)*LL(jq,ds->nlyr)*WK(jq);
+cdisort.c:          if (ds->bc.fbeam > 0.) {
+cdisort.c:	    if ( ds->flag.spher == TRUE ) {
+cdisort.c:	      dfuint += exp(-ZBEAMA(ds->nlyr)*TAUCPR(ds->nlyr)) *
+cdisort.c:		(ZBEAM0(iq,ds->nlyr)+ZBEAM1(iq,ds->nlyr)*TAUCPR(ds->nlyr));
+cdisort.c:	      dfuint += ZZ(iq,ds->nlyr)*EXPBEA(ds->nlyr);
+cdisort.c:	  if ( ds->flag.general_source ) {
+cdisort.c:	    dfuint += ZZG(iq,ds->nlyr);
+cdisort.c:          dfuint += delm0*(ZPLK0(iq,ds->nlyr)+ZPLK1(iq,ds->nlyr)*TAUCPR(ds->nlyr));
+cdisort.c:        if (ds->bc.fbeam > 0. || ds->bc.umu0 >0.) {
+cdisort.c:          bnddir = ds->bc.umu0*ds->bc.fbeam/M_PI*RMU(iu,0)*EXPBEA(ds->nlyr);
+cdisort.c:        bndint = (bnddfu+bnddir+delm0*EMU(iu)*bplanck+ds->bc.fluor)*exp((UTAUPR(lu)-TAUCPR(ds->nlyr))/UMU(iu));
+cdisort.c:  if (ds->nstr < 2 || ds->nstr%2 != 0) {
+cdisort.c:  if (ds->nstr == 2) {
+cdisort.c:  if (ds->nlyr < 1) {
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:    if (ds->flag.ibcnd == GENERAL_BC) {
+cdisort.c:      if (ds->flag.planck) {
+cdisort.c:    else if (ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:      ds->flag.planck = FALSE;
+cdisort.c:      c_errmsg("check_inputs---unrecognized ds->flag.ibcnd",DS_ERROR);
+cdisort.c:  if (ds->nmom < 0 || (scat_yes  && ds->nmom < ds->nstr)) {
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:    for (k = 0; k <= ds->nmom; k++) {
+cdisort.c:  if( ds->flag.spher == TRUE ) {
+cdisort.c:    for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:      if (ds->ZD(lc) > ds->ZD(lc-1)) {
+cdisort.c:        inperr     = c_write_bad_var(ds->flag.quiet,"zd");
+cdisort.c:  if (ds->flag.ibcnd == GENERAL_BC) {
+cdisort.c:    if (ds->flag.usrtau) {
+cdisort.c:      if (ds->ntau < 1) {
+cdisort.c:      for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:        if (fabs(UTAU(lu)-TAUC(ds->nlyr)) <= 1.e-6*TAUC(ds->nlyr)) {
+cdisort.c:          UTAU(lu) = TAUC(ds->nlyr);
+cdisort.c:        if(UTAU(lu) < 0. || UTAU(lu) > TAUC(ds->nlyr)) {
+cdisort.c:  if (ds->flag.usrang) {
+cdisort.c:    if (ds->numu < 0) {
+cdisort.c:    if (!ds->flag.onlyfl && ds->numu == 0) {
+cdisort.c:    nu = ds->numu;
+cdisort.c:    if (ds->flag.ibcnd == SPECIAL_BC ) nu = ds->numu/2;
+cdisort.c:      if (ds->flag.ibcnd == SPECIAL_BC && UMU(iu) < 0.) {
+cdisort.c:  if (!ds->flag.onlyfl && ds->flag.ibcnd != SPECIAL_BC) {
+cdisort.c:    if (ds->nphi <= 0) {
+cdisort.c:    for (j=1; j <=ds->nphi; j++) {
+cdisort.c:  if (ds->flag.ibcnd != GENERAL_BC && ds->flag.ibcnd != SPECIAL_BC) {
+cdisort.c:  if (ds->flag.ibcnd == GENERAL_BC) {
+cdisort.c:    if (ds->bc.fbeam < 0.) {
+cdisort.c:    else if (ds->bc.fbeam > 0.) {
+cdisort.c:      if( ds->flag.spher == TRUE ) {
+cdisort.c:      if (ds->bc.umu0 <= umumin || ds->bc.umu0 > 1.) {
+cdisort.c:      if (ds->bc.phi0 < 0. || ds->bc.phi0 > 360.) {
+cdisort.c:    if (ds->bc.fisot < 0.) {
+cdisort.c:    if (ds->flag.lamber) {
+cdisort.c:      if (ds->bc.albedo < 0. || ds->bc.albedo > 1.) {
+cdisort.c:        flxalb = c_dref(ds->wvnmlo, ds->wvnmhi, rmu, ds->flag.brdf_type, &ds->brdf, callnum);
+cdisort.c:    if (ds->bc.albedo < 0. || ds->bc.albedo > 1.) {
+cdisort.c:  if (ds->flag.planck && ds->flag.ibcnd != SPECIAL_BC) {
+cdisort.c:    if (ds->wvnmlo < 0. || ds->wvnmhi <= ds->wvnmlo) {
+cdisort.c:    if (ds->bc.temis < 0. || ds->bc.temis > 1.) {
+cdisort.c:    if (ds->bc.btemp < 0.) {
+cdisort.c:    if (ds->bc.ttemp < 0.) {
+cdisort.c:  if (ds->accur < 0. || ds->accur > 1.e-2) {
+cdisort.c:  if (ds->flag.planck && ds->flag.quiet == VERBOSE) {
+cdisort.c:    for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:  if(!corint && (!ds->flag.onlyfl && ds->bc.fbeam > 0. && scat_yes && deltam)) {
+cdisort.c:  if(ds->numu < 1) {
+cdisort.c:  npass  = 1+(ds->numu-1)/lenfmt;
+cdisort.c:    iumax = IMIN(lenfmt*np,ds->numu);
+cdisort.c:    for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:                 ds->header);
+cdisort.c:  fprintf(stdout,"\n No. streams =%4d     No. computational layers =%4d\n",ds->nstr,ds->nlyr);
+cdisort.c:  if (ds->flag.ibcnd != SPECIAL_BC) {
+cdisort.c:    fprintf(stdout,"%4d User optical depths :",ds->ntau);
+cdisort.c:    for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:  if (!ds->flag.onlyfl) {
+cdisort.c:    fprintf(stdout,"%4d User polar angle cosines :",ds->numu);
+cdisort.c:    for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:  if (!ds->flag.onlyfl && ds->flag.ibcnd != SPECIAL_BC) {
+cdisort.c:    fprintf(stdout,"%4d User azimuthal angles :",ds->nphi);
+cdisort.c:    for (j = 1; j <= ds->nphi; j++) {
+cdisort.c:  if (!ds->flag.planck || ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:  if (ds->flag.spher == TRUE) {
+cdisort.c:  if (ds->flag.general_source == TRUE) {
+cdisort.c:  if (ds->flag.ibcnd == GENERAL_BC) {
+cdisort.c:                   ds->bc.fbeam,ds->bc.umu0,ds->bc.phi0);
+cdisort.c:    fprintf(stdout,"    plus isotropic incident intensity =%11.3e\n",ds->bc.fisot);
+cdisort.c:    if (ds->bc.fluor > 0.0 ) {
+cdisort.c:      fprintf(stdout,"    Bottom isotropic exiting intensity =%11.3e\n",ds->bc.fluor);
+cdisort.c:    if (ds->flag.lamber) {
+cdisort.c:      fprintf(stdout,"    Bottom albedo (Lambertian) =%8.4f\n",ds->bc.albedo);
+cdisort.c:    if(ds->flag.planck) {
+cdisort.c:      fprintf(stdout,"    Thermal emission in wavenumber interval :%14.4f%14.4f\n",ds->wvnmlo,ds->wvnmhi);
+cdisort.c:                     ds->bc.btemp,ds->bc.ttemp,ds->bc.temis);
+cdisort.c:  else if (ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:    fprintf(stdout,"    Bottom albedo (Lambertian) =%8.4f\n",ds->bc.albedo);
+cdisort.c:  if (ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:  else if (ds->flag.onlyfl) {
+cdisort.c:  fprintf(stdout," Relative convergence criterion for azimuth series =%11.2e\n",ds->accur);
+cdisort.c:  if(ds->flag.planck) {
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:    if (ds->flag.planck) {
+cdisort.c:  if (ds->flag.planck) {
+cdisort.c:            TEMPER(ds->nlyr));
+cdisort.c:  if (ds->flag.prnt[4] && scat_yes) {
+cdisort.c:    fprintf(stdout,"\n Number of Phase Function Moments = %5d\n",ds->nmom+1);
+cdisort.c:    for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:        for (k = 0; k <= ds->nmom; k++) {
+cdisort.c:  if (ds->flag.general_source == TRUE) {
+cdisort.c:    for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:      for (iq = 1; iq <= ds->nstr; iq++) {	
+cdisort.c:  if (ds->nphi < 1) {
+cdisort.c:  npass  = 1+(ds->nphi-1)/lenfmt;
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:      jmax = IMIN(lenfmt*np,ds->nphi);
+cdisort.c:      for (iu = 2; iu <= ds->numu; iu++) {
+cdisort.c:      ds->flag.prnt[i] = FALSE;
+cdisort.c:    ds->flag.ibcnd     = GENERAL_BC;
+cdisort.c:    ds->flag.usrang    = TRUE;
+cdisort.c:    ds->flag.usrtau    = TRUE;
+cdisort.c:    ds->flag.lamber    = TRUE;
+cdisort.c:    ds->flag.onlyfl    = FALSE;
+cdisort.c:    ds->flag.planck    = TRUE;
+cdisort.c:    ds->flag.quiet     = QUIET;
+cdisort.c:    ds->flag.spher     = FALSE;
+cdisort.c:    ds->flag.general_source = FALSE;
+cdisort.c:    ds->flag.brdf_type = BRDF_NONE;
+cdisort.c:    ds->flag.intensity_correction     = TRUE;
+cdisort.c:    ds->flag.old_intensity_correction = TRUE;
+cdisort.c:    ds->flag.output_uum=FALSE;
+cdisort.c:    ds->nstr = 4;
+cdisort.c:    ds->nlyr = 1;
+cdisort.c:    ds->nmom = 4;
+cdisort.c:    ds->numu = 1;
+cdisort.c:    ds->ntau = 1;
+cdisort.c:    ds->nphi = 1;
+cdisort.c:    ds->accur  = 1.e-4;
+cdisort.c:    ds->wvnmlo =     0.;
+cdisort.c:    ds->wvnmhi = 50000.;
+cdisort.c:    ds->bc.fbeam  =  M_PI;
+cdisort.c:    ds->bc.umu0   =   .866;
+cdisort.c:    ds->bc.phi0   =   0.;
+cdisort.c:    ds->bc.fisot  =   1.;
+cdisort.c:    ds->bc.fluor  =   0.;
+cdisort.c:    ds->bc.albedo =    .7;
+cdisort.c:    ds->bc.ttemp  = 100.;
+cdisort.c:    ds->bc.btemp  = 300.;
+cdisort.c:    ds->bc.temis  =    .8;
+cdisort.c: ********** ds->flag.ibcnd = SPECIAL_BC routines ******************
+cdisort.c:  ncut            = ds->nlyr;
+cdisort.c:  ds->bc.fisot    = 1.;
+cdisort.c:  ds->bc.fluor    = 0.;
+cdisort.c:  ds->flag.lamber = TRUE;
+cdisort.c:  c_legendre_poly(ds->numu,mazim,ds->nstr,ds->nstr-1,ds->umu,ylmu);
+cdisort.c:  c_legendre_poly(nn,      mazim,ds->nstr,ds->nstr-1,cmu,    ylmc);
+cdisort.c:  for (l = mazim; l <= ds->nstr-1; l++) {
+cdisort.c:    for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:  memset(bdr,0,(ds->nstr/2)*((ds->nstr/2)+1)*sizeof(double));
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:  c_sgbco(cband,(9*(ds->nstr/2)-2),ncol,ncd,ncd,ipvt,&rcond,z);
+cdisort.c:  for (iu = 1; iu <= ds->numu/2; iu++) {
+cdisort.c:    ALBMED(iu) = U0U(iu+ds->numu/2,1);
+cdisort.c:  if (ds->nlyr == 1) {
+cdisort.c:    for (iu = 1; iu <= ds->numu/2; iu++) {
+cdisort.c:      TRNMED(iu) = U0U(ds->numu/2+1-iu,2)+exp(-TAUCPR(ds->nlyr)/UMU(iu+ds->numu/2));
+cdisort.c:    for (iu = 1; iu <= ds->numu/2; iu++) {
+cdisort.c:      TRNMED(iu) = U0U(iu+ds->numu/2,1)+exp(-TAUCPR(ds->nlyr)/UMU(iu+ds->numu/2));
+cdisort.c:  if (ds->bc.albedo > 0.) {
+cdisort.c:    if (ds->nlyr == 1) {
+cdisort.c:    for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:      ALBMED(iu) += ds->bc.albedo/(1.-ds->bc.albedo*sphalb)*sphtrn*TRNMED(iu);
+cdisort.c:      TRNMED(iu) += ds->bc.albedo/(1.-ds->bc.albedo*sphalb)*sphalb*TRNMED(iu);
+cdisort.c:  ds->numu /= 2;
+cdisort.c:  for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:    UMU(iu) = UMU(iu+ds->numu);
+cdisort.c:  if (ds->flag.prnt[3]) {
+cdisort.c:                   -UMU(ds->numu),..., -UMU(1), UMU(1),..., UMU(ds->numu)
+cdisort.c:  UTAUPR(2) = TAUCPR(ds->nlyr);
+cdisort.c:      iumin = ds->numu/2+1;
+cdisort.c:      iumax = ds->numu;
+cdisort.c:      iumax = ds->numu/2;
+cdisort.c:      for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:        for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:            expn = (exp1-exp2*WK(ds->nstr+1-iq))*sgn/denom;
+cdisort.c:  for (iu = 1; iu <= ds->numu; iu++) {
+cdisort.c:  memset(b,0,ds->nstr*ds->nlyr*sizeof(double));
+cdisort.c:      B(i)         = ds->bc.fisot;
+cdisort.c:      B(ncol-nn+i) = ds->bc.fisot;
+cdisort.c:  c_sgbsl(cband,(9*(ds->nstr/2)-2),ncol,ncd,ncd,ipvt,b,0);
+cdisort.c:    ipnt = lc*ds->nstr-nn;
+cdisort.c:  for (iq = nn+1; iq <= ds->nstr; iq++) {
+cdisort.c:    for (jq = nn+1; jq <= ds->nstr; jq++) {
+cdisort.c:      zint += GC(iq,jq,ds->nlyr)*LL(jq,ds->nlyr);
+cdisort.c:    for (jq = nn+1; jq <=ds->nstr; jq++) {
+cdisort.c:      zint += GC(iq,jq,ds->nlyr)*LL(jq,ds->nlyr)*exp(-KK(jq,ds->nlyr)*(TAUCPR(ds->nlyr)-TAUCPR(ds->nlyr-1)));
+cdisort.c: ********** End of ds->flag.ibcnd = SPECIAL_BC routines ***********
+cdisort.c:                      i = 22 : !ds->flag.usrtau && ds->ntau < ds->nlyr+1
+cdisort.c:     ls     :  Runs from 0 to 2*ds->nlyr+1, ls = 1,2,3 refers to top, center and bottom of layer 1, 
+cdisort.c:    ipvt[ds->nstr*ds->nlyr],
+cdisort.c:    layru[ds->ntau];
+cdisort.c:  b       = c_dbl_vector(0,ds->nstr*ds->nlyr-1,"b");
+cdisort.c:  cband   = c_dbl_vector(0,ds->nstr*ds->nlyr*(9*(ds->nstr/2)-2)-1,"cband");
+cdisort.c:  ch      = c_dbl_vector(0,ds->nlyr-1,"ch");
+cdisort.c:  chtau   = c_dbl_vector(0,(2*ds->nlyr+1)-1,"chtau");
+cdisort.c:  dtaucpr = c_dbl_vector(0,ds->nlyr-1,"dtaucpr");
+cdisort.c:  expbea  = c_dbl_vector(0,ds->nlyr,"expbea");
+cdisort.c:  flyr    = c_dbl_vector(0,ds->nlyr-1,"flyr");
+cdisort.c:  ggprim  = c_dbl_vector(0,ds->nlyr-1,"ggprim");
+cdisort.c:  kk      = c_dbl_vector(0,ds->nlyr-1,"kk");
+cdisort.c:  ll      = c_dbl_vector(0,ds->nlyr*ds->nstr-1,"ll");
+cdisort.c:  oprim   = c_dbl_vector(0,ds->nlyr-1,"oprim");
+cdisort.c:  pkag    = c_dbl_vector(0,ds->nlyr,"pkag");
+cdisort.c:  pkagc   = c_dbl_vector(0,ds->nlyr-1,"pkagc");
+cdisort.c:  rr      = c_dbl_vector(0,ds->nlyr-1,"rr");
+cdisort.c:  tauc    = c_dbl_vector(0,ds->nlyr,"tauc");
+cdisort.c:  taucpr  = c_dbl_vector(0,ds->nlyr,"taucpr");
+cdisort.c:  u0c     = c_dbl_vector(0,ds->ntau*ds->nstr-1,"u0c");
+cdisort.c:  utaupr  = c_dbl_vector(0,ds->ntau-1,"utaupr");
+cdisort.c:  fl   = (disort_pair *)calloc(ds->ntau,  sizeof(disort_pair)); if (!fl)   c_errmsg("twostr alloc error for fl",  DS_ERROR);
+cdisort.c:  ts   = (twostr_xyz  *)calloc(ds->nlyr,  sizeof(twostr_xyz )); if (!ts)   c_errmsg("twostr alloc error for ts",  DS_ERROR);
+cdisort.c:  diag = (twostr_diag *)calloc(2*ds->nlyr,sizeof(twostr_diag)); if (!diag) c_errmsg("twostr alloc error for diag",DS_ERROR);
+cdisort.c:  if(ds->flag.prnt[0]) {
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:      if (ds->flag.quiet==VERBOSE) {
+cdisort.c:  if (ds->flag.prnt[0]) {
+cdisort.c:  if (ds->nlyr < 1) {
+cdisort.c:    inperr    = c_write_bad_var(ds->flag.quiet,"nlyr");
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:      inperr     = c_write_bad_var(ds->flag.quiet,"dtauc");
+cdisort.c:      inperr     = c_write_bad_var(ds->flag.quiet,"ssalb");
+cdisort.c:    if (ds->flag.planck) {
+cdisort.c:        inperr     = c_write_bad_var(ds->flag.quiet,"temper");
+cdisort.c:        inperr     = c_write_bad_var(ds->flag.quiet,"temper");
+cdisort.c:      inperr     = c_write_bad_var(ds->flag.quiet,"gg");
+cdisort.c:  if(ds->flag.spher==TRUE) {
+cdisort.c:    for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:      if (ds->ZD(lc) > ds->ZD(lc-1)) {
+cdisort.c:        inperr     = c_write_bad_var(ds->flag.quiet,"zd");
+cdisort.c:  if (ds->flag.usrtau) {
+cdisort.c:    if (ds->ntau < 1) {
+cdisort.c:      inperr    = c_write_bad_var(ds->flag.quiet,"ntau");
+cdisort.c:    for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:      if (fabs(UTAU(lu)-TAUC(ds->nlyr)) <= 1.e-6*TAUC(ds->nlyr)) { /* relative check copied from c_check_inputs() */
+cdisort.c:        UTAU(lu)= TAUC(ds->nlyr);
+cdisort.c:      if (UTAU(lu) < 0. || UTAU(lu) > TAUC(ds->nlyr)) {
+cdisort.c:        inperr      = c_write_bad_var(ds->flag.quiet,"utau");
+cdisort.c:  if (ds->bc.fbeam < 0.) {
+cdisort.c:    inperr     = c_write_bad_var(ds->flag.quiet,"fbeam");
+cdisort.c:  if(ds->flag.spher==TRUE) {
+cdisort.c:  if (ds->bc.fbeam > 0. && (ds->bc.umu0 <= umumin || ds->bc.umu0 > 1.)) {
+cdisort.c:    inperr     = c_write_bad_var(ds->flag.quiet,"umu0");
+cdisort.c:  if (ds->bc.fisot < 0.) {
+cdisort.c:    inperr     = c_write_bad_var(ds->flag.quiet,"fisot");
+cdisort.c:  if (ds->bc.albedo < 0. || ds->bc.albedo > 1.) {
+cdisort.c:    inperr     = c_write_bad_var(ds->flag.quiet,"albedo");
+cdisort.c:  if(ds->flag.planck) {
+cdisort.c:    if (ds->wvnmlo < 0. || ds->wvnmhi < ds->wvnmlo) {
+cdisort.c:      inperr     = c_write_bad_var(ds->flag.quiet,"wvnmlo,hi");
+cdisort.c:    if (ds->bc.temis < 0. || ds->bc.temis > 1.) {
+cdisort.c:      inperr     = c_write_bad_var(ds->flag.quiet,"temis");
+cdisort.c:    if (ds->bc.btemp < 0.) {
+cdisort.c:      inperr     = c_write_bad_var(ds->flag.quiet,"btemp");
+cdisort.c:    if (ds->bc.ttemp < 0.) {
+cdisort.c:      inperr     = c_write_bad_var(ds->flag.quiet,"ttemp");
+cdisort.c:  if (!ds->flag.usrtau && ds->ntau < ds->nlyr+1) {
+cdisort.c:    inperr = c_write_too_small_dim(ds->flag.quiet,"ds.ntau",ds->nlyr+1);
+cdisort.c:  if (ds->bc.fluor < 0.) {
+cdisort.c:    inperr     = c_write_bad_var(ds->flag.quiet,"fluor");
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:    if (ds->flag.planck && fabs(TEMPER(lc)-TEMPER(lc-1)) > 50. && ds->flag.quiet==VERBOSE) {
+cdisort.c:  if (ds->flag.prnt[1]) {
+cdisort.c:  memset(out->rad,0,ds->ntau*sizeof(disort_radiant));
+cdisort.c:  if (ds->flag.planck) {
+cdisort.c:    for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:      if (ds->bc.fbeam > 0.) {
+cdisort.c:        if (ds->bc.umu0 > 0. || ds->flag.spher) {
+cdisort.c:          fact1      = ds->bc.fbeam*exp(-UTAUPR(lu)/CH(lyu));
+cdisort.c:          FLDIR(lu)  = fabs(ds->bc.umu0)*fact1;
+cdisort.c:          RFLDIR(lu) = fabs(ds->bc.umu0)*ds->bc.fbeam*exp(-UTAU(lu)/CH(lyu));
+cdisort.c:    if (ds->flag.prnt[1]) {
+cdisort.c:    if (ds->bc.fbeam > 0.) {
+cdisort.c:      q_1 = ds->bc.fbeam/(4.*M_PI)*OPRIM(lc)*(1.-3.*GGPRIM(lc)*cmu*ds->bc.umu0);
+cdisort.c:      q_2 = ds->bc.fbeam/(4.*M_PI)*OPRIM(lc)*(1.+3.*GGPRIM(lc)*cmu*ds->bc.umu0);
+cdisort.c:      if (ds->bc.umu0 >= 0.) {
+cdisort.c:      if (ds->flag.spher) {
+cdisort.c:        q0a = exp(-TAUCPR(lc-1)/ds->bc.umu0);
+cdisort.c:          q1a = exp(-(TAUCPR(lc-1)+TAUCPR(lc))/(2.*ds->bc.umu0));
+cdisort.c:          q2a = exp(-TAUCPR(lc)/ds->bc.umu0);
+cdisort.c:    if(ds->flag.planck) {
+cdisort.c:                 ds->header);
+cdisort.c:  fprintf(stdout,"\n No. streams = %4d     No. computational layers =%4d\n",ds->nstr,ds->nlyr);
+cdisort.c:  fprintf(stdout,"%4d User optical depths :",ds->ntau);
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:  if (ds->flag.spher) {
+cdisort.c:  if(!ds->flag.planck) {
+cdisort.c:                 ds->bc.fbeam,ds->bc.umu0,ds->bc.fisot);
+cdisort.c:  fprintf(stdout,"    Bottom albedo (lambertian) =%8.4f\n",ds->bc.albedo);
+cdisort.c:  if(ds->flag.planck) {
+cdisort.c:                   ds->wvnmlo,ds->wvnmhi,ds->bc.btemp,ds->bc.ttemp,ds->bc.temis);
+cdisort.c:  if(ds->flag.planck) {
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:    if (ds->flag.planck) {
+cdisort.c:  if(ds->flag.planck) {
+cdisort.c:    fprintf(stdout,"                                                                                     %14.3f\n",TEMPER(ds->nlyr));
+cdisort.c: Output:  ntau,utau  If ds->flag.usrtau = FALSE
+cdisort.c:    ds->nstr  = 2;
+cdisort.c:    *nn       = ds->nstr/2;
+cdisort.c:  if (!ds->flag.usrtau) {
+cdisort.c:    ds->ntau = ds->nlyr+1;
+cdisort.c:    for (lc = 0; lc <= ds->ntau-1; lc++) {
+cdisort.c:  for (lc = 1; lc <= ds->nlyr; lc++) {
+cdisort.c:  if (abstau >= abscut && !ds->flag.planck && ds->nlyr > 1) {
+cdisort.c:    *ncut = ds->nlyr;
+cdisort.c:  if (ds->bc.fbeam > 0.) {
+cdisort.c:    zenang    = acos(ds->bc.umu0)/DEG;
+cdisort.c:    if(ds->flag.spher == TRUE && ds->bc.umu0 < 0.) {
+cdisort.c:      EXPBEA(0) = exp(-c_chapman(1,0.,tauc,ds->nlyr,ds->zd,ds->dtauc,zenang,radius));
+cdisort.c:    if (ds->flag.spher == TRUE) {
+cdisort.c:        CHTAU(lc  ) = c_chapman(lc, 0.0,      taucpr,ds->nlyr,ds->zd,dtaucpr,zenang,radius);
+cdisort.c:        chtau_tmp   = c_chapman(lc, 0.5,taucpr,ds->nlyr,ds->zd,dtaucpr,zenang,radius);
+cdisort.c:        CH(lc)     = ds->bc.umu0;
+cdisort.c:        EXPBEA(lc) = exp(-TAUCPR(lc)/ds->bc.umu0);
+cdisort.c:  for (lu = 1; lu <= ds->ntau; lu++) {
+cdisort.c:    for (lc = 1; lc <= ds->nlyr-1; lc++) {
+cdisort.c:  if(ds->flag.planck && ds->bc.fbeam == 0.) {
+cdisort.c:  if (!ds->flag.planck) {
+cdisort.c:    *tplanck = c_planck_func2(ds->wvnmlo,ds->wvnmhi,ds->bc.ttemp)*ds->bc.temis;
+cdisort.c:    *bplanck = c_planck_func2(ds->wvnmlo,ds->wvnmhi,ds->bc.btemp);
+cdisort.c:    for (lev = 0; lev <= ds->nlyr; lev++) {
+cdisort.c:      PKAG(lev) = c_planck_func2(ds->wvnmlo,ds->wvnmhi,TEMPER(lev));
+cdisort.c:    for (lc = 1; lc <=ds->nlyr; lc++) {
+cdisort.c:      PKAGC(lc) = c_planck_func2(ds->wvnmlo,ds->wvnmhi,tempc);
+cdisort.c:    SUBD(irow) = 1.-2.*ds->bc.albedo*cmu*RR(lc);
+cdisort.c:    DIAG(irow) = (RR(lc)-2.*ds->bc.albedo*cmu)*wk;
+cdisort.c:  B(irow) = -YB_0D(lc)-YP_0D(lc)+ds->bc.fisot+tplanck;
+cdisort.c:    sum = cmu*ds->bc.albedo*(exp(-ZB_A(ncut)*TAUCPR(ncut))*(YB_0D(ncut)+YB_1D(ncut)*TAUCPR(ncut))
+cdisort.c:   if (ds->bc.umu0 <= 0.) {
+cdisort.c:   B(++irow) = 2.*sum+ds->bc.albedo*ds->bc.umu0*ds->bc.fbeam/M_PI*refflx*EXPBEA(ncut)+(1.-ds->bc.albedo)*bplanck
+cdisort.c:  c_sgbfa(cband,(9*(ds->nstr/2)-2),nrow,1,1,ipvt,&info);
+cdisort.c:  c_sgbsl(cband,(9*(ds->nstr/2)-2),nrow,1,1,ipvt,b,job);
+cdisort.c:  ds->dtauc = c_dbl_vector(0,ds->nlyr,"ds->dtauc");  
+cdisort.c:  ds->ssalb = c_dbl_vector(0,ds->nlyr,"ds->ssalb");
+cdisort.c:   * NOTE: PMOM is used in the code even when ds->nmom is not set by the user
+cdisort.c:   *       at least 0:ds->nstr, hence we introduce ds->nmom_nstr in the C version.
+cdisort.c:  ds->nmom_nstr = IMAX(ds->nmom,ds->nstr);
+cdisort.c:  ds->pmom      = c_dbl_vector(0,(ds->nmom_nstr+1)*ds->nlyr-1,"ds->pmom");
+cdisort.c:  if (ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:    ds->flag.planck = FALSE;
+cdisort.c:    ds->flag.lamber = TRUE;
+cdisort.c:    ds->flag.usrtau = FALSE;
+cdisort.c:  if (ds->flag.planck == TRUE) {
+cdisort.c:    ds->temper = c_dbl_vector(0,ds->nlyr,"ds->temper");
+cdisort.c:    ds->temper = NULL;
+cdisort.c:  if (ds->flag.general_source == TRUE) {
+cdisort.c:    ds->gensrc  = c_dbl_vector(0,ds->nstr*ds->nlyr*ds->nstr,"ds->gensrc");
+cdisort.c:    ds->gensrcu = c_dbl_vector(0,ds->nstr*ds->nlyr*ds->numu,"ds->gensrcu");
+cdisort.c:    ds->gensrc  = NULL;
+cdisort.c:    ds->gensrcu = NULL;
+cdisort.c:  if (ds->flag.usrtau == FALSE) {
+cdisort.c:    ds->ntau = ds->nlyr+1;
+cdisort.c:  ds->utau = c_dbl_vector(0,ds->ntau-1,"ds->utau");
+cdisort.c:  ds->zd        = c_dbl_vector(0,ds->nlyr+1,"ds->zd");
+cdisort.c:  nu = ds->numu;
+cdisort.c:  if ( (!ds->flag.usrang || ds->flag.onlyfl)) nu = ds->nstr;
+cdisort.c:  if (ds->flag.ibcnd == SPECIAL_BC) 
+cdisort.c:    ds->umu = c_dbl_vector(0,2*nu,"ds->umu");
+cdisort.c:    ds->umu = c_dbl_vector(0,nu,"ds->umu");
+cdisort.c:  if (ds->nphi >= 1) {
+cdisort.c:    ds->phi = c_dbl_vector(0,ds->nphi-1,"ds->nphi");
+cdisort.c:    ds->phi = NULL;
+cdisort.c:  if (!ds->flag.old_intensity_correction) {
+cdisort.c:    if (ds->nphase >= 1) {
+cdisort.c:      ds->mu_phase = c_dbl_vector(0,ds->nphase-1,"ds->mu_phase");
+cdisort.c:      ds->phase = c_dbl_vector(0,ds->nlyr*ds->nphase-1,"ds->phase");
+cdisort.c:      ds->mu_phase = NULL;
+cdisort.c:      ds->phase = NULL;
+cdisort.c:  switch(ds->flag.brdf_type) {
+cdisort.c:      ds->brdf.rpv = (rpv_brdf_spec *)calloc(1,sizeof(rpv_brdf_spec));
+cdisort.c:      if (!ds->brdf.rpv) {
+cdisort.c:        c_errmsg("calloc error for ds->brdf.rpv",DS_ERROR);
+cdisort.c:      ds->brdf.ambrals = (ambrals_brdf_spec *)calloc(1,sizeof(ambrals_brdf_spec));
+cdisort.c:      if (!ds->brdf.ambrals) {
+cdisort.c:        c_errmsg("calloc error for ds->brdf.ambrals",DS_ERROR);
+cdisort.c:      ds->brdf.cam = (cam_brdf_spec *)calloc(1,sizeof(cam_brdf_spec));
+cdisort.c:      if (!ds->brdf.cam) {
+cdisort.c:        c_errmsg("calloc error for ds->brdf.cam",DS_ERROR);
+cdisort.c:  if (ds->phi)    free(ds->phi);
+cdisort.c:  if (ds->umu)    free(ds->umu);
+cdisort.c:  if (ds->utau)   free(ds->utau);
+cdisort.c:  if (ds->temper) free(ds->temper);
+cdisort.c:  if (ds->pmom)   free(ds->pmom);
+cdisort.c:  if (ds->ssalb)  free(ds->ssalb);
+cdisort.c:  if (ds->dtauc)  free(ds->dtauc);
+cdisort.c:  if (ds->zd)     free(ds->zd);
+cdisort.c:  if (ds->flag.general_source == TRUE) {
+cdisort.c:    if (ds->gensrc)     free(ds->gensrc);
+cdisort.c:    if (ds->gensrcu)    free(ds->gensrcu);
+cdisort.c:  if (!ds->flag.old_intensity_correction) {
+cdisort.c:    if (ds->nphase >= 1) {
+cdisort.c:      free(ds->mu_phase);
+cdisort.c:      free(ds->phase);
+cdisort.c:  switch(ds->flag.brdf_type) {
+cdisort.c:      free(ds->brdf.rpv);
+cdisort.c:      free(ds->brdf.ambrals);
+cdisort.c:      free(ds->brdf.cam);
+cdisort.c:  out->rad = (disort_radiant *)calloc(ds->ntau,sizeof(disort_radiant));
+cdisort.c:  nu = ds->numu;
+cdisort.c:  if ( (!ds->flag.usrang || ds->flag.onlyfl)) {
+cdisort.c:    nu = ds->nstr;
+cdisort.c:  out->uu = c_dbl_vector(0,ds->nphi*nu*ds->ntau,"out->uu");
+cdisort.c:  out->u0u = c_dbl_vector(0,ds->ntau*nu,"out->u0u");
+cdisort.c:  if ( ds->flag.output_uum )
+cdisort.c:    out->uum = c_dbl_vector(0,ds->nstr*nu*ds->ntau,"out->uum");
+cdisort.c:  if (ds->flag.ibcnd == SPECIAL_BC) {
+cdisort.c:    out->albmed = c_dbl_vector(0,ds->numu,"out->albmed");
+cdisort.c:    out->trnmed = c_dbl_vector(0,ds->numu,"out->trnmed");
+cdisort.c:  if ( ds->flag.output_uum ) 
+cdisort.c:  ds->nstr = 2;
+cdisort.c:  ds->flag.prnt[2] = FALSE;
+cdisort.c:  ds->flag.prnt[3] = FALSE;
+cdisort.c:  ds->flag.prnt[4] = FALSE;
+cdisort.c:  ds->flag.onlyfl  = TRUE;
+cdisort.c:  ds->dtauc = c_dbl_vector(0,ds->nlyr-1,"ds->dtauc");
+cdisort.c:  ds->ssalb = c_dbl_vector(0,ds->nlyr-1,"ds->ssalb");
+cdisort.c:  if (ds->flag.planck == TRUE) {
+cdisort.c:    ds->temper = c_dbl_vector(0,ds->nlyr,"ds->temper");
+cdisort.c:    ds->temper = NULL;
+cdisort.c:  if (ds->flag.usrtau == FALSE) {
+cdisort.c:    ds->ntau = ds->nlyr+1;
+cdisort.c:  ds->utau = c_dbl_vector(0,ds->ntau-1,"ds->utau");
+cdisort.c:  //20120820ak  if (ds->flag.spher == TRUE) {
+cdisort.c:  ds->zd        = c_dbl_vector(0,ds->nlyr+1,"ds->zd");	
+cdisort.c:  if (ds->utau)   free(ds->utau);
+cdisort.c:  if (ds->temper) free(ds->temper);
+cdisort.c:  if (ds->ssalb ) free(ds->ssalb);
+cdisort.c:  if (ds->dtauc ) free(ds->dtauc);
+cdisort.c:  if (ds->zd )    free(ds->zd);
+cdisort.c:  out->rad = (disort_radiant *)calloc(ds->ntau,sizeof(disort_radiant));

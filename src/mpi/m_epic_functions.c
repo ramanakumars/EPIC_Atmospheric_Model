@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2019 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -38,8 +39,6 @@ void mpispec_init(void)
 {
   int   
     i,dim;
-  MPI_Datatype
-    float_type;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -48,17 +47,10 @@ void mpispec_init(void)
   static char
     dbmsname[]="mpispec_init";
 
-  if (EPIC_PRECISION == DOUBLE_PRECISION) {
-    float_type = MPI_DOUBLE;
-  }
-  else {
-    float_type = MPI_FLOAT;
-  }
-
  /* 
   * Define complex data type: 
   */
-  MPI_Type_contiguous(2,float_type,&EPIC_MPI_COMPLEX);
+  MPI_Type_contiguous(2,MPI_DOUBLE,&EPIC_MPI_COMPLEX);
   MPI_Type_commit(&EPIC_MPI_COMPLEX);
 
   /* 
@@ -129,7 +121,7 @@ void mpispec_init(void)
   MPI_Comm_rank(para.comm_ijk,&para.iamnode);
   MPI_Comm_size(para.comm_ijk,&para.nproc);
   grid.we_num_nodes = para.nproc;
-  para.ndim         = NINT(log((EPIC_FLOAT)para.nproc)/log(2.));
+  para.ndim         = NINT(log((double)para.nproc)/log(2.));
 
   for (dim = 0; dim < TOPDIM; dim++) {
     /* Shift array endpoints */
@@ -202,13 +194,9 @@ void mpispec_init(void)
 
 /*====================== bc_lateral() =============================================*/
 
-void bc_lateral(EPIC_FLOAT *pt,
-                int         dim)
+void bc_lateral(double *pt,
+                int     dim)
 {
-  static int
-    initialized = FALSE;
-  static MPI_Datatype
-    float_type;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -217,27 +205,12 @@ void bc_lateral(EPIC_FLOAT *pt,
   static char
     dbmsname[]="bc_lateral";
 
-  if (!initialized) {
-    if (EPIC_PRECISION == DOUBLE_PRECISION) {
-      float_type = MPI_DOUBLE;
-    }
-    else if (EPIC_PRECISION == SINGLE_PRECISION) {
-      float_type = MPI_FLOAT;
-    }
-    else {
-      sprintf(Message,"unrecognized EPIC_PRECISION=%d",EPIC_PRECISION);
-      epic_error(dbmsname,Message);
-    }
-
-    initialized = TRUE;
-
-  } /* end initialization */
 
   if (dim == TWODIM) {
-    MPG_Cart_edgeexch(para.comm_ij,dim,para.dimlen,para.npad,float_type,pt);
+    MPG_Cart_edgeexch(para.comm_ij,dim,para.dimlen,para.npad,MPI_DOUBLE,pt);
   }
   else if (dim == THREEDIM) {
-    MPG_Cart_edgeexch(para.comm_ijk,dim,para.dimlen,para.npad,float_type,pt);
+    MPG_Cart_edgeexch(para.comm_ijk,dim,para.dimlen,para.npad,MPI_DOUBLE,pt);
   }
   else {
     sprintf(Message,"unrecognized dim=%d",dim);

@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -38,13 +39,13 @@
  *           prompt_extract_on()                                   *
  *           prompt_species_on()                                   *
  *           bcast_char(),bcast_int(),                             *
- *           bcast_float(),bcast_double()                          *
+ *           bcast_double()                                        *
  *           read_spacing_file()                                   *
  *           get_sounding()                                        *
  *           read_t_vs_p()                                         *
  *           read_meridional_plane()                               *
  *           inquire_radiation_scheme()                            *
- *           input_float()                                         *
+ *           input_double()                                        *
  *           input_int(),input_string()                            *
  *           print_model_description()                             *
  *           print_zonal_info()                                    *
@@ -211,8 +212,8 @@ int setup_write_array(void)
  * A function that uses read_array() must first call setup_read_array().
  * Call from all nodes. 
  *
- * For array types that have striped data (array_type != EPIC_FLOAT_ARRAY), pass
- * the name of the first float array that will be read in, and the naming
+ * For array types that have striped data (array_type != DOUBLE_ARRAY), pass
+ * the name of the first array that will be read in, and the naming
  * convention will be reconstructed. 
  *
  * NOTE: Does not apply boundary conditions.
@@ -246,19 +247,9 @@ void read_array(int   node,
   size_t
     nc_start[FOURDIM], 
     nc_count[FOURDIM];
-  EPIC_FLOAT
+  double
     *buff_subarray,
-    *epic_float_array;
-
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
+    *double_array;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -279,9 +270,9 @@ void read_array(int   node,
    * Cast pointers based on array_type.
    */
   nlo  = 0;
-  if (array_type == EPIC_FLOAT_ARRAY) {
-    epic_float_array = (EPIC_FLOAT *)array;
-    nhi              = 1-1;
+  if (array_type == DOUBLE_ARRAY) {
+    double_array = (double *)array;
+    nhi          = 1-1;
   }
   else {
     sprintf(Message,"unrecognized array_type=%d",array_type);
@@ -313,7 +304,7 @@ void read_array(int   node,
   k_len      = khi-klo+1;
   j_len      = jhi-jlo+1;
   i_len      = ihi-ilo+1;
-  i_bytes    = i_len*sizeof(EPIC_FLOAT);
+  i_bytes    = i_len*sizeof(double);
   ji_len     = j_len*i_len;
   kji_len    = k_len*ji_len;
   nkji_len   = n_len*kji_len;
@@ -322,7 +313,7 @@ void read_array(int   node,
   /*
    * Allocate memory for buff_subarray:
    */
-  buff_subarray = fvector(0,nkji_len-1,dbmsname);
+  buff_subarray = dvector(0,nkji_len-1,dbmsname);
 
  /*
   * 1) NODE0 reads subarray data and stores it in buff_subarray.
@@ -341,7 +332,7 @@ void read_array(int   node,
        * Get the netCDF variable ID.
        * First, reconstruct its name.
        */
-      if (array_type == EPIC_FLOAT_ARRAY) {
+      if (array_type == DOUBLE_ARRAY) {
         strcpy(the_name,name);
       }
       else {
@@ -358,15 +349,8 @@ void read_array(int   node,
         nc_start[NETCDF_K_INDEX] = K-klo;
         for (J = jlo; J <= jhi; J++) {
           nc_start[NETCDF_J_INDEX] = J-grid.jlo;
- 
-#if EPIC_PRECISION == DOUBLE_PRECISION 
           nc_err = nc_get_vara_double(nc_id,nc_varid,nc_start+al,nc_count+al,
                                       &BUFF_SUBARRAY(n,K,J,ilo));
-#else
-          nc_err = nc_get_vara_float(nc_id,nc_varid,nc_start+al,nc_count+al,
-                                      &BUFF_SUBARRAY(n,K,J,ilo));
-#endif
-
           if (nc_err != NC_NOERR) {
             sprintf(Message,"%s, K,J=%d,%d; %s",name,K,J,nc_strerror(nc_err));
             epic_error(dbmsname,Message);
@@ -387,7 +371,7 @@ void read_array(int   node,
 
 #if defined(EPIC_MPI)
     if (IAMNODE == NODE0) {
-      MPI_Send(buff_subarray,nkji_len,float_type,node,index,para.comm);
+      MPI_Send(buff_subarray,nkji_len,MPI_DOUBLE,node,index,para.comm);
     }
     else if (IAMNODE == node) {
       int
@@ -395,12 +379,12 @@ void read_array(int   node,
       MPI_Status
         status;
 
-      MPI_Recv(buff_subarray,nkji_len,float_type,NODE0,index,para.comm,&status);
+      MPI_Recv(buff_subarray,nkji_len,MPI_DOUBLE,NODE0,index,para.comm,&status);
 
       /* 
        * Verify number of items received.
        */
-      MPI_Get_count(&status,float_type,&count);
+      MPI_Get_count(&status,MPI_DOUBLE,&count);
       if (count != nkji_len) {
         sprintf(Message,"count=%d != nkji_len=%d",count,nkji_len);
         epic_error(dbmsname,Message);
@@ -413,7 +397,7 @@ void read_array(int   node,
    * Free allocated memory and return if not the target node.
    */
   if (IAMNODE != node) {
-    free_fvector(buff_subarray,0,nkji_len-1,dbmsname);
+    free_dvector(buff_subarray,0,nkji_len-1,dbmsname);
     return;
   }
 
@@ -422,12 +406,12 @@ void read_array(int   node,
   */
   for (K = klo; K <= khi; K++) {
     for (J = jlo; J <= jhi; J++) {
-      if (array_type == EPIC_FLOAT_ARRAY) {
+      if (array_type == DOUBLE_ARRAY) {
         /*
          * Use a fast string copy, since the data are contiguous.
          */
         offset = ilo+(J)*Iadim+(K)*Nelem2d-Shift3d;
-        memcpy(epic_float_array+offset,&BUFF_SUBARRAY(0,K,J,ilo),i_bytes);
+        memcpy(double_array+offset,&BUFF_SUBARRAY(0,K,J,ilo),i_bytes);
       }
       else {
         sprintf(Message,"unrecognized array_type=%d",array_type);
@@ -439,7 +423,7 @@ void read_array(int   node,
   /*
    * Free allocated memory.
    */
-  free_fvector(buff_subarray,0,nkji_len-1,dbmsname);
+  free_dvector(buff_subarray,0,nkji_len-1,dbmsname);
 
   return;
 }
@@ -463,8 +447,10 @@ void read_array(int   node,
  * If stretch_ni > 0, stretch KJ-plane zonal average into a KJI cube.
  * If stretch_ni < 0, suppress the I (zonal) dimension (as in a KJ plane).
  *
- * For array types that have striped data (array_type != EPIC_FLOAT_ARRAY), pass
- * the name of the first float array that will be read in, and the naming
+ * If start[i] = end[i], suppress the ith dimension.
+ *
+ * For array types that have striped data (array_type != DOUBLE_ARRAY), pass
+ * the name of the first array that will be read in, and the naming
  * convention will be deduced from this.
  *
  */
@@ -497,21 +483,11 @@ void write_array(int    node,
   size_t
     nc_start[FOURDIM], 
     nc_count[FOURDIM];
-  EPIC_FLOAT
+  double
     *buff_subarray,
     *buffer,
-    *epic_float_array,
+    *double_array,
      tmp;
-
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -532,9 +508,9 @@ void write_array(int    node,
    * Cast pointers based on array_type.
    */
   nlo  = 0;
-  if (array_type == EPIC_FLOAT_ARRAY) {
-    epic_float_array = (EPIC_FLOAT *)array;
-    nhi              = 1-1;
+  if (array_type == DOUBLE_ARRAY) {
+    double_array = (double *)array;
+    nhi          = 1-1;
   }
   else {
     sprintf(Message,"unrecognized array_type=%d",array_type);
@@ -570,7 +546,7 @@ void write_array(int    node,
   else {
     i_len = ihi-ilo+1;
   }
-  i_bytes    = i_len*sizeof(EPIC_FLOAT);
+  i_bytes    = i_len*sizeof(double);
   ji_len     = j_len*i_len;
   kji_len    = k_len*ji_len;
   nkji_len   = n_len*kji_len;
@@ -579,9 +555,9 @@ void write_array(int    node,
   /*
    * Allocate memory.
    */
-  buff_subarray = fvector(0,nkji_len-1,dbmsname);
+  buff_subarray = dvector(0,nkji_len-1,dbmsname);
   if (stretch_ni > 0) {
-    buffer = fvector(0,stretch_ni-ilo,dbmsname);
+    buffer = dvector(0,stretch_ni-ilo,dbmsname);
   }
 
   /*
@@ -590,7 +566,7 @@ void write_array(int    node,
   if (IAMNODE == node) {
     for (K = klo; K <= khi; K++) {
       for (J = jlo; J <= jhi; J++) {
-        if (array_type == EPIC_FLOAT_ARRAY) {
+        if (array_type == DOUBLE_ARRAY) {
           if (stretch_ni < 0) {
             /*
              * I (zonal) dimension is suppressed.
@@ -603,7 +579,7 @@ void write_array(int    node,
              */
             offset = ilo+(J)*Iadim+(K)*Nelem2d-Shift3d;
           }
-          memcpy(&BUFF_SUBARRAY(0,K,J,ilo),epic_float_array+offset,i_bytes);
+          memcpy(&BUFF_SUBARRAY(0,K,J,ilo),double_array+offset,i_bytes);
         }
         else {
           sprintf(Message,"unrecognized array_type=%d",array_type);
@@ -620,7 +596,7 @@ void write_array(int    node,
 #if defined(EPIC_MPI)
   if (node != NODE0) {
     if (IAMNODE == node) {
-      MPI_Send(buff_subarray,nkji_len,float_type,NODE0,index,para.comm);
+      MPI_Send(buff_subarray,nkji_len,MPI_DOUBLE,NODE0,index,para.comm);
     }
     else if (IAMNODE == NODE0) {
       int
@@ -628,12 +604,12 @@ void write_array(int    node,
       MPI_Status
         status;
 
-      MPI_Recv(buff_subarray,nkji_len,float_type,node,index,para.comm,&status);
+      MPI_Recv(buff_subarray,nkji_len,MPI_DOUBLE,node,index,para.comm,&status);
 
       /* 
        * Verify number of items received.
        */
-      MPI_Get_count(&status,float_type,&count);
+      MPI_Get_count(&status,MPI_DOUBLE,&count);
       if (count != nkji_len) {
         sprintf(Message,"count=%d != nkji_len=%d",count,nkji_len);
         epic_error(dbmsname,Message);
@@ -665,7 +641,7 @@ void write_array(int    node,
        * Get the netCDF variable ID.
        * First, reconstruct its name.
        */
-      if (array_type == EPIC_FLOAT_ARRAY) {
+      if (array_type == DOUBLE_ARRAY) {
         strcpy(the_name,name);
       }
       else {
@@ -682,8 +658,6 @@ void write_array(int    node,
         nc_start[NETCDF_K_INDEX] = K-klo;
         for (J = jlo; J <= jhi; J++) {
           nc_start[NETCDF_J_INDEX] = J-grid.jlo;
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
           if (stretch_ni > 0) {
             if (ilo == grid.ilo) {
               /*
@@ -706,30 +680,6 @@ void write_array(int    node,
             sprintf(Message,"nc_put_vara_double(),%s",nc_strerror(nc_err));
             epic_error(dbmsname,Message);
           }
-#else
-          if (stretch_ni > 0) {
-            if (ilo == grid.ilo) {
-              /*
-               * Assume zonal symmetry and copy the grid.ilo value into an I buffer.
-               */
-              tmp = BUFF_SUBARRAY(n,K,J,ilo);
-              for (I = ilo; I <= stretch_ni; I++) {
-                buffer[I-ilo] = tmp;
-              }
-              nc_err = nc_put_vara_float(nc_id,nc_varid,nc_start+al,nc_count+al,buffer);
-            }
-            else {
-              nc_err = NC_NOERR;
-            }
-          }
-          else {
-            nc_err = nc_put_vara_float(nc_id,nc_varid,nc_start+al,nc_count+al,&BUFF_SUBARRAY(n,K,J,ilo));
-          }
-          if (nc_err != NC_NOERR) {
-            sprintf(Message,"nc_put_vara_float(),%s",nc_strerror(nc_err));
-            epic_error(dbmsname,Message);
-          }
-#endif
         }
       }
     }
@@ -738,9 +688,9 @@ void write_array(int    node,
   /*
    * Free allocated memory for buff_subarray:
    */
-  free_fvector(buff_subarray,0,nkji_len-1,dbmsname);
+  free_dvector(buff_subarray,0,nkji_len-1,dbmsname);
   if (stretch_ni > 0) {
-    free_fvector(buffer,0,stretch_ni-ilo,dbmsname);
+    free_dvector(buffer,0,stretch_ni-ilo,dbmsname);
   }
 
   return;
@@ -757,8 +707,7 @@ void write_array(int    node,
  *       here.
  */
 
-void var_read(planetspec   *planet,
-              char         *infile,
+void var_read(char         *infile,
               int           portion,
               unsigned int  time_index)
 {
@@ -779,8 +728,10 @@ void var_read(planetspec   *planet,
   static int
     ngatts    =0,
     num_progs =0;
+  char
+    var_name[VAR_NM_SZ];   /* RS 03/10/202 Check if moist convection (MC) values are set */
   int
-    nc_err,nc_id;
+    nc_err,nc_id,nc_var_id;
   nc_type
     the_nc_type;     /* NOTE: Used in i/o macros. */
   /* 
@@ -842,7 +793,7 @@ void var_read(planetspec   *planet,
       portion == HEADER_DATA         ||
       portion == EXTRACT_HEADER_DATA ||
       portion == ALL_DATA              ) {
-    READF(&grid.epic_version,grid_epic_version,1);
+    READD(&grid.epic_version,grid_epic_version,1);
 
     READTIME(&var.start_time,var_start_time);
 
@@ -850,34 +801,35 @@ void var_read(planetspec   *planet,
     READC(planet->name,planet_name,32);
     READC(planet->type,planet_type,16);
     READC(planet->orbital_epoch,planet_orbital_epoch,8);
-    READF(&planet->re,planet_re,1);
-    READF(&planet->rp,planet_rp,1);
-    READF(&planet->obliquity,planet_obliquity,1);
-    READF(&planet->omega_sidereal,planet_omega_sidereal,1);
-    READF(&planet->omega_synodic,planet_omega_synodic,1);
-    READF(&planet->cp,planet_cp,1);
-    READF(&planet->rgas,planet_rgas,1);
-    READF(&planet->p0,planet_p0,1);
+    READD(&planet->re,planet_re,1);
+    READD(&planet->rp,planet_rp,1);
+    READD(&planet->obliquity,planet_obliquity,1);
+    READD(&planet->omega_sidereal,planet_omega_sidereal,1);
+    READD(&planet->omega_synodic,planet_omega_synodic,1);
+    READD(&planet->cp,planet_cp,1);
+    READD(&planet->rgas,planet_rgas,1);
+    READD(&planet->p0,planet_p0,1);
 
     planet->cpr   = planet->cp/planet->rgas;
     planet->kappa = 1./planet->cpr;
 
-    READF(&planet->GM,planet_GM,1);
-    READF(&planet->J2,planet_J2,1);
-    READF(&planet->x_he,planet_x_he,1);
-    READF(&planet->x_h2,planet_x_h2,1);
-    READF(&planet->x_3,planet_x_3,1);
-    READF(&planet->a,planet_a,1);
-    READF(&planet->e,planet_e,1);
-    READF(&planet->i,planet_i,1);
-    READF(&planet->lon_ascending_node,planet_lon_ascending_node,1);
-    READF(&planet->lon_perihelion,planet_lon_perihelion,1);
-    READF(&planet->mean_lon,planet_mean_lon,1);
-    READF(&planet->orbit_period,planet_orbit_period,1);
-    READF(&planet->vernal_equinox_anomaly,planet_vernal_equinox_anomaly,1);
-    READF(&planet->kinvisc,planet_kinvisc,1);
-    READF(&planet->dynvisc,planet_dynvisc,1);
-    READF(&planet->k_a,planet_k_a,1);
+    READD(&planet->g0,planet_g0,1);
+    READD(&planet->GM,planet_GM,1);
+    READD(&planet->J2,planet_J2,1);
+    READD(&planet->x_he,planet_x_he,1);
+    READD(&planet->x_h2,planet_x_h2,1);
+    READD(&planet->x_3,planet_x_3,1);
+    READD(&planet->a,planet_a,1);
+    READD(&planet->e,planet_e,1);
+    READD(&planet->i,planet_i,1);
+    READD(&planet->lon_ascending_node,planet_lon_ascending_node,1);
+    READD(&planet->lon_perihelion,planet_lon_perihelion,1);
+    READD(&planet->mean_lon,planet_mean_lon,1);
+    READD(&planet->orbit_period,planet_orbit_period,1);
+    READD(&planet->vernal_equinox_anomaly,planet_vernal_equinox_anomaly,1);
+    READD(&planet->kinvisc,planet_kinvisc,1);
+    READD(&planet->dynvisc,planet_dynvisc,1);
+    READD(&planet->k_a,planet_k_a,1);
 
     READI(&grid.nk,grid_nk,1);
     READI(&grid.nj,grid_nj,1);
@@ -893,6 +845,15 @@ void var_read(planetspec   *planet,
     READC(grid.uv_timestep_scheme,grid_uv_timestep_scheme,N_STR);
     READC(grid.radiation_scheme,grid_radiation_scheme,N_STR);
     READC(grid.turbulence_scheme,grid_turbulence_scheme,N_STR);
+    
+    // global heating-cooling parameters
+    READD(&grid.heat_top_pressure,grid_heat_top_pressure,1);
+    READD(&grid.heat_rate,grid_heat_rate,1);
+    READD(&grid.cool_bot_pressure,grid_cool_bot_pressure,1);
+    READD(&grid.cool_rate,grid_cool_rate,1);
+
+    READI(&grid.relax_vapor,grid_relax_vapor,1);
+    READD(&grid.relax_vapor_timescale,grid_relax_vapor_timescale,1);
 
     READC(var.h.advection_scheme,var_h_advection_scheme,N_STR);
     READC(var.theta.advection_scheme,var_theta_advection_scheme,N_STR);
@@ -903,13 +864,13 @@ void var_read(planetspec   *planet,
       sprintf(var.species[is].advection_scheme,"%s",var.species[FIRST_SPECIES].advection_scheme);
     }
 
-    READF(&grid.globe_lonbot,grid_globe_lonbot,1);
-    READF(&grid.globe_lontop,grid_globe_lontop,1);
-    READF(&grid.globe_latbot,grid_globe_latbot,1);
-    READF(&grid.globe_lattop,grid_globe_lattop,1);
+    READD(&grid.globe_lonbot,grid_globe_lonbot,1);
+    READD(&grid.globe_lontop,grid_globe_lontop,1);
+    READD(&grid.globe_latbot,grid_globe_latbot,1);
+    READD(&grid.globe_lattop,grid_globe_lattop,1);
     READC(grid.f_plane_map,grid_f_plane_map,GEOM_STR);
-    READF(&grid.f_plane_lat0,grid_f_plane_lat0,1);
-    READF(&grid.f_plane_half_width,grid_f_plane_half_width,1);
+    READD(&grid.f_plane_lat0,grid_f_plane_lat0,1);
+    READD(&grid.f_plane_half_width,grid_f_plane_half_width,1);
 
     READI(grid.wrap,grid_wrap,TOPDIM);
     READI(grid.pad,grid_pad,TOPDIM);
@@ -918,13 +879,34 @@ void var_read(planetspec   *planet,
     READI(&grid.jlast,grid_jlast,1);
     READI(&grid.ilo,grid_ilo,1);
     READI(&grid.k_sponge,grid_k_sponge,1);
+    READI(&grid.n_bot_drag,grid_n_bot_drag,1);
     READI(&grid.j_sponge,grid_j_sponge,1);
     READI(&grid.extract_species_fraction_type,grid_extract_species_fraction_type,1);
+    READI(&grid.mc_diag_extract_sum,grid_mc_diag_extract_sum,1);
     READI(&grid.k_sigma,grid_k_sigma,1);
 
-    READF(&grid.du_vert,grid_du_vert,1);
+    READD(&grid.du_vert,grid_du_vert,1);
 
     READI(&grid.cloud_microphysics,grid_cloud_microphysics,1);
+
+    /*
+     * RS 02/24/20 Check if moist convection is defined.
+     */
+    nc_err = nc_inq_atttype(nc_id,NC_GLOBAL,"grid_moist_convection",&the_nc_type);
+    if (nc_err != NC_ENOTATT) {
+      READI(&grid.moist_convection,grid_moist_convection,1);
+    }
+    else {
+      grid.moist_convection = OFF;
+      bcast_int(NODE0,&grid.moist_convection,1);
+    }
+
+    if (grid.moist_convection == ACTIVE) {
+      READI(&grid.max_mc_it,grid_max_mc_it,1);
+      READI(&grid.first_RAS_upd,grid_first_ras_upd,1);
+      READD(&grid.tau_relax,grid_tau_relax,1);
+    }
+
     READI(&grid.include_nontrad_accel,grid_include_nontrad_accel,1);
     READI(&grid.zonal_average_rt,grid_zonal_average_rt,1);
     READI(var.on_list,var_on_list,LAST_INDEX-FIRST_INDEX+1);
@@ -951,24 +933,24 @@ void var_read(planetspec   *planet,
       portion == HEADER_DATA         ||
       portion == EXTRACT_HEADER_DATA ||
       portion == ALL_DATA              ) {
-    EPIC_FLOAT
+    double
       *buffer;
 
     nk = grid.nk;
 
-    READF(&grid.dlt,grid_dlt,1);
-    READF(&grid.dln,grid_dln,1);
+    READD(&grid.dlt,grid_dlt,1);
+    READD(&grid.dln,grid_dln,1);
     READI(&grid.dt,grid_dt,1);
 
-    READF(&var.fpara_rate_scaling,var_fpara_rate_scaling,1);
+    READD(&var.fpara_rate_scaling,var_fpara_rate_scaling,1);
 
     if (var.ntp > 0) {
       /*
        * Read the reference temperature sounding profile.
        */
-      READF(var.pdat,var_pdat,var.ntp);
-      READF(var.tdat,var_tdat,var.ntp);
-      READF(var.dtdat,var_dtdat,var.ntp);
+      READD(var.pdat,var_pdat,var.ntp);
+      READD(var.tdat,var_tdat,var.ntp);
+      READD(var.dtdat,var_dtdat,var.ntp);
       /*
        * Convert input pressure from hPa to Pa.
        */
@@ -977,22 +959,19 @@ void var_read(planetspec   *planet,
       }
     }
 
-    READF(grid.re,grid_re,nk+1);
-    READF(grid.rp,grid_rp,nk+1);
+    READD(grid.re,grid_re,nk+1);
+    READD(grid.rp,grid_rp,nk+1);
 
     READD(grid.sigmatheta,grid_sigmatheta,2*(nk+1)+2);
 
-    READF(grid.p_ref,grid_p_ref,2*(nk+1)+2);
-    READF(grid.t_ref,grid_t_ref,2*(nk+1)+2);
-    READF(grid.rho_ref,grid_rho_ref,2*(nk+1)+2);
-    READF(grid.theta_ref,grid_theta_ref,2*(nk+1)+2);
-    READF(grid.h_min,grid_h_min,nk+1);
+    READD(grid.p_ref,grid_p_ref,2*(nk+1)+2);
+    READD(grid.t_ref,grid_t_ref,2*(nk+1)+2);
+    READD(grid.rho_ref,grid_rho_ref,2*(nk+1)+2);
+    READD(grid.theta_ref,grid_theta_ref,2*(nk+1)+2);
+    READD(grid.h_min,grid_h_min,nk+1);
 
-    READF(&grid.sgth_bot,grid_sgth_bot,1);
-    READF(&grid.sgth_top,grid_sgth_top,1);
-    /*
-     * Double precision to improve calculation of diagnostic theta.
-     */
+    READD(&grid.sgth_bot,grid_sgth_bot,1);
+    READD(&grid.sgth_top,grid_sgth_top,1);
     READD(&grid.zeta0,grid_zeta0,1);
     READD(&grid.zeta1,grid_zeta1,1);
     READD(&grid.hybrid_alpha,grid_hybrid_alpha,1);
@@ -1001,16 +980,16 @@ void var_read(planetspec   *planet,
     READI(&grid.newt_cool_adjust,grid_newt_cool_adjust,1);
     READC(grid.eos,grid_eos,8);
 
-    READF(&grid.ptop,grid_ptop,1);
-    READF(&grid.pbot,grid_pbot,1);
-    READF(&grid.thetatop,grid_thetatop,1);
-    READF(&grid.thetabot,grid_thetabot,1);
-    READF(&grid.phi0,grid_phi0,1);
+    READD(&grid.ptop,grid_ptop,1);
+    READD(&grid.pbot,grid_pbot,1);
+    READD(&grid.thetatop,grid_thetatop,1);
+    READD(&grid.thetabot,grid_thetabot,1);
+    READD(&grid.phi0,grid_phi0,1);
 
     READI(&grid.nu_order,grid_nu_order,1);
-    READF(&grid.nudiv_nondim,grid_nudiv_nondim,1);
-    READF(&grid.nu_nondim,grid_nu_nondim,1);
-    READF(&grid.nu_hyper,grid_nu_hyper,1);
+    READD(&grid.nudiv_nondim,grid_nudiv_nondim,1);
+    READD(&grid.nu_nondim,grid_nu_nondim,1);
+    READD(&grid.nu_hyper,grid_nu_hyper,1);
   }
 
   if (portion == HEADER_DATA         ||
@@ -1037,9 +1016,9 @@ void var_read(planetspec   *planet,
   READI(&grid.aux_a,grid_aux_a,1);
   READI(&grid.aux_b,grid_aux_b,1);
   READI(&grid.aux_c,grid_aux_c,1);
-  READF(&grid.aux_fa,grid_aux_fa,1);
-  READF(&grid.aux_fb,grid_aux_fb,1);
-  READF(&grid.aux_fc,grid_aux_fc,1);
+  READD(&grid.aux_fa,grid_aux_fa,1);
+  READD(&grid.aux_fb,grid_aux_fb,1);
+  READD(&grid.aux_fc,grid_aux_fc,1);
 
   if (IAMNODE == NODE0) {
     fprintf(stdout,"  0%%");
@@ -1066,7 +1045,7 @@ void var_read(planetspec   *planet,
 
   for (node = 0; node < num_nodes; node++) {
     if (IAMNODE == NODE0) {
-      fprintf(stdout,"\b\b\b\b%3d%%",(int)(100.*(EPIC_FLOAT)node/num_nodes));
+      fprintf(stdout,"\b\b\b\b%3d%%",(int)(100.*(double)node/num_nodes));
       fflush(stdout);
     }
 
@@ -1081,7 +1060,7 @@ void var_read(planetspec   *planet,
        * Read surface geopotential.
        */
       read_array(node,TWODIM,start,end,var.phi_surface.info[0].name,
-                 var.phi_surface.info[0].index,var.phi_surface.value,EPIC_FLOAT_ARRAY,nc_id);
+                 var.phi_surface.info[0].index,var.phi_surface.value,DOUBLE_ARRAY,nc_id);
     }
 
     if (var.pbot.on) {
@@ -1089,7 +1068,15 @@ void var_read(planetspec   *planet,
        * Read pressure bottom boundary condition.
        */
       read_array(node,TWODIM,start,end,var.pbot.info[0].name,
-                 var.pbot.info[0].index,var.pbot.value,EPIC_FLOAT_ARRAY,nc_id);
+                 var.pbot.info[0].index,var.pbot.value,DOUBLE_ARRAY,nc_id);
+    }
+
+    if (var.u_spinup.on) {
+      /*
+       * Read spinup zonal-wind profile.
+       */
+      read_array(node,FOURDIM,start,end,var.u_spinup.info[0].name,
+                 var.u_spinup.info[0].index,var.u_spinup.value,DOUBLE_ARRAY,nc_id);
     }
 
     if (var.dzdt2.on) {
@@ -1097,7 +1084,7 @@ void var_read(planetspec   *planet,
        * Read standard vertical velocity [m/s], carried in the layer. 
        */
       read_array(node,FOURDIM,start,end,var.dzdt2.info[0].name,
-                 var.dzdt2.info[0].index,var.dzdt2.value,EPIC_FLOAT_ARRAY,nc_id);
+                 var.dzdt2.info[0].index,var.dzdt2.value,DOUBLE_ARRAY,nc_id);
     }
 
     if (portion == EXTRACT_DATA) {
@@ -1110,32 +1097,20 @@ void var_read(planetspec   *planet,
      */
     if (var.u.on) {
       if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
-        if (portion != EXTRACT_DATA) {
-          read_array(node,FOURDIM,start,end,var.u.info[0].name,
-                     var.u.info[0].index,var.u.value,EPIC_FLOAT_ARRAY,nc_id);
-        }
-        else {
-          sprintf(Message,"unrecognized portion=%d",portion);
-          epic_error(dbmsname,Message);
-        }
+        read_array(node,FOURDIM,start,end,var.u.info[0].name,
+                   var.u.info[0].index,var.u.value,DOUBLE_ARRAY,nc_id);
         if (portion != VAR_DATA) {
           read_array(node,THREEDIM,start,end,var.u.info_tend[0].name,
-                     var.u.info_tend[0].index,var.u.tendency+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                     var.u.info_tend[0].index,var.u.tendency+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
           read_array(node,THREEDIM,start,end,var.u.info_tend[1].name,
-                     var.u.info_tend[1].index,var.u.tendency+IT_MINUS2*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                     var.u.info_tend[1].index,var.u.tendency+IT_MINUS2*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
       }
       else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
-        if (portion != EXTRACT_DATA) {
-          read_array(node,FOURDIM,start,end,var.u.info[0].name,
-                     var.u.info[0].index,var.u.value+IT_ZERO*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
-          read_array(node,FOURDIM,start,end,var.u.info[1].name,
-                     var.u.info[1].index,var.u.value+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
-        }
-        else {
-          sprintf(Message,"unrecognized portion=%d",portion);
-          epic_error(dbmsname,Message);
-        }
+        read_array(node,FOURDIM,start,end,var.u.info[0].name,
+                   var.u.info[0].index,var.u.value+IT_ZERO*Nelem3d,DOUBLE_ARRAY,nc_id);
+        read_array(node,FOURDIM,start,end,var.u.info[1].name,
+                   var.u.info[1].index,var.u.value+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
       }
       else {
         sprintf(Message,"unrecognized grid.uv_timestep_scheme: %s",grid.uv_timestep_scheme);
@@ -1145,32 +1120,20 @@ void var_read(planetspec   *planet,
 
     if (var.v.on) {
       if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
-        if (portion != EXTRACT_DATA) {
-          read_array(node,FOURDIM,start,end,var.v.info[0].name,
-                     var.v.info[0].index,var.v.value,EPIC_FLOAT_ARRAY,nc_id);
-        }
-        else {
-          sprintf(Message,"unrecognized portion=%d",portion);
-          epic_error(dbmsname,Message);
-        }
+        read_array(node,FOURDIM,start,end,var.v.info[0].name,
+                   var.v.info[0].index,var.v.value,DOUBLE_ARRAY,nc_id);
         if (portion != VAR_DATA) {
           read_array(node,THREEDIM,start,end,var.v.info_tend[0].name,
-                     var.v.info_tend[0].index,var.v.tendency+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                     var.v.info_tend[0].index,var.v.tendency+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
           read_array(node,THREEDIM,start,end,var.v.info_tend[1].name,
-                     var.v.info_tend[1].index,var.v.tendency+IT_MINUS2*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                     var.v.info_tend[1].index,var.v.tendency+IT_MINUS2*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
       }
       else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
-        if (portion != EXTRACT_DATA) {
-          read_array(node,FOURDIM,start,end,var.v.info[0].name,
-                     var.v.info[0].index,var.v.value+IT_ZERO*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
-          read_array(node,FOURDIM,start,end,var.v.info[1].name,
-                     var.v.info[1].index,var.v.value+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
-        }
-        else {
-          sprintf(Message,"unrecognized portion=%d",portion);
-          epic_error(dbmsname,Message);
-        }
+        read_array(node,FOURDIM,start,end,var.v.info[0].name,
+                   var.v.info[0].index,var.v.value+IT_ZERO*Nelem3d,DOUBLE_ARRAY,nc_id);
+        read_array(node,FOURDIM,start,end,var.v.info[1].name,
+                   var.v.info[1].index,var.v.value+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
       }
       else {
         sprintf(Message,"unrecognized grid.uv_timestep_scheme: %s",grid.uv_timestep_scheme);
@@ -1179,45 +1142,56 @@ void var_read(planetspec   *planet,
     }
 
     if (var.p3.on) {
-      if ((portion == EXTRACT_DATA && var.p3.extract_on) ||
-          (portion != EXTRACT_DATA                    )   ) {
-        read_array(node,FOURDIM,start,end,var.p3.info[0].name,
-                   var.p3.info[0].index,var.p3.value,EPIC_FLOAT_ARRAY,nc_id);
-      }
+      read_array(node,FOURDIM,start,end,var.p3.info[0].name,
+                 var.p3.info[0].index,var.p3.value,DOUBLE_ARRAY,nc_id);
     }
 
     if (var.theta.on) {
-      if ((portion == EXTRACT_DATA && var.theta.extract_on) ||
-          (portion != EXTRACT_DATA                    )   ) {
-        read_array(node,FOURDIM,start,end,var.theta.info[0].name,
-                   var.theta.info[0].index,var.theta.value,EPIC_FLOAT_ARRAY,nc_id);
-      }
+      read_array(node,FOURDIM,start,end,var.theta.info[0].name,
+                 var.theta.info[0].index,var.theta.value,DOUBLE_ARRAY,nc_id);
     }
 
     if (var.fpara.on) {
-      if ((portion == EXTRACT_DATA && var.fpara.extract_on) ||
-          (portion != EXTRACT_DATA                    )   ) {
-        read_array(node,FOURDIM,start,end,var.fpara.info[0].name,
-                   var.fpara.info[0].index,var.fpara.value,EPIC_FLOAT_ARRAY,nc_id);
-      }
+      read_array(node,FOURDIM,start,end,var.fpara.info[0].name,
+                 var.fpara.info[0].index,var.fpara.value,DOUBLE_ARRAY,nc_id);
     }
 
     for (iq = 0; iq < grid.nq; iq++) {
-      if ((portion == EXTRACT_DATA && var.species[grid.is[iq]].phase[grid.ip[iq]].extract_on) ||
-          (portion != EXTRACT_DATA                                        )   ) {
-        read_array(node,FOURDIM,start,end,var.species[grid.is[iq]].phase[grid.ip[iq]].info[MASS].name,
-                   var.species[grid.is[iq]].phase[grid.ip[iq]].info[MASS].index,
-                   var.species[grid.is[iq]].phase[grid.ip[iq]].q,
-                   EPIC_FLOAT_ARRAY,nc_id);
+      read_array(node,FOURDIM,start,end,var.species[grid.is[iq]].phase[grid.ip[iq]].info[MASS].name,
+                 var.species[grid.is[iq]].phase[grid.ip[iq]].info[MASS].index,
+                 var.species[grid.is[iq]].phase[grid.ip[iq]].q,
+                 DOUBLE_ARRAY,nc_id);
+    }
+
+
+    if (grid.moist_convection == ACTIVE) {
+      /*
+       * Read in cloud work function (cwf).
+       */
+      for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+        if (var.species[is].on) {
+          /*
+           * RS:  Check if moist-convection cloud work function (cwf) exists
+           *      before trying to read it in.
+           */
+          if(IAMNODE == NODE0) {
+            strcpy(var_name,var.species[is].cwf.info[0].name);
+            nc_err = nc_inq_varid(nc_id,var_name,&nc_var_id);
+          }
+          bcast_int(NODE0,&nc_err,1);
+        
+          if (!nc_err) {
+            read_array(node,FOURDIM,start,end,var.species[is].cwf.info[0].name,
+                       var.species[is].cwf.info[0].index,var.species[is].cwf.value,
+                       DOUBLE_ARRAY,nc_id);
+          }
+        }
       }
     }
 
     if (var.nu_turb.on) {
-      if ((portion == EXTRACT_DATA && var.nu_turb.extract_on) ||
-          (portion != EXTRACT_DATA                    )   ) {
-        read_array(node,FOURDIM,start,end,var.nu_turb.info[0].name,
-                   var.nu_turb.info[0].index,var.nu_turb.value,EPIC_FLOAT_ARRAY,nc_id);
-      }
+      read_array(node,FOURDIM,start,end,var.nu_turb.info[0].name,
+                 var.nu_turb.info[0].index,var.nu_turb.value,DOUBLE_ARRAY,nc_id);
     }
   }
 
@@ -1233,7 +1207,7 @@ void var_read(planetspec   *planet,
   /*
    * Set solar longitude, L_s [deg], which is a function of time.
    */
-  L_s = solar_longitude(planet,var.model_time);
+  L_s = solar_longitude(var.model_time);
 
   /*
    * Apply lateral boundary conditions.
@@ -1296,10 +1270,6 @@ void var_read(planetspec   *planet,
   for (iq = 0; iq < grid.nq; iq++) {
     bc_lateral(var.species[grid.is[iq]].phase[grid.ip[iq]].q,THREEDIM);
   }
-  /*
-   * Synchronize mole fractions, X, to mass mixing ratios, Q.
-   */
-  sync_x_to_q(planet);
 
   if (var.nu_turb.on) {
     bc_lateral(var.nu_turb.value,THREEDIM);
@@ -1369,8 +1339,7 @@ void var_read(planetspec   *planet,
  * with the new ni being stretch_ni.
  */
 
-void var_write(planetspec   *planet,
-               char         *outfile,
+void var_write(char         *outfile,
                int           portion,
                unsigned int  time_index,
                int           stretch_ni)
@@ -1380,8 +1349,7 @@ void var_write(planetspec   *planet,
     nk,
     node,
     num_nodes,
-    iq,
-    i;
+    iq,is,i;
   int
     start[FOURDIM],
     end[FOURDIM],
@@ -1391,28 +1359,21 @@ void var_write(planetspec   *planet,
     initialized = FALSE;
   size_t
     t_index[1];
-  EPIC_FLOAT
+  double
     the_time[1],
     the_L_s[1],
     avg;
-  register EPIC_FLOAT
+  register double
     tmp;
-  static EPIC_FLOAT
+  static double
     *buff3d;
   nc_type
     the_nc_type;     /* NOTE: Used in i/o macros. */
   char 
     history[N_STR];
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
 #endif
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1424,7 +1385,7 @@ void var_write(planetspec   *planet,
 
   if (!initialized) {
     /* Allocate memory. */
-    buff3d = fvector(0,Nelem3d-1,dbmsname);
+    buff3d = dvector(0,Nelem3d-1,dbmsname);
 
     initialized = TRUE;
   }
@@ -1466,7 +1427,7 @@ void var_write(planetspec   *planet,
         }
       }
 
-      define_netcdf(planet,outfile,portion,stretch_ni,nc_id);
+      define_netcdf(portion,stretch_ni,nc_id);
     }
     else {
       /*
@@ -1547,7 +1508,7 @@ void var_write(planetspec   *planet,
                        grid.epic_version);
       nc_put_att_text(nc_id,NC_GLOBAL,"source",strlen(Message)+1,Message);
     }
-    sprintf(Message,"Developed at the University of Louisville, KY USA");
+    sprintf(Message,"Originally developed at the University of Louisville, KY USA");
     nc_put_att_text(nc_id,NC_GLOBAL,"institution",strlen(Message)+1,Message);
    /* 
     * NOTE: Regarding time stamping the  global attribute "history," gcc 3.3.5 has a bug that generates a segmentation fault
@@ -1555,10 +1516,10 @@ void var_write(planetspec   *planet,
     */   
     sprintf(Message,"This file produced by the EPIC Atmospheric model");
     nc_put_att_text(nc_id,NC_GLOBAL,"history",strlen(Message)+1,Message);
-    sprintf(Message,"The EPIC Model is downloadable as open source from the NASA Planetary Data System (PDS) Atmospheres Node\n");
+    sprintf(Message,"EPIC model open source: https://github.com/NASA-Planetary-Science/EPIC_Atmospheric_Model\n");
     nc_put_att_text(nc_id,NC_GLOBAL,"references",strlen(Message)+1,Message);
     
-    WRITEF(&grid.epic_version,grid_epic_version,1);
+    WRITED(&grid.epic_version,grid_epic_version,1);
 
     WRITETIME(&var.start_time,var_start_time);
 
@@ -1566,30 +1527,31 @@ void var_write(planetspec   *planet,
     WRITEC(planet->name,planet_name,32);
     WRITEC(planet->type,planet_type,16);
     WRITEC(planet->orbital_epoch,planet_orbital_epoch,8);
-    WRITEF(&planet->re,planet_re,1);
-    WRITEF(&planet->rp,planet_rp,1);
-    WRITEF(&planet->obliquity,planet_obliquity,1);
-    WRITEF(&planet->omega_sidereal,planet_omega_sidereal,1);
-    WRITEF(&planet->omega_synodic,planet_omega_synodic,1);
-    WRITEF(&planet->cp,planet_cp,1);
-    WRITEF(&planet->rgas,planet_rgas,1);
-    WRITEF(&planet->p0,planet_p0,1);
-    WRITEF(&planet->GM,planet_GM,1);
-    WRITEF(&planet->J2,planet_J2,1);
-    WRITEF(&planet->x_he,planet_x_he,1);
-    WRITEF(&planet->x_h2,planet_x_h2,1);
-    WRITEF(&planet->x_3,planet_x_3,1);
-    WRITEF(&planet->a,planet_a,1);
-    WRITEF(&planet->e,planet_e,1);
-    WRITEF(&planet->i,planet_i,1);
-    WRITEF(&planet->lon_ascending_node,planet_lon_ascending_node,1);
-    WRITEF(&planet->lon_perihelion,planet_lon_perihelion,1);
-    WRITEF(&planet->mean_lon,planet_mean_lon,1);
-    WRITEF(&planet->orbit_period,planet_orbit_period,1);
-    WRITEF(&planet->vernal_equinox_anomaly,planet_vernal_equinox_anomaly,1);
-    WRITEF(&planet->kinvisc,planet_kinvisc,1);
-    WRITEF(&planet->dynvisc,planet_dynvisc,1);
-    WRITEF(&planet->k_a,planet_k_a,1);
+    WRITED(&planet->re,planet_re,1);
+    WRITED(&planet->rp,planet_rp,1);
+    WRITED(&planet->obliquity,planet_obliquity,1);
+    WRITED(&planet->omega_sidereal,planet_omega_sidereal,1);
+    WRITED(&planet->omega_synodic,planet_omega_synodic,1);
+    WRITED(&planet->cp,planet_cp,1);
+    WRITED(&planet->rgas,planet_rgas,1);
+    WRITED(&planet->p0,planet_p0,1);
+    WRITED(&planet->g0,planet_g0,1);
+    WRITED(&planet->GM,planet_GM,1);
+    WRITED(&planet->J2,planet_J2,1);
+    WRITED(&planet->x_he,planet_x_he,1);
+    WRITED(&planet->x_h2,planet_x_h2,1);
+    WRITED(&planet->x_3,planet_x_3,1);
+    WRITED(&planet->a,planet_a,1);
+    WRITED(&planet->e,planet_e,1);
+    WRITED(&planet->i,planet_i,1);
+    WRITED(&planet->lon_ascending_node,planet_lon_ascending_node,1);
+    WRITED(&planet->lon_perihelion,planet_lon_perihelion,1);
+    WRITED(&planet->mean_lon,planet_mean_lon,1);
+    WRITED(&planet->orbit_period,planet_orbit_period,1);
+    WRITED(&planet->vernal_equinox_anomaly,planet_vernal_equinox_anomaly,1);
+    WRITED(&planet->kinvisc,planet_kinvisc,1);
+    WRITED(&planet->dynvisc,planet_dynvisc,1);
+    WRITED(&planet->k_a,planet_k_a,1);
 
     WRITEI(&grid.nk,grid_nk,1);
     WRITEI(&grid.nj,grid_nj,1);
@@ -1607,6 +1569,12 @@ void var_write(planetspec   *planet,
     WRITEC(grid.vertical_coordinate,grid_vertical_coordinate,N_STR);
     WRITEI(&grid.coord_type,grid_coord_type,1);
     WRITEI(&grid.radiation_index,grid_radiation_index,1);
+    
+    // write the global heating-cooling parameters
+    WRITED(&grid.heat_top_pressure,grid_heat_top_pressure,1);
+    WRITED(&grid.heat_rate,grid_heat_rate,1);
+    WRITED(&grid.cool_bot_pressure,grid_cool_bot_pressure,1);
+    WRITED(&grid.cool_rate,grid_cool_rate,1);
 
     WRITEC(grid.uv_timestep_scheme,grid_uv_timestep_scheme,N_STR);
     WRITEC(grid.radiation_scheme,grid_radiation_scheme,N_STR);
@@ -1618,13 +1586,13 @@ void var_write(planetspec   *planet,
     WRITEC(var.nu_turb.advection_scheme,var_nu_turb_advection_scheme,N_STR);
     WRITEC(var.species[FIRST_SPECIES].advection_scheme,var_species_advection_scheme,N_STR);
 
-    WRITEF(&grid.globe_lonbot,grid_globe_lonbot,1);
-    WRITEF(&grid.globe_lontop,grid_globe_lontop,1);
-    WRITEF(&grid.globe_latbot,grid_globe_latbot,1);
-    WRITEF(&grid.globe_lattop,grid_globe_lattop,1);
+    WRITED(&grid.globe_lonbot,grid_globe_lonbot,1);
+    WRITED(&grid.globe_lontop,grid_globe_lontop,1);
+    WRITED(&grid.globe_latbot,grid_globe_latbot,1);
+    WRITED(&grid.globe_lattop,grid_globe_lattop,1);
     WRITEC(grid.f_plane_map,grid_f_plane_map,GEOM_STR);       
-    WRITEF(&grid.f_plane_lat0,grid_f_plane_lat0,1);
-    WRITEF(&grid.f_plane_half_width,grid_f_plane_half_width,1);
+    WRITED(&grid.f_plane_lat0,grid_f_plane_lat0,1);
+    WRITED(&grid.f_plane_half_width,grid_f_plane_half_width,1);
 
     WRITEI(grid.wrap,grid_wrap,TOPDIM);
     WRITEI(grid.pad,grid_pad,TOPDIM);
@@ -1633,12 +1601,25 @@ void var_write(planetspec   *planet,
     WRITEI(&grid.jlast,grid_jlast,1);
     WRITEI(&grid.ilo,grid_ilo,1);
     WRITEI(&grid.k_sponge,grid_k_sponge,1);
+    WRITEI(&grid.n_bot_drag,grid_n_bot_drag,1);
     WRITEI(&grid.j_sponge,grid_j_sponge,1);
     WRITEI(&grid.extract_species_fraction_type,grid_extract_species_fraction_type,1);
+    WRITEI(&grid.mc_diag_extract_sum,grid_mc_diag_extract_sum,1);
     WRITEI(&grid.k_sigma,grid_k_sigma,1);
-    WRITEF(&grid.du_vert,grid_du_vert,1);
+    WRITED(&grid.du_vert,grid_du_vert,1);
 
     WRITEI(&grid.cloud_microphysics,grid_cloud_microphysics,1);
+    WRITEI(&grid.moist_convection,grid_moist_convection,1);
+    if (grid.moist_convection == ACTIVE) {
+      WRITEI(&grid.max_mc_it,grid_max_mc_it,1);
+      WRITEI(&grid.first_RAS_upd,grid_first_ras_upd,1);
+      WRITED(&grid.tau_relax,grid_tau_relax,1);
+    }
+    
+    WRITEI(&grid.relax_vapor,grid_relax_vapor,1);
+    WRITED(&grid.relax_vapor_timescale,grid_relax_vapor_timescale,1);
+
+
     WRITEI(&grid.include_nontrad_accel,grid_include_nontrad_accel,1);
     WRITEI(&grid.zonal_average_rt,grid_zonal_average_rt,1);
     WRITEI(var.on_list,var_on_list,LAST_INDEX-FIRST_INDEX+1);
@@ -1665,53 +1646,50 @@ void var_write(planetspec   *planet,
       portion == HEADER_DATA         ||
       portion == EXTRACT_HEADER_DATA ||
       portion == ALL_DATA              ) {
-    EPIC_FLOAT
+    double
       *buffer;
 
     nk = grid.nk;
 
-    WRITEF(&grid.dlt,grid_dlt,1);
-    WRITEF(&grid.dln,grid_dln,1);
+    WRITED(&grid.dlt,grid_dlt,1);
+    WRITED(&grid.dln,grid_dln,1);
     WRITEI(&grid.dt,grid_dt,1);
 
-    WRITEF(&var.fpara_rate_scaling,var_fpara_rate_scaling,1);
+    WRITED(&var.fpara_rate_scaling,var_fpara_rate_scaling,1);
 
     if (var.ntp > 0) {
       /*
        * Write reference temperature sounding profile.
        */
-      buffer = fvector(0,var.ntp-1,dbmsname);
+      buffer = dvector(0,var.ntp-1,dbmsname);
       for (i = 0; i < var.ntp; i++) {
         /*
          * Convert output pressure from Pa to hPa.
          */
         buffer[i] = var.pdat[i]/100.;
       }
-      WRITEF(buffer,var_pdat,var.ntp);
+      WRITED(buffer,var_pdat,var.ntp);
       WRITEC("hPa",var_pdat_units,strlen("hPa")+1);
-      WRITEF(var.tdat,var_tdat,var.ntp);
+      WRITED(var.tdat,var_tdat,var.ntp);
       WRITEC("K",var_tdat_units,strlen("K")+1);
-      WRITEF(var.dtdat,var_dtdat,var.ntp);
+      WRITED(var.dtdat,var_dtdat,var.ntp);
       WRITEC("K",var_dtdat_units,strlen("K")+1);
-      free_fvector(buffer,0,var.ntp-1,dbmsname);
+      free_dvector(buffer,0,var.ntp-1,dbmsname);
     }
 
-    WRITEF(grid.re,grid_re,nk+1);
-    WRITEF(grid.rp,grid_rp,nk+1);
+    WRITED(grid.re,grid_re,nk+1);
+    WRITED(grid.rp,grid_rp,nk+1);
 
     WRITED(grid.sigmatheta,grid_sigmatheta,2*(nk+1)+2);
 
-    WRITEF(grid.p_ref,grid_p_ref,2*(nk+1)+2);
-    WRITEF(grid.t_ref,grid_t_ref,2*(nk+1)+2);
-    WRITEF(grid.rho_ref,grid_rho_ref,2*(nk+1)+2);
-    WRITEF(grid.theta_ref,grid_theta_ref,2*(nk+1)+2);
-    WRITEF(grid.h_min,grid_h_min,nk+1);
+    WRITED(grid.p_ref,grid_p_ref,2*(nk+1)+2);
+    WRITED(grid.t_ref,grid_t_ref,2*(nk+1)+2);
+    WRITED(grid.rho_ref,grid_rho_ref,2*(nk+1)+2);
+    WRITED(grid.theta_ref,grid_theta_ref,2*(nk+1)+2);
+    WRITED(grid.h_min,grid_h_min,nk+1);
 
-    WRITEF(&grid.sgth_bot,grid_sgth_bot,1);
-    WRITEF(&grid.sgth_top,grid_sgth_top,1);
-    /*
-     * Double precision to improve calculation of diagnostic theta.
-     */
+    WRITED(&grid.sgth_bot,grid_sgth_bot,1);
+    WRITED(&grid.sgth_top,grid_sgth_top,1);
     WRITED(&grid.zeta0,grid_zeta0,1);
     WRITED(&grid.zeta1,grid_zeta1,1);
     WRITED(&grid.hybrid_alpha,grid_hybrid_alpha,1);
@@ -1720,16 +1698,16 @@ void var_write(planetspec   *planet,
     WRITEI(&grid.newt_cool_adjust,grid_newt_cool_adjust,1);
     WRITEC(grid.eos,grid_eos,8);
 
-    WRITEF(&grid.ptop,grid_ptop,1);
-    WRITEF(&grid.pbot,grid_pbot,1);
-    WRITEF(&grid.thetatop,grid_thetatop,1);
-    WRITEF(&grid.thetabot,grid_thetabot,1);
-    WRITEF(&grid.phi0,grid_phi0,1);
+    WRITED(&grid.ptop,grid_ptop,1);
+    WRITED(&grid.pbot,grid_pbot,1);
+    WRITED(&grid.thetatop,grid_thetatop,1);
+    WRITED(&grid.thetabot,grid_thetabot,1);
+    WRITED(&grid.phi0,grid_phi0,1);
 
     WRITEI(&grid.nu_order,grid_nu_order,1);
-    WRITEF(&grid.nudiv_nondim,grid_nudiv_nondim,1);
-    WRITEF(&grid.nu_nondim,grid_nu_nondim,1);
-    WRITEF(&grid.nu_hyper,grid_nu_hyper,1);
+    WRITED(&grid.nudiv_nondim,grid_nudiv_nondim,1);
+    WRITED(&grid.nu_nondim,grid_nu_nondim,1);
+    WRITED(&grid.nu_hyper,grid_nu_hyper,1);
   }
 
   if (portion == HEADER_DATA         ||
@@ -1751,15 +1729,15 @@ void var_write(planetspec   *planet,
    */
   WRITETIME(&var.model_time,var_model_time);
 
-  grid.cfl_dt = cfl_dt(planet);
+  grid.cfl_dt = cfl_dt();
   WRITEI(&grid.cfl_dt,grid_cfl_dt,1);
 
   WRITEI(&grid.aux_a,grid_aux_a,1);
   WRITEI(&grid.aux_b,grid_aux_b,1);
   WRITEI(&grid.aux_c,grid_aux_c,1);
-  WRITEF(&grid.aux_fa,grid_aux_fa,1);
-  WRITEF(&grid.aux_fb,grid_aux_fb,1);
-  WRITEF(&grid.aux_fc,grid_aux_fc,1);
+  WRITED(&grid.aux_fa,grid_aux_fa,1);
+  WRITED(&grid.aux_fb,grid_aux_fb,1);
+  WRITED(&grid.aux_fc,grid_aux_fc,1);
 
   if (IAMNODE == NODE0) {
     /*
@@ -1778,13 +1756,7 @@ void var_write(planetspec   *planet,
   if (IAMNODE == NODE0) {
     t_index[ 0] = time_index;
     the_time[0] = TIME/86400.;
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     nc_err = nc_put_var1_double(nc_id,var.info[0].coorid[NETCDF_T_INDEX],t_index,the_time);
-#else
-    nc_err = nc_put_var1_float(nc_id,var.info[0].coorid[NETCDF_T_INDEX],t_index,the_time);
-#endif
-
     if (nc_err != NC_NOERR) {
       sprintf(Message,"t_index=%lu, %s",(long unsigned)t_index[0],nc_strerror(nc_err));
       epic_error(dbmsname,Message);
@@ -1797,13 +1769,7 @@ void var_write(planetspec   *planet,
   if (IAMNODE == NODE0) {
     t_index[0] = time_index;
     the_L_s[0] = L_s;
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     nc_err = nc_put_var1_double(nc_id,var.l_s.info.id,t_index,the_L_s);
-#else
-    nc_err = nc_put_var1_float(nc_id,var.l_s.info.id,t_index,the_L_s);
-#endif
-
     if (nc_err != NC_NOERR) {
       sprintf(Message,"Writing L_s, t_index=%lu, %s",(long unsigned)t_index[0],nc_strerror(nc_err));
       epic_error(dbmsname,Message);
@@ -1837,7 +1803,7 @@ void var_write(planetspec   *planet,
 
   for (node = 0; node < num_nodes; node++) {
     if (IAMNODE == NODE0) {
-      fprintf(stdout,"\b\b\b\b%3d%%",(int)(100.*(EPIC_FLOAT)node/grid.we_num_nodes));
+      fprintf(stdout,"\b\b\b\b%3d%%",(int)(100.*(double)node/grid.we_num_nodes));
       fflush(stdout);
     }
 
@@ -1849,17 +1815,17 @@ void var_write(planetspec   *planet,
      */
     if (var.phi_surface.on) {
       if ((portion == EXTRACT_DATA && var.phi_surface.extract_on) ||
-          (portion != EXTRACT_DATA)                                ) {
+          (portion != EXTRACT_DATA)                                 ) {
         write_array(node,TWODIM,start,end,stretch_ni,var.phi_surface.info[0].name,
-                    var.phi_surface.info[0].index,var.phi_surface.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.phi_surface.info[0].index,var.phi_surface.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
     if (var.pbot.on) {
       if ((portion == EXTRACT_DATA && var.pbot.extract_on) ||
-          (portion != EXTRACT_DATA)                                ) {
+          (portion != EXTRACT_DATA)                          ) {
         write_array(node,TWODIM,start,end,stretch_ni,var.pbot.info[0].name,
-                    var.pbot.info[0].index,var.pbot.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.pbot.info[0].index,var.pbot.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
@@ -1867,16 +1833,27 @@ void var_write(planetspec   *planet,
       if ((portion == EXTRACT_DATA && var.dzdt2.extract_on) ||
           (portion != EXTRACT_DATA)                           ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.dzdt2.info[0].name,
-                    var.dzdt2.info[0].index,var.dzdt2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.dzdt2.info[0].index,var.dzdt2.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
     if (var.gravity2.on) {
-      /*
-       * Suppress I dimension by passing -1 for stretch_ni.
-       */
-      write_array(node,THREEDIM,start,end,-1,var.gravity2.info[0].name,
-                  var.gravity2.info[0].index,var.gravity2.value,EPIC_FLOAT_ARRAY,nc_id);
+      if ((portion == EXTRACT_DATA && var.gravity2.extract_on) ||
+          (portion != EXTRACT_DATA)                              ) {
+        /*
+         * Suppress I dimension by passing -1 for stretch_ni.
+         */
+        write_array(node,THREEDIM,start,end,-1,var.gravity2.info[0].name,
+                    var.gravity2.info[0].index,var.gravity2.value,DOUBLE_ARRAY,nc_id);
+      }
+    }
+
+    if (var.u_spinup.on) {
+      if ((portion == EXTRACT_DATA && var.u_spinup.extract_on) ||
+          (portion != EXTRACT_DATA)                              ) {
+        write_array(node,FOURDIM,start,end,stretch_ni,var.u_spinup.info[0].name,
+                    var.u_spinup.info[0].index,var.u_spinup.value,DOUBLE_ARRAY,nc_id);
+      }
     }
 
     if (portion == EXTRACT_DATA) {
@@ -1890,103 +1867,103 @@ void var_write(planetspec   *planet,
        */
       if (var.h.on && var.h.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.h.info[0].name,
-                    var.h.info[0].index,var.h.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.h.info[0].index,var.h.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.h3.on && var.h3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.h3.info[0].name,
-                    var.h3.info[0].index,var.h3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.h3.info[0].index,var.h3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.hdry2.on && var.hdry2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.hdry2.info[0].name,
-                    var.hdry2.info[0].index,var.hdry2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.hdry2.info[0].index,var.hdry2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.hdry3.on && var.hdry3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.hdry3.info[0].name,
-                    var.hdry3.info[0].index,var.hdry3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.hdry3.info[0].index,var.hdry3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.pdry3.on && var.pdry3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.pdry3.info[0].name,
-                    var.pdry3.info[0].index,var.pdry3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.pdry3.info[0].index,var.pdry3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.p2.on && var.p2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.p2.info[0].name,
-                    var.p2.info[0].index,var.p2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.p2.info[0].index,var.p2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.theta2.on && var.theta2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.theta2.info[0].name,
-                    var.theta2.info[0].index,var.theta2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.theta2.info[0].index,var.theta2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.t2.on && var.t2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.t2.info[0].name,
-                    var.t2.info[0].index,var.t2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.t2.info[0].index,var.t2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.t3.on && var.t3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.t3.info[0].name,
-                    var.t3.info[0].index,var.t3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.t3.info[0].index,var.t3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.rho2.on && var.rho2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.rho2.info[0].name,
-                    var.rho2.info[0].index,var.rho2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.rho2.info[0].index,var.rho2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.rho3.on && var.rho3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.rho3.info[0].name,
-                    var.rho3.info[0].index,var.rho3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.rho3.info[0].index,var.rho3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.exner2.on && var.exner2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.exner2.info[0].name,
-                    var.exner2.info[0].index,var.exner2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.exner2.info[0].index,var.exner2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.exner3.on && var.exner3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.exner3.info[0].name,
-                    var.exner3.info[0].index,var.exner3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.exner3.info[0].index,var.exner3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.fgibb2.on && var.fgibb2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.fgibb2.info[0].name,
-                    var.fgibb2.info[0].index,var.fgibb2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.fgibb2.info[0].index,var.fgibb2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.z2.on && var.z2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.z2.info[0].name,
-                    var.z2.info[0].index,var.z2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.z2.info[0].index,var.z2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.phi2.on && var.phi2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.phi2.info[0].name,
-                    var.phi2.info[0].index,var.phi2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.phi2.info[0].index,var.phi2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.phi3.on && var.phi3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.phi3.info[0].name,
-                    var.phi3.info[0].index,var.phi3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.phi3.info[0].index,var.phi3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.mont2.on && var.mont2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.mont2.info[0].name,
-                    var.mont2.info[0].index,var.mont2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.mont2.info[0].index,var.mont2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.heat3.on && var.heat3.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.heat3.info[0].name,
-                    var.heat3.info[0].index,var.heat3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.heat3.info[0].index,var.heat3.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.pv2.on && var.pv2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.pv2.info[0].name,
-                    var.pv2.info[0].index,var.pv2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.pv2.info[0].index,var.pv2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.ri2.on && var.ri2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.ri2.info[0].name,
-                    var.ri2.info[0].index,var.ri2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.ri2.info[0].index,var.ri2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.diffusion_coef_uv.on && var.diffusion_coef_uv.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.diffusion_coef_uv.info[0].name,
-                    var.diffusion_coef_uv.info[0].index,var.diffusion_coef_uv.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.diffusion_coef_uv.info[0].index,var.diffusion_coef_uv.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.diffusion_coef_theta.on && var.diffusion_coef_theta.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.diffusion_coef_theta.info[0].name,
-                    var.diffusion_coef_theta.info[0].index,var.diffusion_coef_theta.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.diffusion_coef_theta.info[0].index,var.diffusion_coef_theta.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.diffusion_coef_mass.on && var.diffusion_coef_mass.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.diffusion_coef_mass.info[0].name,
-                    var.diffusion_coef_mass.info[0].index,var.diffusion_coef_mass.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.diffusion_coef_mass.info[0].index,var.diffusion_coef_mass.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.div_uv2.on && var.div_uv2.extract_on) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.div_uv2.info[0].name,
-                    var.div_uv2.info[0].index,var.div_uv2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.div_uv2.info[0].index,var.div_uv2.value,DOUBLE_ARRAY,nc_id);
       }
       if (var.w3.on && var.w3.extract_on) {
         switch(grid.coord_type) {
@@ -2007,11 +1984,11 @@ void var_write(planetspec   *planet,
               /* No need to apply bc_lateral() here. */
             }
             write_array(node,FOURDIM,start,end,stretch_ni,var.w3.info[0].name,
-                        var.w3.info[0].index,buff3d,EPIC_FLOAT_ARRAY,nc_id);
+                        var.w3.info[0].index,buff3d,DOUBLE_ARRAY,nc_id);
           break;
           default:
             write_array(node,FOURDIM,start,end,stretch_ni,var.w3.info[0].name,
-                        var.w3.info[0].index,var.w3.value,EPIC_FLOAT_ARRAY,nc_id);
+                        var.w3.info[0].index,var.w3.value,DOUBLE_ARRAY,nc_id);
           break;
         }
       }
@@ -2032,7 +2009,7 @@ void var_write(planetspec   *planet,
 
 #if defined(EPIC_MPI)
             mpi_tmp = avg;
-            MPI_Allreduce(&mpi_tmp,&avg,1,float_type,MPI_SUM,para.comm_JLO);
+            MPI_Allreduce(&mpi_tmp,&avg,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
             avg /= grid.ni;
@@ -2042,10 +2019,17 @@ void var_write(planetspec   *planet,
             }
           }
         }
+        /* Cosmetic value at K = nk+1 */
+        K = KHI+1;
+        for (J = JLOPAD; J <= JHIPADPV; J++) {
+          for (I = ILOPAD; I <= IHIPAD; I++) {
+            EDDY_PV2(K,J,I) = EDDY_PV2(K-1,J,I);
+          }
+        }
         /* No need to apply bc_lateral() here. */
 
         write_array(node,FOURDIM,start,end,stretch_ni,var.eddy_pv2.info[0].name,
-                    var.eddy_pv2.info[0].index,var.eddy_pv2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.eddy_pv2.info[0].index,var.eddy_pv2.value,DOUBLE_ARRAY,nc_id);
       }
 
       if (var.rel_vort2.extract_on) {
@@ -2059,9 +2043,17 @@ void var_write(planetspec   *planet,
                       NULL,
                       var.rel_vort2.value+(K-Kshift)*Nelem2d);
           }
+          /* Cosmetic value at K = nk+1 */
+          K = KHI+1;
+          for (J = JLOPAD; J <= JHIPADPV; J++) {
+            for (I = ILOPAD; I <= IHIPAD; I++) {
+              BUFF3D(K,J,I) = BUFF3D(K-1,J,I);
+            }
+          }
+          /* No need to apply bc_lateral() here */
         }
         write_array(node,FOURDIM,start,end,stretch_ni,var.rel_vort2.info[0].name,
-                    var.rel_vort2.info[0].index,var.rel_vort2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.rel_vort2.info[0].index,var.rel_vort2.value,DOUBLE_ARRAY,nc_id);
       }
 
       if (var.eddy_rel_vort2.extract_on) {
@@ -2084,7 +2076,7 @@ void var_write(planetspec   *planet,
 
 #if defined(EPIC_MPI)
               mpi_tmp = avg;
-              MPI_Allreduce(&mpi_tmp,&avg,1,float_type,MPI_SUM,para.comm_JLO);
+              MPI_Allreduce(&mpi_tmp,&avg,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
               avg /= grid.ni;
@@ -2093,10 +2085,18 @@ void var_write(planetspec   *planet,
                 EDDY_REL_VORT2(K,J,I) -= avg;
               }
             }
+            /* No need to apply bc_lateral() here */
+          }
+          /* Cosmetic value at K = nk+1 */
+          K = KHI+1;
+          for (J = JLOPAD; J <= JHIPADPV; J++) {
+            for (I = ILOPAD; I <= IHIPAD; I++) {
+              EDDY_REL_VORT2(K,J,I) = EDDY_REL_VORT2(K-1,J,I);
+            }
           }
         }
         write_array(node,FOURDIM,start,end,stretch_ni,var.eddy_rel_vort2.info[0].name,
-                    var.eddy_rel_vort2.info[0].index,var.eddy_rel_vort2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.eddy_rel_vort2.info[0].index,var.eddy_rel_vort2.value,DOUBLE_ARRAY,nc_id);
       }
 
       if (var.abs_vort2.extract_on) {
@@ -2110,42 +2110,56 @@ void var_write(planetspec   *planet,
                       NULL,
                       var.abs_vort2.value+(K-Kshift)*Nelem2d);
           }
+          /* Cosmetic value at K = nk+1 */
+          K = KHI+1;
+          for (J = JLO; J <= JHI; J++) {
+            for (I = ILO; I <= IHI; I++) {
+              BUFF3D(K,J,I) = BUFF3D(K-1,J,I);
+            }
+          }
+          /* No need to apply bc_lateral() here */
         }
         write_array(node,FOURDIM,start,end,stretch_ni,var.abs_vort2.info[0].name,
-                    var.abs_vort2.info[0].index,var.abs_vort2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.abs_vort2.info[0].index,var.abs_vort2.value,DOUBLE_ARRAY,nc_id);
       }
 
       if (var.kinetic_energy2.extract_on) {
         if (!var.kinetic_energy2.on) {
           /* Calculate variable here and store in BUFF3D memory. */
           var.kinetic_energy2.value = buff3d;
-          for (K = 0; K <= KHI; K++) {
-            for (J = JLO; J <= JHI; J++) {
-              for (I = ILO; I <= IHI; I++) {
-                BUFF3D(K,J,I) = get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                               var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,2*K,J,I);
+          for (J = JLO; J <= JHI; J++) {
+            for (I = ILO; I <= IHI; I++) {
+              for (K = 0; K <= KHI; K++) {
+                BUFF3D(K,J,I) = get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                                        var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,2*K,J,I);
               }
+              /* Cosmetic value at K = nk+1 */
+              K = KHI+1;
+              BUFF3D(K,J,I) = BUFF3D(K-1,J,I);
             }
           }
           /* No need to apply bc_lateral() here */
         }
         write_array(node,FOURDIM,start,end,stretch_ni,var.kinetic_energy2.info[0].name,
-                    var.kinetic_energy2.info[0].index,var.kinetic_energy2.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.kinetic_energy2.info[0].index,var.kinetic_energy2.value,DOUBLE_ARRAY,nc_id);
       }
 
       if (var.molar_mass3.extract_on) {
         var.molar_mass3.value = buff3d;
-        for (K = 0; K <= KHI; K++) {
-          kk = 2*K+1;
-          for (J = JLOPAD; J <= JHIPADPV; J++) {
-            for (I = ILOPAD; I <= IHIPAD; I++) {
-              MOLAR_MASS3(K,J,I) = avg_molar_mass(planet,kk,J,I);
+        for (J = JLOPAD; J <= JHIPADPV; J++) {
+          for (I = ILOPAD; I <= IHIPAD; I++) {
+            for (K = 0; K <= KHI; K++) {
+              kk = 2*K+1;
+              MOLAR_MASS3(K,J,I) = avg_molar_mass(kk,J,I);
             }
+            /* Cosmetic value at K = nk+1 */
+            K = KHI+1;
+            MOLAR_MASS3(K,J,I) = MOLAR_MASS3(K-1,J,I);
           }
         }
         /* No need to apply bc_lateral() here. */
         write_array(node,FOURDIM,start,end,stretch_ni,var.molar_mass3.info[0].name,
-                    var.molar_mass3.info[0].index,var.molar_mass3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.molar_mass3.info[0].index,var.molar_mass3.value,DOUBLE_ARRAY,nc_id);
       }
 
       /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -2161,26 +2175,26 @@ void var_write(planetspec   *planet,
         if ((portion == EXTRACT_DATA && var.u.extract_on) ||
             (portion != EXTRACT_DATA                    )   ) {
           write_array(node,FOURDIM,start,end,stretch_ni,var.u.info[0].name,
-                      var.u.info[0].index,var.u.value,EPIC_FLOAT_ARRAY,nc_id);
+                      var.u.info[0].index,var.u.value,DOUBLE_ARRAY,nc_id);
         }
         if ((portion != VAR_DATA    ) &&
             (portion != EXTRACT_DATA)   ) {
           write_array(node,THREEDIM,start,end,stretch_ni,var.u.info_tend[0].name,
-                      var.u.info_tend[0].index,var.u.tendency+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.u.info_tend[0].index,var.u.tendency+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
           write_array(node,THREEDIM,start,end,stretch_ni,var.u.info_tend[1].name,
-                      var.u.info_tend[1].index,var.u.tendency+IT_MINUS2*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.u.info_tend[1].index,var.u.tendency+IT_MINUS2*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
       }
       else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
         if (portion == EXTRACT_DATA && var.u.extract_on) {
           write_array(node,FOURDIM,start,end,stretch_ni,var.u.info[0].name,
-                      var.u.info[0].index,var.u.value+IT_ZERO*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.u.info[0].index,var.u.value+IT_ZERO*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
         else if (portion != EXTRACT_DATA) {
           write_array(node,FOURDIM,start,end,stretch_ni,var.u.info[0].name,
-                      var.u.info[0].index,var.u.value+IT_ZERO*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.u.info[0].index,var.u.value+IT_ZERO*Nelem3d,DOUBLE_ARRAY,nc_id);
           write_array(node,FOURDIM,start,end,stretch_ni,var.u.info[1].name,
-                      var.u.info[1].index,var.u.value+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.u.info[1].index,var.u.value+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
       }
       else {
@@ -2194,26 +2208,26 @@ void var_write(planetspec   *planet,
         if ((portion == EXTRACT_DATA && var.v.extract_on) ||
             (portion != EXTRACT_DATA                    )   ) {
           write_array(node,FOURDIM,start,end,stretch_ni,var.v.info[0].name,
-                      var.v.info[0].index,var.v.value,EPIC_FLOAT_ARRAY,nc_id);
+                      var.v.info[0].index,var.v.value,DOUBLE_ARRAY,nc_id);
         }
         if ((portion != VAR_DATA    ) &&
             (portion != EXTRACT_DATA)   ) {
           write_array(node,THREEDIM,start,end,stretch_ni,var.v.info_tend[0].name,
-                      var.v.info_tend[0].index,var.v.tendency+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.v.info_tend[0].index,var.v.tendency+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
           write_array(node,THREEDIM,start,end,stretch_ni,var.v.info_tend[1].name,
-                      var.v.info_tend[1].index,var.v.tendency+IT_MINUS2*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.v.info_tend[1].index,var.v.tendency+IT_MINUS2*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
       }
       else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
         if (portion == EXTRACT_DATA && var.v.extract_on) {
           write_array(node,FOURDIM,start,end,stretch_ni,var.v.info[0].name,
-                      var.v.info[0].index,var.v.value+IT_ZERO*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.v.info[0].index,var.v.value+IT_ZERO*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
         else if (portion != EXTRACT_DATA) {
           write_array(node,FOURDIM,start,end,stretch_ni,var.v.info[0].name,
-                      var.v.info[0].index,var.v.value+IT_ZERO*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.v.info[0].index,var.v.value+IT_ZERO*Nelem3d,DOUBLE_ARRAY,nc_id);
           write_array(node,FOURDIM,start,end,stretch_ni,var.v.info[1].name,
-                      var.v.info[1].index,var.v.value+IT_MINUS1*Nelem3d,EPIC_FLOAT_ARRAY,nc_id);
+                      var.v.info[1].index,var.v.value+IT_MINUS1*Nelem3d,DOUBLE_ARRAY,nc_id);
         }
       }
       else {
@@ -2230,7 +2244,7 @@ void var_write(planetspec   *planet,
       if ((portion == EXTRACT_DATA && var.p3.extract_on) ||
           (portion != EXTRACT_DATA                     )   ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.p3.info[0].name,
-                    var.p3.info[0].index,var.p3.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.p3.info[0].index,var.p3.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
@@ -2238,7 +2252,7 @@ void var_write(planetspec   *planet,
       if ((portion == EXTRACT_DATA && var.theta.extract_on) ||
           (portion != EXTRACT_DATA                    )   ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.theta.info[0].name,
-                    var.theta.info[0].index,var.theta.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.theta.info[0].index,var.theta.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
@@ -2246,61 +2260,92 @@ void var_write(planetspec   *planet,
       if ((portion == EXTRACT_DATA && var.fpara.extract_on) ||
           (portion != EXTRACT_DATA                    )   ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.fpara.info[0].name,
-                    var.fpara.info[0].index,var.fpara.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.fpara.info[0].index,var.fpara.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
     for (iq = 0; iq < grid.nq; iq++) {
       if ((portion == EXTRACT_DATA && var.species[grid.is[iq]].phase[grid.ip[iq]].extract_on) ||
           (portion != EXTRACT_DATA                                                          )   ) {
-        /*
-         * Map Q <= Q_MIN -> 0.0, so that extract file holds zero
-         * instead of Q_MIN for voids, which makes plotting easier. 
-         */
-        for (K = KLOPAD; K <= KHIPAD; K++) {
-          for (J = JLOPAD; J <= JHIPAD; J++) {
-            for (I = ILOPAD; I <= IHIPAD; I++) {
-              if (fcmp(Q(grid.is[iq],grid.ip[iq],K,J,I),Q_MIN) <= 0) {
-                Q(grid.is[iq],grid.ip[iq],K,J,I) = 0.;
-              }
-            }
-          }
-        }
-        /* No need to apply bc_lateral() here. */
-
         if ((portion == EXTRACT_DATA && grid.extract_species_fraction_type == MASS) ||
             (portion != EXTRACT_DATA                                              )   ) {
           write_array(node,FOURDIM,start,end,stretch_ni,var.species[grid.is[iq]].phase[grid.ip[iq]].info[MASS].name,
                       var.species[grid.is[iq]].phase[grid.ip[iq]].info[MASS].index,
                       var.species[grid.is[iq]].phase[grid.ip[iq]].q,
-                      EPIC_FLOAT_ARRAY,nc_id);
+                      DOUBLE_ARRAY,nc_id);
         }
         else if (grid.extract_species_fraction_type == MOLAR) {
-          sync_x_to_q(planet);
+          sync_x_to_q(grid.is[iq],grid.ip[iq],buff3d);
 
           write_array(node,FOURDIM,start,end,stretch_ni,var.species[grid.is[iq]].phase[grid.ip[iq]].info[MOLAR].name,
                       var.species[grid.is[iq]].phase[grid.ip[iq]].info[MOLAR].index,
-                      var.species[grid.is[iq]].phase[grid.ip[iq]].x,
-                      EPIC_FLOAT_ARRAY,nc_id);
+                      buff3d,
+                      DOUBLE_ARRAY,nc_id);
+        }
+        else if (grid.extract_species_fraction_type == TEND) {
+          write_array(node,FOURDIM,start,end,stretch_ni,var.species[grid.is[iq]].phase[grid.ip[iq]].info[TEND].name,
+                      var.species[grid.is[iq]].phase[grid.ip[iq]].info[TEND].index,
+                      var.species[grid.is[iq]].phase[grid.ip[iq]].dqdt,
+                      DOUBLE_ARRAY,nc_id);
         }
         else {
           sprintf(Message,"grid.extract_species_fraction_type=%d unrecognized",grid.extract_species_fraction_type);
           epic_error(dbmsname,Message);
         }
+      }
+    }
 
+    if (grid.moist_convection == ACTIVE) {
+      for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+        if (var.species[is].on) {
+          if ((portion == EXTRACT_DATA && var.species[is].cwf.extract_on) ||
+              (portion != EXTRACT_DATA                                  )   ) {
+            /*
+             * The cloud work function (cwf) is needed for restarts.
+             */
+            write_array(node,FOURDIM,start,end,stretch_ni,var.species[is].cwf.info[0].name,
+                var.species[is].cwf.info[0].index,var.species[is].cwf.value,DOUBLE_ARRAY,nc_id);
+          }
+          if (portion == EXTRACT_DATA) {
+            /*
+             * Optional moist-convection extracts that are species specific.
+             */
+            if (var.species[is].lambda_mc.extract_on) {
+              write_array(node,FOURDIM,start,end,stretch_ni,var.species[is].lambda_mc.info[0].name,
+                  var.species[is].lambda_mc.info[0].index,var.species[is].lambda_mc.value,DOUBLE_ARRAY,nc_id);
+            }
+            if (var.species[is].mb_mc.extract_on) {
+              write_array(node,FOURDIM,start,end,stretch_ni,var.species[is].mb_mc.info[0].name,
+                  var.species[is].mb_mc.info[0].index,var.species[is].mb_mc.value,DOUBLE_ARRAY,nc_id);
+            }
+            if (var.species[is].dAdt.extract_on) {
+              write_array(node,FOURDIM,start,end,stretch_ni,var.species[is].dAdt.info[0].name,
+                  var.species[is].dAdt.info[0].index,var.species[is].dAdt.value,DOUBLE_ARRAY,nc_id);
+            }
+          }
+        }
+      }
+
+      if (portion == EXTRACT_DATA) {
         /*
-         * Restore Q < Q_MIN to be Q_MIN.
+         * Optional moist-convection extracts that are not species specific.
          */
-        restore_mass(planet,grid.is[iq],grid.ip[iq]);
-        sync_x_to_q(planet);
+        if (var.heat_mc.on && var.heat_mc.extract_on) {
+          write_array(node,FOURDIM,start,end,stretch_ni,var.heat_mc.info[0].name,
+                      var.heat_mc.info[0].index,var.heat_mc.value,DOUBLE_ARRAY,nc_id);
+        }
+        if (var.cloud_base.on && var.cloud_base.extract_on) {
+          write_array(node,FOURDIM,start,end,stretch_ni,var.cloud_base.info[0].name,
+                      var.cloud_base.info[0].index,var.cloud_base.value,DOUBLE_ARRAY,nc_id);
+        }
       }
     }
 
     if (var.nu_turb.on) {
       if ((portion == EXTRACT_DATA && var.nu_turb.extract_on) ||
-          (portion != EXTRACT_DATA                    )   ) {
+          (portion != EXTRACT_DATA                          )   ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.nu_turb.info[0].name,
-                    var.nu_turb.info[0].index,var.nu_turb.value,EPIC_FLOAT_ARRAY,nc_id);
+                    var.nu_turb.info[0].index,var.nu_turb.value,DOUBLE_ARRAY,nc_id);
       }
     }
   }
@@ -2433,7 +2478,7 @@ int lookup_netcdf(char   *infile,
     if (nc_err != NC_NOERR) { \
       fprintf(stderr,"DEFINE_NC_GRID: %s\n",nc_strerror(nc_err)); \
     } \
-    nc_err = nc_def_var(nc_id,coord_name,float_type,ONEDIM, \
+    nc_err = nc_def_var(nc_id,coord_name,NC_DOUBLE,ONEDIM, \
                         &var.u.info[0].dimid[NETCDF_I_INDEX],&var.u.info[0].coorid[NETCDF_I_INDEX]); \
     if (nc_err != NC_NOERR) { \
       fprintf(stderr,"DEFINE_NC_GRID: %s\n",nc_strerror(nc_err)); \
@@ -2464,7 +2509,7 @@ int lookup_netcdf(char   *infile,
     if (nc_err != NC_NOERR) { \
       fprintf(stderr,"DEFINE_NC_GRID: %s\n",nc_strerror(nc_err)); \
     } \
-    nc_err = nc_def_var(nc_id,coord_name,float_type,ONEDIM, \
+    nc_err = nc_def_var(nc_id,coord_name,NC_DOUBLE,ONEDIM, \
                         &var.u.info[0].dimid[NETCDF_J_INDEX],&var.u.info[0].coorid[NETCDF_J_INDEX]); \
     if (nc_err != NC_NOERR) { \
       fprintf(stderr,"DEFINE_NC_GRID: %s\n",nc_strerror(nc_err)); \
@@ -2529,7 +2574,7 @@ int lookup_netcdf(char   *infile,
         } \
       break; \
       case COORD_HYBRID: \
-        sprintf(coord_name,"hybrid_sigma_theta%s",var.u.info[0].name); \
+        sprintf(coord_name,"hybrid_sigmatheta_%s",var.u.info[0].name); \
         nc_err = nc_def_dim(nc_id,coord_name,kdim,&var.u.info[0].dimid[NETCDF_K_INDEX]); \
         if (nc_err != NC_NOERR) { \
           fprintf(stderr,"DEFINE_NC_GRID: %s\n",nc_strerror(nc_err)); \
@@ -2614,7 +2659,7 @@ int lookup_netcdf(char   *infile,
           var.p.info[in].dimid[i]  = var.h.info[0].dimid[i]; \
           var.p.info[in].coorid[i] = var.h.info[0].coorid[i]; \
         } \
-        nc_err = nc_def_var(nc_id,var.p.info[in].name,float_type,var.p.info[in].dim, \
+        nc_err = nc_def_var(nc_id,var.p.info[in].name,NC_DOUBLE,var.p.info[in].dim, \
                             var.p.info[in].dimid,&var.p.info[in].id); \
         if (nc_err != NC_NOERR) { \
           fprintf(stderr,"DEFINE_NC_VAR: %s\n",nc_strerror(nc_err)); \
@@ -2640,7 +2685,7 @@ int lookup_netcdf(char   *infile,
     }
 
 #define DEFINE_NC_JI(phi_surface,h,has_standard_name) \
-    nc_err = nc_def_var(nc_id,var.phi_surface.info[0].name,float_type,TWODIM, \
+    nc_err = nc_def_var(nc_id,var.phi_surface.info[0].name,NC_DOUBLE,TWODIM, \
                         &var.h.info[0].dimid[NETCDF_J_INDEX],&var.phi_surface.info[0].id); \
     if (nc_err != NC_NOERR) { \
       fprintf(stderr,"DEFINE_NC_JI: %s\n",nc_strerror(nc_err)); \
@@ -2664,7 +2709,7 @@ int lookup_netcdf(char   *infile,
     }
 
 #define DEFINE_NC_KJ(gravity,h,has_standard_name) \
-    nc_err = nc_def_var(nc_id,var.gravity.info[0].name,float_type,TWODIM, \
+    nc_err = nc_def_var(nc_id,var.gravity.info[0].name,NC_DOUBLE,TWODIM, \
                         &var.h.info[0].dimid[NETCDF_K_INDEX],&var.gravity.info[0].id); \
     if (nc_err != NC_NOERR) { \
       fprintf(stderr,"DEFINE_NC_KJ: %s\n",nc_strerror(nc_err)); \
@@ -2690,7 +2735,7 @@ int lookup_netcdf(char   *infile,
 #define DEFINE_NC_TEND(u,num,on_array) \
     for (in = 0; in < num; in++) { \
       if (on_array[in]) { \
-        nc_err = nc_def_var(nc_id,var.u.info_tend[in].name,float_type,THREEDIM, \
+        nc_err = nc_def_var(nc_id,var.u.info_tend[in].name,NC_DOUBLE,THREEDIM, \
                             &var.u.info[0].dimid[NETCDF_K_INDEX],&var.u.info_tend[in].id); \
         if (nc_err != NC_NOERR) { \
           fprintf(stderr,"DEFINE_NC_TEND: %s\n",nc_strerror(nc_err)); \
@@ -2717,13 +2762,11 @@ int lookup_netcdf(char   *infile,
  * Specify maximum number of arrays associated with a given variable.
  * The array on_array[] is used to indicate which of these is to be defined for .nc files.
  */
-#define MAX_NUM 2
+#define MAX_NUM 3
 
-void define_netcdf(planetspec   *planet,
-                   char         *outfile,
-                   int           portion,
-                   int           stretch_ni,
-                   int           nc_id)
+void define_netcdf(int portion,
+                   int stretch_ni,
+                   int nc_id)
 {
   int
     nc_err,
@@ -2738,8 +2781,6 @@ void define_netcdf(planetspec   *planet,
     message_len;
   char
     coord_name[VAR_NM_SZ+8];
-  nc_type
-    float_type;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -2767,22 +2808,12 @@ void define_netcdf(planetspec   *planet,
   }
 
   /*
-   * Specify floating-point type (precision).
-   */
-  if (EPIC_PRECISION == DOUBLE_PRECISION) {
-    float_type = NC_DOUBLE;
-  }
-  else {
-    float_type = NC_FLOAT;
-  }
-
-  /*
    * The variables all share the same time dimension, which is unlimited.
    *
    * time:
    */
   nc_def_dim(nc_id,"time",NC_UNLIMITED,&var.info[0].dimid[NETCDF_T_INDEX]); 
-  nc_def_var(nc_id,"time",float_type,ONEDIM,
+  nc_def_var(nc_id,"time",NC_DOUBLE,ONEDIM,
              &var.info[0].dimid[NETCDF_T_INDEX],&var.info[0].coorid[NETCDF_T_INDEX]);
   message_len = strftime(Message,N_STR,"days since %Y-%m-%d %H:%M:%S 0",gmtime(&var.start_time));
 
@@ -2832,7 +2863,7 @@ void define_netcdf(planetspec   *planet,
   var.l_s.info.dim       = ONEDIM;
   var.l_s.info.dimid[0]  = var.info[0].dimid[NETCDF_T_INDEX];
   var.l_s.info.coorid[0] = var.info[0].coorid[NETCDF_T_INDEX];
-  nc_err = nc_def_var(nc_id,var.l_s.info.name,float_type,var.l_s.info.dim,
+  nc_err = nc_def_var(nc_id,var.l_s.info.name,NC_DOUBLE,var.l_s.info.dim,
                       var.l_s.info.dimid,&var.l_s.info.id);
   if (nc_err != NC_NOERR) {
     fprintf(stderr,"defining L_s: %s\n",nc_strerror(nc_err));
@@ -2862,7 +2893,7 @@ void define_netcdf(planetspec   *planet,
    * Define in netcdf the prognostic variables that are written to epic.nc files.
    */
   if (var.u.on) {
-    if (portion == EXTRACT_HEADER_DATA || portion == EXTRACT_DATA) {
+    if (portion == EXTRACT_HEADER_DATA) {
       if (var.u.extract_on) {
         num         = 1;
         on_array[0] = 1;
@@ -2895,7 +2926,7 @@ void define_netcdf(planetspec   *planet,
   }
 
   if (var.v.on) {
-    if (portion == EXTRACT_HEADER_DATA || portion == EXTRACT_DATA) {
+    if (portion == EXTRACT_HEADER_DATA) {
       if (var.v.extract_on) {
         num         = 1;
         on_array[0] = 1;
@@ -2931,7 +2962,7 @@ void define_netcdf(planetspec   *planet,
    * NOTE: P3 is treated as the prognostic variable for i/o rather than H
    */
   if (var.p3.on) {
-    if (portion == EXTRACT_HEADER_DATA || portion == EXTRACT_DATA) {
+    if (portion == EXTRACT_HEADER_DATA) {
       if (var.p3.extract_on) {
         num         = 1;
         on_array[0] = 1;
@@ -2946,7 +2977,7 @@ void define_netcdf(planetspec   *planet,
   }
 
   if (var.theta.on) {
-    if (portion == EXTRACT_HEADER_DATA || portion == EXTRACT_DATA) {
+    if (portion == EXTRACT_HEADER_DATA) {
       if (var.theta.extract_on) {
         num         = 1;
         on_array[0] = 1;
@@ -2961,7 +2992,7 @@ void define_netcdf(planetspec   *planet,
   }
 
   if (var.fpara.on) {
-    if (portion == EXTRACT_HEADER_DATA || portion == EXTRACT_DATA) {
+    if (portion == EXTRACT_HEADER_DATA) {
       if (var.fpara.extract_on) {
         num         = 1;
         on_array[0] = 1;
@@ -2981,43 +3012,56 @@ void define_netcdf(planetspec   *planet,
    */
   for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
     if (var.species[is].on) {
-      if (portion == EXTRACT_HEADER_DATA || portion == EXTRACT_DATA) {
+      if (portion == EXTRACT_HEADER_DATA) {
         if (var.species[is].extract_on) {
+          num = 3;
+          for (in = 0; in < num; in++) {
+            on_array[in] = (grid.extract_species_fraction_type == in);
+          }
           for (ip = FIRST_PHASE; ip <= LAST_PHASE; ip++) {
             if (var.species[is].phase[ip].extract_on) {
-              num = 2;
-              if (grid.extract_species_fraction_type == MASS) {
-                on_array[MASS ] = 1;
-                on_array[MOLAR] = 0;
-              }
-              else if (grid.extract_species_fraction_type == MOLAR) {
-                on_array[MASS ] = 0;
-                on_array[MOLAR] = 1;
-              }
-              else {
-                sprintf(Message,"unrecognized grid.extract_species_fraction_type=%d",grid.extract_species_fraction_type);
-                epic_error(dbmsname,Message);
-              }
               DEFINE_NC_VAR(species[is].phase[ip],p3,num,on_array,NEEDS_STANDARD_NAME);
             }
           }
         }
+        if (grid.moist_convection == ACTIVE) {
+          num         = 1;
+          on_array[0] = 1;
+          if (var.species[is].cwf.extract_on) {
+            DEFINE_NC_VAR(species[is].cwf,p3,num,on_array,NEEDS_STANDARD_NAME);
+          }
+          if (var.species[is].lambda_mc.extract_on) {
+            DEFINE_NC_VAR(species[is].lambda_mc,p3,num,on_array,NEEDS_STANDARD_NAME);
+          }
+          if (var.species[is].mb_mc.extract_on) {
+            DEFINE_NC_VAR(species[is].mb_mc,p3,num,on_array,NEEDS_STANDARD_NAME);
+          }
+          if (var.species[is].dAdt.extract_on) {
+            DEFINE_NC_VAR(species[is].dAdt,p3,num,on_array,NEEDS_STANDARD_NAME);
+          }
+        }
       }
       else {
+        num = 3;
+        for (in = 0; in < num; in++) {
+          on_array[in] = (MASS == in);
+        }
         for (ip = FIRST_PHASE; ip <= LAST_PHASE; ip++) {
           if (var.species[is].phase[ip].on) {
-            num = 2;
-            on_array[MASS ] = 1;
-            on_array[MOLAR] = 0;
             DEFINE_NC_VAR(species[is].phase[ip],p3,num,on_array,NEEDS_STANDARD_NAME);
           }
+        }
+        if (grid.moist_convection == ACTIVE) {
+          num         = 1;
+          on_array[0] = 1;
+          DEFINE_NC_VAR(species[is].cwf,p3,num,on_array,NEEDS_STANDARD_NAME);
         }
       }
     }
   }
 
   if (var.nu_turb.on) {
-    if (portion == EXTRACT_HEADER_DATA || portion == EXTRACT_DATA) {
+    if (portion == EXTRACT_HEADER_DATA) {
       if (var.nu_turb.extract_on) {
         num         = 1;
         on_array[0] = 1;
@@ -3094,6 +3138,12 @@ void define_netcdf(planetspec   *planet,
     }
     if (var.heat3.extract_on) {
       DEFINE_NC_VAR(heat3,p3,num,on_array,NEEDS_STANDARD_NAME);
+    }
+    if (var.heat_mc.extract_on) {
+      DEFINE_NC_VAR(heat_mc,p3,num,on_array,NEEDS_STANDARD_NAME);
+    }
+    if (var.cloud_base.extract_on) {
+      DEFINE_NC_VAR(cloud_base,p3,num,on_array,NEEDS_STANDARD_NAME);
     }
     if (var.rel_vort2.extract_on) {
       DEFINE_NC_VAR(rel_vort2,pv2,num,on_array,HAS_STANDARD_NAME);
@@ -3173,6 +3223,13 @@ void define_netcdf(planetspec   *planet,
     DEFINE_NC_KJ(gravity2,h,NEEDS_STANDARD_NAME);
   }
 
+  if (var.u_spinup.on) {
+    if ((portion == EXTRACT_HEADER_DATA && var.u_spinup.extract_on) ||
+        (portion != EXTRACT_HEADER_DATA)                           ) {
+      DEFINE_NC_VAR(u_spinup,u,num,on_array,HAS_STANDARD_NAME);
+    }
+  }
+
   /*
    * Leave define mode:
    */
@@ -3189,7 +3246,7 @@ void define_netcdf(planetspec   *planet,
     /*
      * Need to compute and output longitudes appropriate to stretch_ni.
      */
-    EPIC_FLOAT
+    double
       *longitude;
     int
       ii;
@@ -3197,7 +3254,7 @@ void define_netcdf(planetspec   *planet,
     /*
      * Allocate memory.
      */
-    longitude = fvector(0,2*(stretch_ni+1),dbmsname);
+    longitude = dvector(0,2*(stretch_ni+1),dbmsname);
 
     /*
      * NOTE: The value of grid.dln should already be modified accordingly.
@@ -3215,8 +3272,6 @@ void define_netcdf(planetspec   *planet,
 
     for (I = 1; I <= stretch_ni; I++) {
       index[0] = I-1;
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       nc_put_var1_double(nc_id,var.u.info[0].coorid[NETCDF_I_INDEX],
                          index,&(longitude[2*I]));
       nc_put_var1_double(nc_id,var.v.info[0].coorid[NETCDF_I_INDEX],
@@ -3227,30 +3282,16 @@ void define_netcdf(planetspec   *planet,
                          index,&(longitude[2*I]));
       nc_put_var1_double(nc_id,var.p3.info[0].coorid[NETCDF_I_INDEX],
                          index,&(longitude[2*I+1]));
-#else
-      nc_put_var1_float(nc_id,var.u.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(longitude[2*I]));
-      nc_put_var1_float(nc_id,var.v.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(longitude[2*I+1]));
-      nc_put_var1_float(nc_id,var.h.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(longitude[2*I+1]));
-      nc_put_var1_float(nc_id,var.pv2.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(longitude[2*I]));
-      nc_put_var1_float(nc_id,var.p3.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(longitude[2*I+1]));
-#endif
     }
 
     /*
      * Free allocated memory.
      */
-    free_fvector(longitude,0,2*(stretch_ni+1),dbmsname);
+    free_dvector(longitude,0,2*(stretch_ni+1),dbmsname);
   }
   else {
     for (I = 1; I <= grid.ni; I++) {
       index[0] = I-1;
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       nc_put_var1_double(nc_id,var.u.info[0].coorid[NETCDF_I_INDEX],
                          index,&(grid.lon[2*I]));
       nc_put_var1_double(nc_id,var.v.info[0].coorid[NETCDF_I_INDEX],
@@ -3261,18 +3302,6 @@ void define_netcdf(planetspec   *planet,
                          index,&(grid.lon[2*I]));
       nc_put_var1_double(nc_id,var.p3.info[0].coorid[NETCDF_I_INDEX],
                          index,&(grid.lon[2*I+1]));
-#else
-      nc_put_var1_float(nc_id,var.u.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(grid.lon[2*I]));
-      nc_put_var1_float(nc_id,var.v.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(grid.lon[2*I+1]));
-      nc_put_var1_float(nc_id,var.h.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(grid.lon[2*I+1]));
-      nc_put_var1_float(nc_id,var.pv2.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(grid.lon[2*I]));
-      nc_put_var1_float(nc_id,var.p3.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(grid.lon[2*I+1]));
-#endif
     }
   }
 
@@ -3281,8 +3310,6 @@ void define_netcdf(planetspec   *planet,
    */
   for (J = grid.jlo; J <= grid.nj; J++) {
     index[0] = J-grid.jlo;
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     nc_put_var1_double(nc_id,var.u.info[0].coorid[NETCDF_J_INDEX],
                        index,&(grid.lat[2*J+1]));
     nc_put_var1_double(nc_id,var.v.info[0].coorid[NETCDF_J_INDEX],
@@ -3293,18 +3320,6 @@ void define_netcdf(planetspec   *planet,
                        index,&(grid.lat[2*J]));
     nc_put_var1_double(nc_id,var.p3.info[0].coorid[NETCDF_J_INDEX],
                        index,&(grid.lat[2*J+1]));
-#else
-    nc_put_var1_float(nc_id,var.u.info[0].coorid[NETCDF_J_INDEX],
-                      index,&(grid.lat[2*J+1]));
-    nc_put_var1_float(nc_id,var.v.info[0].coorid[NETCDF_J_INDEX],
-                      index,&(grid.lat[2*J]));
-    nc_put_var1_float(nc_id,var.h.info[0].coorid[NETCDF_J_INDEX],
-                      index,&(grid.lat[2*J+1]));
-    nc_put_var1_float(nc_id,var.pv2.info[0].coorid[NETCDF_J_INDEX],
-                      index,&(grid.lat[2*J]));
-    nc_put_var1_float(nc_id,var.p3.info[0].coorid[NETCDF_J_INDEX],
-                      index,&(grid.lat[2*J+1]));
-#endif
   }
 
   /*
@@ -3584,7 +3599,10 @@ void get_ilohi(int  node,
     }
 
 void prompt_extract_on(char *def_extract_str,
-                       int  *def_extract_species_fraction_type)
+                       int  *def_extract_species_fraction_type,
+                       int  *def_mc_diag_extract_sum,
+                       boolean modify
+                       )
 {
   int
     is,ip,index,
@@ -3654,9 +3672,13 @@ void prompt_extract_on(char *def_extract_str,
       PRINT_EXTRACT_ON(species[is],is);
     }
   }
+  PRINT_EXTRACT_ON(h3,H3_INDEX);
+  PRINT_EXTRACT_ON(hdry2,HDRY2_INDEX);
+  PRINT_EXTRACT_ON(hdry3,HDRY3_INDEX);
   PRINT_EXTRACT_ON(p2,P2_INDEX);
   PRINT_EXTRACT_ON(p3,P3_INDEX);
   PRINT_EXTRACT_ON(pdry3,PDRY3_INDEX);
+  PRINT_EXTRACT_ON(theta2,THETA2_INDEX);
   PRINT_EXTRACT_ON(t2,T2_INDEX);
   PRINT_EXTRACT_ON(t3,T3_INDEX);
   PRINT_EXTRACT_ON(rho2,RHO2_INDEX);
@@ -3683,13 +3705,22 @@ void prompt_extract_on(char *def_extract_str,
   PRINT_EXTRACT_ON(w3,W3_INDEX);
   PRINT_EXTRACT_ON(z2,Z2_INDEX);
   PRINT_EXTRACT_ON(dzdt2,DZDT2_INDEX);
-  PRINT_EXTRACT_ON(diffusion_coef_uv,DIFFUSION_COEF_UV_INDEX);
-  PRINT_EXTRACT_ON(diffusion_coef_theta,DIFFUSION_COEF_THETA_INDEX);
-  PRINT_EXTRACT_ON(diffusion_coef_mass,DIFFUSION_COEF_MASS_INDEX);
+
+  if (strcmp(grid.turbulence_scheme,"off") != 0) {
+    PRINT_EXTRACT_ON(diffusion_coef_uv,DIFFUSION_COEF_UV_INDEX);
+    PRINT_EXTRACT_ON(diffusion_coef_theta,DIFFUSION_COEF_THETA_INDEX);
+    PRINT_EXTRACT_ON(diffusion_coef_mass,DIFFUSION_COEF_MASS_INDEX);
+  }
+
+  if (grid.moist_convection == ACTIVE) {
+    PRINT_EXTRACT_ON(heat_mc,HEAT_MC_INDEX);
+    PRINT_EXTRACT_ON(cloud_base,CLOUD_BASE_INDEX);
+  }
+
   if (var.phi_surface.on) {PRINT_EXTRACT_ON(phi_surface,PHI_SURFACE_INDEX);}
   fprintf(stdout,"\n");
   sprintf(Message,"On one line, input the indices of variables to be included in extract.nc\n");
-  input_string(Message,def_extract_str,extract_str);
+  input_string(Message,def_extract_str,extract_str,modify);
 
   memset(def_extract_str,0,N_STR);
   strcpy(def_extract_str,extract_str);
@@ -3708,14 +3739,14 @@ void prompt_extract_on(char *def_extract_str,
         case V_INDEX:                    var.v.extract_on                    = TRUE; break;
         case H_INDEX:                    var.h.extract_on                    = TRUE; break;
         case THETA_INDEX:                var.theta.extract_on                = TRUE; break;
-        case FPARA_INDEX:                var.fpara.extract_on                = TRUE; break;
         case NU_TURB_INDEX:              var.nu_turb.extract_on              = TRUE; break;
+        case FPARA_INDEX:                var.fpara.extract_on                = TRUE; break;
         case H3_INDEX:                   var.h3.extract_on                   = TRUE; break;
         case HDRY2_INDEX:                var.hdry2.extract_on                = TRUE; break;
         case HDRY3_INDEX:                var.hdry3.extract_on                = TRUE; break;
-        case PDRY3_INDEX:                var.pdry3.extract_on                = TRUE; break;
         case P2_INDEX:                   var.p2.extract_on                   = TRUE; break;
         case P3_INDEX:                   var.p3.extract_on                   = TRUE; break;
+        case PDRY3_INDEX:                var.pdry3.extract_on                = TRUE; break;
         case THETA2_INDEX:               var.theta2.extract_on               = TRUE; break;
         case T2_INDEX:                   var.t2.extract_on                   = TRUE; break;
         case T3_INDEX:                   var.t3.extract_on                   = TRUE; break;
@@ -3743,6 +3774,8 @@ void prompt_extract_on(char *def_extract_str,
         case DIFFUSION_COEF_UV_INDEX:    var.diffusion_coef_uv.extract_on    = TRUE; break;
         case DIFFUSION_COEF_THETA_INDEX: var.diffusion_coef_theta.extract_on = TRUE; break;
         case DIFFUSION_COEF_MASS_INDEX:  var.diffusion_coef_mass.extract_on  = TRUE; break;
+        case HEAT_MC_INDEX:              var.heat_mc.extract_on              = TRUE; break;
+        case CLOUD_BASE_INDEX:           var.cloud_base.extract_on           = TRUE; break;
         case PHI_SURFACE_INDEX:          var.phi_surface.extract_on          = TRUE; break;
         case PBOT_INDEX:                 var.pbot.extract_on                 = TRUE; break;
         default:
@@ -3769,10 +3802,21 @@ void prompt_extract_on(char *def_extract_str,
   }
 
   if (inquire_species_fraction_type) {
-    sprintf(Message,"Species fraction type to extract: [%d] => Mass mixing ratio, Q = mass_i/mass_dry_air ,\n"
-                    "                                  [%d] => Mole fraction,     X = number_i/number_total\n",
-                    MASS,MOLAR);
-    *def_extract_species_fraction_type = input_int(Message,*def_extract_species_fraction_type);
+    sprintf(Message,"Species fraction type to extract: %2d => Mass mixing ratio (MMR), Q [mass_i/mass_dry_air],\n"
+                    "                                  %2d => Mole fraction, X [number_i/number_total], \n"
+                    "                                  %2d => MMR tendency, dQ/dt \n",
+                    MASS,MOLAR,TEND);
+    *def_extract_species_fraction_type = input_int(Message,*def_extract_species_fraction_type,modify);
+  }
+
+  if (grid.moist_convection == ACTIVE) {
+    sprintf(Message,"Moist convection diagnostic variables to extract:\n"
+                    "   Cloud work function    1000\n"
+                    "   Lambda                 0100\n"
+                    "   Base mass flux         0010\n"
+                    "   dA/dt                  0001\n"
+                    "Input base10 integer sum (0000 => none):\n");
+    *def_mc_diag_extract_sum = input_int(Message,*def_mc_diag_extract_sum,modify);
   }
 
   return;
@@ -3797,8 +3841,9 @@ void prompt_extract_on(char *def_extract_str,
     } \
     var.species[index].on = var.on_list[index] = LISTED_AND_OFF;
 
-int prompt_species_on(planetspec *planet,
-                      char       *def_species_str)
+int prompt_species_on(char    *def_species_str,
+                      boolean  modify
+                      )
 {
   int
     is,ip,index,
@@ -3931,7 +3976,7 @@ int prompt_species_on(planetspec *planet,
 
   fprintf(stdout,"\n");
   sprintf(Message,"On one line, input the indices of optional prognostic variables to be turned on [none => optional variables off]\n");
-  input_string(Message,def_species_str,species_str);
+  input_string(Message,def_species_str,species_str,modify);
 
   if (strcmp(species_str,"\n")   == 0 ||
       strcmp(species_str,"none") == 0   ) {
@@ -4005,32 +4050,6 @@ void bcast_int(int  node,
 
 /*======================= end of bcast_int() ==================================*/
 
-/*======================= bcast_float() =======================================*/
-
-void bcast_float(int         node,
-                 EPIC_FLOAT *val,
-                 int         num)
-{
-
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
-
-#if defined(EPIC_MPI)
-  MPI_Bcast(val,num,float_type,node,para.comm);
-#endif
-
-  return;
-}
-
-/*======================= end of bcast_float() ================================*/
-
 /*======================= bcast_double() ======================================*/
 
 void bcast_double(int     node,
@@ -4074,7 +4093,7 @@ void read_spacing_file(init_defaultspec *def,
   char
     token[32],
    *filename;
-  EPIC_FLOAT
+  double
    *p_ref;
   FILE
     *spacing_file;
@@ -4100,26 +4119,19 @@ void read_spacing_file(init_defaultspec *def,
   /*
    * Allocate memory.
    */
-  p_ref = fvector(0,2*(grid.nk+1),dbmsname);
+  p_ref = dvector(0,2*(grid.nk+1),dbmsname);
 
   fscanf(spacing_file,"%s %s",token,token);
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
   for (K = 0; K <= grid.nk; K++) {
     fscanf(spacing_file,"%s %lf",token,p_ref+(2*K+1));
   }
-#else
-  for (K = 0; K <= grid.nk; K++) {
-    fscanf(spacing_file,"%s %f",token,p_ref+(2*K+1));
-  }
-#endif
 
   /*
    * Fill in layer values.
    */
   for (K = KLO; K <= KHI; K++) {
     kk = 2*K;
-    p_ref[kk] = onto_kk(planet,P2_INDEX,p_ref[kk-1],p_ref[kk+1],kk,JLO,ILO);
+    p_ref[kk] = onto_kk(P2_INDEX,p_ref[kk-1],p_ref[kk+1],kk);
   }
   p_ref[      0] = p_ref[1]*p_ref[1]/p_ref[2];
   p_ref[2*KHI+2] = p_ref[2*KHI+1]*p_ref[2*KHI+1]/p_ref[2*KHI];
@@ -4144,7 +4156,7 @@ void read_spacing_file(init_defaultspec *def,
   /*
    * Free allocated memory.
    */
-  free_fvector(p_ref,0,2*(grid.nk+1),dbmsname);
+  free_dvector(p_ref,0,2*(grid.nk+1),dbmsname);
 
   return;
 }
@@ -4159,28 +4171,27 @@ void read_spacing_file(init_defaultspec *def,
  *                           "theta"
  *
  * For example, to get a theta(p) via interpolation, use 
- *   get_sounding(planet,p,"theta",&theta);
+ *   get_sounding(p,"theta",&theta);
  *
  * Interpolation uses -log(p).
  *
  * NOTE: If input_value is below the bottom of the data table, then the bottom
  *       value of the data table is used. 
  */
-void get_sounding(planetspec *planet,
-                  EPIC_FLOAT  pressure,
-                  char       *output_name,
-                  EPIC_FLOAT *pt_output_value)
+void get_sounding(double  pressure,
+                  char   *output_name,
+                  double *pt_output_value)
 {
   int
     ki;
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     fpara,fgibb,fpe,uoup,
     theta_ortho,theta_para,
     x,x_d,
     tmp;
-  static float_triplet
+  static double_triplet
     *tdat,
     *thetadat;
   /* 
@@ -4195,8 +4206,8 @@ void get_sounding(planetspec *planet,
     /* 
      * Allocate memory: 
      */
-    tdat     = ftriplet(0,var.ntp-1,dbmsname);
-    thetadat = ftriplet(0,var.ntp-1,dbmsname);
+    tdat     = dtriplet(0,var.ntp-1,dbmsname);
+    thetadat = dtriplet(0,var.ntp-1,dbmsname);
 
     /*
      * Set temperature data table.
@@ -4214,7 +4225,7 @@ void get_sounding(planetspec *planet,
     for (ki = 0; ki < var.ntp; ki++) {
       thetadat[ki].x = -log(var.pdat[ki]);
       fpara          = return_fpe(var.tdat[ki]);
-      thetadat[ki].y = return_theta(planet,fpara,var.pdat[ki],var.tdat[ki],&theta_ortho,&theta_para);
+      thetadat[ki].y = return_theta(fpara,var.pdat[ki],var.tdat[ki],&theta_ortho,&theta_para);
     }
 
     spline_pchip(var.ntp,thetadat);
@@ -4232,7 +4243,7 @@ void get_sounding(planetspec *planet,
           /*
            * Adjust tdat.
            */
-          tdat[ki].y = return_temp(planet,fpara,var.pdat[ki],thetadat[ki].y);
+          tdat[ki].y = return_temp(fpara,var.pdat[ki],thetadat[ki].y);
         }
       }
     } 
@@ -4286,15 +4297,14 @@ void get_sounding(planetspec *planet,
  *       model is running, and hence does not need to be MPI ready.
  */
 
-int read_t_vs_p(planetspec *planet,
-                int         portion)
+int read_t_vs_p(int portion)
 {
   char
     infile[FILE_STR],
     header[N_STR];
   int
     nn,ntp;
-  EPIC_FLOAT
+  double
     p1,t1,dt1;
   FILE
     *t_vs_p;
@@ -4339,12 +4349,7 @@ int read_t_vs_p(planetspec *planet,
    * Store in order of increasing sigmatheta.
    */
   for (nn = ntp-1; nn >= 0; nn--) { 
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     fscanf(t_vs_p,"%lf %lf %lf",&p1,&t1,&dt1);
-#else
-    fscanf(t_vs_p,"%f %f %f",&p1,&t1,&dt1);
-#endif
 
     /* convert from hPa to Pa */
     var.pdat[ nn] = 100.*p1; 
@@ -4376,20 +4381,19 @@ int read_t_vs_p(planetspec *planet,
  * such that value[k][j] refers to pressure level k and latitude j.
  */
 
-void read_meridional_plane(planetspec *planet,
-                           char       *infile,
-                           int         portion,
-                           int        *np,
-                           int        *nlat,
-                           EPIC_FLOAT *logp,
-                           EPIC_FLOAT *lat,
-                           EPIC_FLOAT *value)
+void read_meridional_plane(char   *infile,
+                           int     portion,
+                           int    *np,
+                           int    *nlat,
+                           double *logp,
+                           double *lat,
+                           double *value)
 {
   int
     k,j;
   char
     header[N_STR];
-  EPIC_FLOAT
+  double
     p;
   FILE
     *input;
@@ -4418,33 +4422,16 @@ void read_meridional_plane(planetspec *planet,
   }
 
   for (j = 0; j < *nlat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     fscanf(input,"%lf",lat+j);
-#else
-    fscanf(input,"%f", lat+j);
-#endif
-
   }
   for (k = 0; k < *np; k++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     fscanf(input,"%lf",&p);
-#else
-    fscanf(input,"%f", &p);
-#endif
 
     /* Convert hPa to Pa, then take log */
     logp[k] = log(p*100.);
 
     for (j = 0; j < *nlat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
-    fscanf(input,"%lf",value+(j+k*(*nlat)));
-#else
-    fscanf(input,"%f", value+(j+k*(*nlat)));
-#endif
-
+      fscanf(input,"%lf",value+(j+k*(*nlat)));
     }
   }
 
@@ -4460,17 +4447,19 @@ void read_meridional_plane(planetspec *planet,
  * Prompt the user to choose which radiation scheme to use.
  */
 
-void inquire_radiation_scheme(planetspec *planet)
+void inquire_radiation_scheme(boolean modify)
 {
   int
     ii,
-    num_radiation_schemes = 4;
+    num_radiation_schemes = 5;
   const char
     *radiation_scheme[]
       = {"off",
          "Correlated k",
          "Newtonian",
-         "Heating from file"};
+         "Heating from file",
+         "Global heating-cooling"
+    };
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -4487,12 +4476,12 @@ void inquire_radiation_scheme(planetspec *planet)
     }
   }
 
-  grid.radiation_index = input_int(Message,grid.radiation_index);
+  grid.radiation_index = input_int(Message,grid.radiation_index,modify);
   strcpy(grid.radiation_scheme,radiation_scheme[grid.radiation_index]);
 
   if (strcmp(grid.radiation_scheme,"Newtonian") == 0) {
     grid.newt_cool_adjust = input_int("Adjust layer average of Newtonian cooling to zero? [1=yes, 0=no]\n",
-                                      grid.newt_cool_adjust);
+                                      grid.newt_cool_adjust,modify);
   }
   else if (strcmp(grid.radiation_scheme,"Correlated k") == 0) {
     if (grid.zonal_average_rt != FALSE && 
@@ -4501,13 +4490,13 @@ void inquire_radiation_scheme(planetspec *planet)
       grid.zonal_average_rt = TRUE;
     }
     grid.zonal_average_rt = input_int("Zonally average radiative transfer heating? [1=yes, 0=no]\n",
-                                            grid.zonal_average_rt);
+                                            grid.zonal_average_rt,modify);
   }
 }
 
 /*====================== end of inquire_radiation_scheme() ====================*/
 
-/*======================= input_float() =======================================*/
+/*======================= input_double() ======================================*/
 
 /* 
  * Read in floating-point datum, or set to default if input is a return ('\n').
@@ -4515,55 +4504,51 @@ void inquire_radiation_scheme(planetspec *planet)
  * C.Santori, T.Dowling 
  */
 
-EPIC_FLOAT input_float(char       *prompt,
-                       EPIC_FLOAT  def) 
+double input_double(char  *prompt,
+                    double  def,
+                    boolean modify) 
 {
   char  
     c,
     buffer[N_STR];
   int   
     len;
-  EPIC_FLOAT 
+  double 
     ans;
-
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
 
   if (IAMNODE == NODE0) {
     fprintf(stdout,"%s[%g]: ",prompt,def);
-    for (len = 0; (c = getchar()) != '\n' && len < N_STR; len++) {
-      buffer[len]=c;
-    }
-    buffer[len] = '\0';
-    if (len == 0) {
-      ans = def;
-    }
-    else {
+    if(modify) {
+      for (len = 0; (c = getchar()) != '\n' && len < N_STR; len++) {
+        buffer[len]=c;
+      }
+      buffer[len] = '\0';
+      if (len == 0) {
+        ans = def;
+      }
+      else {
 
 #if EPIC_PRECISION == DOUBLE_PRECISION
-      sscanf(buffer,"%lf",&ans);
+        sscanf(buffer,"%lf",&ans);
 #else
-      sscanf(buffer,"%f",&ans);
+        sscanf(buffer,"%f",&ans);
 #endif
 
+      }
+    } else {
+      ans = def;
+      fprintf(stdout, "\n");
     }
   }
 
 #if defined(EPIC_MPI)
-   MPI_Bcast(&ans,1,float_type,NODE0,para.comm);
+   MPI_Bcast(&ans,1,MPI_DOUBLE,NODE0,para.comm);
 #endif
 
   return ans;
 }
 
-/*====================== end input_float() ====================================*/
+/*====================== end input_double() =================================*/
 
 /*====================== input_int() ========================================*/
 
@@ -4573,7 +4558,8 @@ EPIC_FLOAT input_float(char       *prompt,
  */
 
 int input_int(char *prompt,
-              int   def) 
+              int   def,
+              boolean modify) 
 {
   char  
     c,
@@ -4584,15 +4570,20 @@ int input_int(char *prompt,
 
   if (IAMNODE == NODE0) {
     fprintf(stdout,"%s[%d]: ",prompt,def);
-    for (len = 0; (c = getchar()) != '\n' && len < N_STR; len++) {
-      buffer[len]=c;
-    }
-    buffer[len] = '\0';
-    if (len == 0) {
+    if(modify) {
+      for (len = 0; (c = getchar()) != '\n' && len < N_STR; len++) {
+        buffer[len]=c;
+      }
+      buffer[len] = '\0';
+      if (len == 0) {
+        ans = def;
+      }
+      else {
+        sscanf(buffer,"%d",&ans);
+      }
+    } else {
       ans = def;
-    }
-    else {
-      sscanf(buffer,"%d",&ans);
+      fprintf(stdout, "\n");
     }
   }
 
@@ -4615,7 +4606,8 @@ int input_int(char *prompt,
 
 void input_string(char *prompt, 
                   char *def, 
-                  char *ans) 
+                  char *ans,
+                  boolean modify) 
 {
   char 
     c,
@@ -4625,16 +4617,21 @@ void input_string(char *prompt,
 
   if (IAMNODE == NODE0) {
     fprintf(stdout,"%s[%s]: ",prompt,def);
-    for (len = 0; (c = getchar()) != '\n' && len < N_STR; len++) {
-      buffer[len]=c;
-    }
-    buffer[len] = '\0';
-    if (len == 0) {
-      strcpy(ans,def);
-    }
-    else {
-      strcpy(ans,buffer);
-      strcpy(def,buffer);
+    if(modify) {
+      for (len = 0; (c = getchar()) != '\n' && len < N_STR; len++) {
+        buffer[len]=c;
+      }
+      buffer[len] = '\0';
+      if (len == 0) {
+        strcpy(ans,def);
+      }
+      else {
+        strcpy(ans,buffer);
+        strcpy(def,buffer);
+      }
+    } else {
+      strcpy(ans, def);
+      fprintf(stdout, "\n");
     }
   }
 
@@ -4651,7 +4648,7 @@ void input_string(char *prompt,
  * Print to stdout a select listing of model parameters.
  */
 
-void print_model_description(planetspec *planet)
+void print_model_description(void)
 {
   int
     is,index,
@@ -4660,7 +4657,7 @@ void print_model_description(planetspec *planet)
      header[N_STR],
     *ptr;
   double
-    max_nu_horizontal[2+1],  /* NOTE: declared as double, not EPIC_FLOAT */
+    max_nu_horizontal[2+1],
     tmp;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -4677,13 +4674,7 @@ void print_model_description(planetspec *planet)
 
   fprintf(stdout,"\n");
   fprintf(stdout,"                EPIC Version: %4.2f\n",grid.epic_version);
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
   fprintf(stdout,"              Floating point: double precision\n");
-#else
-  fprintf(stdout,"              Floating point: single precision\n");
-#endif
-
   fprintf(stdout,"                      System: %s \n",planet->name);
 
   fprintf(stdout,"                    Geometry: %s \n",grid.geometry);
@@ -4727,12 +4718,23 @@ void print_model_description(planetspec *planet)
   }
   else if (grid.cloud_microphysics == ACTIVE) {
     fprintf(stdout,"          Cloud microphysics: active\n");
+
+    if (grid.moist_convection == OFF) {
+      fprintf(stdout,"            Moist convection: off\n");
+    }
+    else if (grid.moist_convection == ACTIVE) {
+      fprintf(stdout,"            Moist convection: active\n");
+    }
+    else if (grid.moist_convection == PASSIVE) {
+      fprintf(stdout,"            Moist convection: passive\n");
+    }
+    else {
+      sprintf(Message,"grid.moist_convection=%d not recognized",grid.moist_convection);
+      epic_error(dbmsname,Message);
+    }
   }
   else if (grid.cloud_microphysics == PASSIVE) {
     fprintf(stdout,"          Cloud microphysics: passive\n");
-  }
-  else if (grid.cloud_microphysics == STEADY) {
-    fprintf(stdout,"          Cloud microphysics: steady\n");
   }
   else {
     sprintf(Message,"grid.cloud_microphysics=%d not recognized",grid.cloud_microphysics);
@@ -4744,7 +4746,6 @@ void print_model_description(planetspec *planet)
   strftime(Message,N_STR,"days since %Y-%m-%d %H:%M:%S (UTC)",gmtime(&var.start_time));
   fprintf(stdout,"                        Time: %g %s \n",TIME/86400.,Message);
 
-
   season_string(L_s,Message);
   fprintf(stdout,"                         L_s: %.1f deg %s\n",L_s,Message);
 
@@ -4753,7 +4754,7 @@ void print_model_description(planetspec *planet)
    * numerically stable timestep, so we do not print it.
    */
   /****
-  dt_cfl = cfl_dt(planet);
+  dt_cfl = cfl_dt();
   fprintf(stdout,"                    Timestep: dt = %d s, CFL dt = %d s\n",
                   grid.dt,dt_cfl);
    ****/
@@ -4826,6 +4827,13 @@ void print_model_description(planetspec *planet)
     fprintf(stdout,"                    k_sponge: %d\n",grid.k_sponge);
   }
 
+  if (grid.n_bot_drag < 0) {
+    fprintf(stdout,"                  n_bot_drag: off\n");
+  }
+  else {
+    fprintf(stdout,"                  n_bot_drag: %d\n",grid.n_bot_drag);
+  }
+
   if (grid.j_sponge < 0) {
     fprintf(stdout,"                    j_sponge: off\n");
   }
@@ -4841,11 +4849,11 @@ void print_model_description(planetspec *planet)
 
 /*====================== print_zonal_info() ==================================*/
 
-void print_zonal_info(planetspec *planet)
+void print_zonal_info(void)
 {
   int
     K,J,I;
-  EPIC_FLOAT
+  double
     zeta,zf,zfy,fy,
     *buffji;
   FILE
@@ -4867,7 +4875,7 @@ void print_zonal_info(planetspec *planet)
   /*
    * Allocate memory.
    */
-  buffji = fvector(0,Nelem2d-1,dbmsname);
+  buffji = dvector(0,Nelem2d-1,dbmsname);
 
   K = grid.nk;
   I = grid.ilo;
@@ -4912,7 +4920,7 @@ void print_zonal_info(planetspec *planet)
   /*
    * Free allocated memory.
    */
-  free_fvector(buffji,0,Nelem2d-1,dbmsname);
+  free_dvector(buffji,0,Nelem2d-1,dbmsname);
 
   return;
 }
@@ -4921,14 +4929,13 @@ void print_zonal_info(planetspec *planet)
 
 /*====================== print_vertical_column() =============================*/
 
-void print_vertical_column(planetspec *planet,
-                           int         J,
-                           int         I,
-                           char       *filename)
+void print_vertical_column(int   J,
+                           int   I,
+                           char *filename)
 {
   int
     K;
-  EPIC_FLOAT
+  double
     pressure,theta,temperature,
     brunt2;
   FILE
@@ -4970,25 +4977,25 @@ void print_vertical_column(planetspec *planet,
 
       K = 0;
       fprintf(stdout,"-- %4.1f -- %7.2f -- %12.7g -- %7.2f ----------- \n",
-             (EPIC_FLOAT)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+             (double)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
       for (K = 1; K <= grid.nk; K++) {
-        brunt2 = get_brunt2(planet,2*K,J,I);
+        brunt2 = get_brunt2(2*K,J,I);
         fprintf(stdout,"   %4.1f    %7.2f                    %7.2f  %9.6f \n", 
-                       (EPIC_FLOAT)K,grid.sigmatheta[2*K],THETA2(K,J,I),brunt2);
+                       (double)K,grid.sigmatheta[2*K],THETA2(K,J,I),brunt2);
 
         fprintf(vert_dat," %4.1f  %6.3f %13.6e  %9.1f %9.1f  %9.6f %7.2f %8.1f %8.1f\n",
-                         (EPIC_FLOAT)K,grid.sigmatheta[2*K],P2(K,J,I)/100.,T2(K,J,I),THETA2(K,J,I),brunt2,U(grid.it_uv,K,J,I),
+                         (double)K,grid.sigmatheta[2*K],P2(K,J,I)/100.,T2(K,J,I),THETA2(K,J,I),brunt2,U(grid.it_uv,K,J,I),
                           grid.re[K]/1000.,grid.rp[K]/1000.);
-        if (K <= grid.k_sponge) {
+        if (K <= grid.k_sponge || K >= grid.nk-grid.n_bot_drag) {
           /*
-           * The squiggles signify sponge layers.
+           * The squiggles signify sponge layers and/or drag layers.
            */
           fprintf(stdout,"~~ %4.1f ~~ %7.2f ~~ %12.7g ~~ %7.2f ~~~~~~~~~~~ \n",
-                 (EPIC_FLOAT)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+                 (double)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
         }
         else {
           fprintf(stdout,"-- %4.1f -- %7.2f -- %12.7g -- %7.2f ----------- \n",
-                 (EPIC_FLOAT)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+                 (double)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
         }
       }
     break;
@@ -4997,26 +5004,32 @@ void print_vertical_column(planetspec *planet,
       fprintf(vert_dat,"   K     sgth[K]    press[hPa]    temp[K]  theta[K]  N2[1/s^2]  U[m/s]   re[km]   rp[km]\n");
 
       K = 0;
-      fprintf(stdout,"-- %4.1f -- %9.1f -- %12.7g -- %9.1f ----------- \n",
-             (EPIC_FLOAT)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+      if (grid.k_sponge < 0) {
+        fprintf(stdout,"-- %4.1f -- %9.1f -- %12.7g -- %9.1f ----------- \n",
+               (double)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+      }
+      else {
+        fprintf(stdout,"~~ %4.1f ~~ %9.1f ~~ %12.7g ~~ %9.1f ~~~~~~~~~~~ \n",
+               (double)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+      }
       for (K = 1; K <= grid.nk; K++) {
-        brunt2 = get_brunt2(planet,2*K,J,I);
+        brunt2 = get_brunt2(2*K,J,I);
         fprintf(stdout,"   %4.1f    %9.1f                    %9.1f  %9.6f \n", 
-                       (EPIC_FLOAT)K,grid.sigmatheta[2*K],THETA2(K,J,I),brunt2);
+                       (double)K,grid.sigmatheta[2*K],THETA2(K,J,I),brunt2);
 
         fprintf(vert_dat," %4.1f  %9.1f %13.6e  %9.1f %9.1f  %9.6f %7.2f %8.1f %8.1f\n",
-                         (EPIC_FLOAT)K,grid.sigmatheta[2*K],P2(K,J,I)/100.,T2(K,J,I),THETA2(K,J,I),brunt2,U(grid.it_uv,K,J,I),
+                         (double)K,grid.sigmatheta[2*K],P2(K,J,I)/100.,T2(K,J,I),THETA2(K,J,I),brunt2,U(grid.it_uv,K,J,I),
                           grid.re[K]/1000.,grid.rp[K]/1000.);
-        if (K <= grid.k_sponge) {
+        if (K <= grid.k_sponge || K >= grid.nk-grid.n_bot_drag) {
           /*
            * The squiggles signify sponge layers.
            */
           fprintf(stdout,"~~ %4.1f ~~ %9.1f ~~ %12.7g ~~ %9.1f ~~~~~~~~~~~ \n",
-                 (EPIC_FLOAT)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+                 (double)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
         }
         else {
           fprintf(stdout,"-- %4.1f -- %9.1f -- %12.7g -- %9.1f ----------- \n",
-                 (EPIC_FLOAT)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
+                 (double)K+0.5,grid.sigmatheta[2*K+1],P3(K,J,I)/100.,THETA(K,J,I));
         }
       }
     break;
@@ -5186,7 +5199,8 @@ void declare_copyright(void)
 
   if (!oneshot) {
     fprintf(stderr,"\n");
-    fprintf(stderr," EPIC Model, Copyright (C) 1998-2023 Timothy E. Dowling \n");                                                                                         
+    fprintf(stderr," EPIC Model, Copyright (C) 2024-2025 Ramanakumar Sankar \n");
+    fprintf(stderr,"                       (C) 1998-2023 Timothy E. Dowling \n");                                                                                     
     fprintf(stderr," This program is free software; you can redistribute it and/or \n");  
     fprintf(stderr," modify it under the terms of the GNU General Public License.  \n");    
     fprintf(stderr," This program is distributed WITHOUT ANY WARRANTY.             \n"); 

@@ -3,7 +3,8 @@
  * All material in this file is covered by the                     *
  * GNU General Public License.                                     *
  *                                                                 *
- * Copyright (C) 1998-2009 Timothy E. Dowling, except as noted.    *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar, except as noted.    *
+ * Copyright (C) 1998-2023 Timothy Dowling, except as noted.       *
  *                                                                 *
  * The fcmp() function is derived from the fcmp() function that is *
  * Copyright (c) 1998-2000 Theodore C. Belding                     *
@@ -30,16 +31,13 @@
 #ifndef EPIC_FUNCS_UTIL_H
 #define EPIC_FUNCS_UTIL_H
 
-/* * * * * * * * * epic_funcs_util.h * * * * * * * * * * * * * * * * * * 
- *                                                                     *
- * Header file for utility functions that are essentially independent  *
- * of the EPIC model; the source code is in                            *
- *   $EPIC_PATH/src/shared/epic_funcs_util.c.                          *
- *                                                                     *
- * NOTE: One dependency with the EPIC model is the floating-point      *
- *       precision, EPIC_PRECISION, which is an environment variable.  *
- *                                                                     *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+/* * * * * * * * * epic_funcs_util.h * * * * * * * * * * * * 
+ *                                                         *
+ * Header file for utility functions that are independent  *
+ * of the EPIC Model; the source code is in                *
+ *   $EPIC_PATH/src/shared/epic_funcs_util.c.              *
+ *                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <stdio.h> 
 #include <stdlib.h>   
@@ -52,7 +50,6 @@
 #include <time.h>
 
 #include "epic_datatypes.h"
-#define FLOAT EPIC_FLOAT
 
 /*
  * Parameters.
@@ -94,21 +91,21 @@
 
 #undef MIN
 #define MIN(x,y) ({ \
-         const FLOAT _x = (FLOAT)(x); \
-         const FLOAT _y = (FLOAT)(y); \
+         const double _x = (double)(x); \
+         const double _y = (double)(y); \
          _x < _y ? _x : _y; })
 
 #undef MAX
 #define MAX(x,y) ({ \
-         const FLOAT _x = (FLOAT)(x); \
-         const FLOAT _y = (FLOAT)(y); \
+         const double _x = (double)(x); \
+         const double _y = (double)(y); \
          _x > _y ? _x : _y; })
 
 #undef LIMIT_RANGE
 #define LIMIT_RANGE(min,x,max) ({ \
-         const FLOAT _min = (FLOAT)(min); \
-         const FLOAT _x   = (FLOAT)(x);   \
-         const FLOAT _max = (FLOAT)(max); \
+         const double _min = (double)(min); \
+         const double _x   = (double)(x);   \
+         const double _max = (double)(max); \
          _x < _min ? _min : ( _x > _max ? _max : _x ); })
 
 #undef IMIN
@@ -125,12 +122,12 @@
 
 #undef NINT
 #define NINT(x) ({ \
-         const FLOAT _x = (FLOAT)(x); \
+         const double _x = (double)(x); \
          _x > 0. ? (int)(_x+.5) : (int)(_x-.5); })
 
 #undef SIGN
 #define SIGN(x) ({ \
-         const FLOAT _x = (FLOAT)(x); \
+         const double _x = (double)(x); \
          _x == 0. ? 0. : (_x > 0. ? 1. : -1.); })
 
 #undef NR_SIGN
@@ -138,8 +135,11 @@
 
 #undef SQR
 #define SQR(x) ({ \
-          const FLOAT _x = (FLOAT)(x); \
+          const double _x = (double)(x); \
           _x*_x; })
+
+#undef GET_DIGIT
+#define GET_DIGIT(ival,div) (((ival)-(ival)%(div))/(div))
 
 /* 
  * DS stands for Dennis and Schnabel (1996).
@@ -193,14 +193,14 @@ void free_ivector(int  *m,
                   int   nh,
                   char *calling_func);
 
-FLOAT *fvector(int   nl,
-               int   nh,
-               char *calling_func);
+double *fvector(int   nl,
+                int   nh,
+                char *calling_func);
 
-void free_fvector(FLOAT *m,
-                  int    nl,
-                  int    nh,
-                  char  *calling_func);
+void free_fvector(double *m,
+                  int     nl,
+                  int     nh,
+                  char   *calling_func);
 
 double *dvector(int   nl,
                 int   nh,
@@ -211,191 +211,194 @@ void free_dvector(double *m,
                   int     nh,
                   char   *calling_func);
 
-float_triplet *ftriplet(int   nl,
-                        int   nh,
-                        char *calling_func);
+double_triplet *dtriplet(int   nl,
+                         int   nh,
+                         char *calling_func);
 
-void free_ftriplet(float_triplet *m,
-                   int            nl,
-                   int            nh,
-                   char          *calling_func);
+void free_dtriplet(double_triplet *m,
+                   int             nl,
+                   int             nh,
+                   char           *calling_func);
 
 /*
  *  The following functions are adapted from 
  *  Numerical Recipes in C:
  */
-void spline(int            n,
-            float_triplet *table,
-            FLOAT          yp0, 
-            FLOAT          ypn);
+void spline(int             n,
+            double_triplet *table,
+            double          yp0, 
+            double          ypn);
 
-FLOAT splint(register FLOAT          xx, 
-             register float_triplet *table,
-             register FLOAT          dx);
+double splint(register double          xx, 
+              register double_triplet *table,
+              register double          dx);
 
-FLOAT linint(register FLOAT          xx,
-             register float_triplet *table,
-             register FLOAT          dx);
+double linint(register double          xx,
+              register double_triplet *table,
+              register double          dx);
 
-void spline_pchip(int            n,
-                  float_triplet *table);
+void spline_pchip(int             n,
+                  double_triplet *table);
 
-FLOAT splint_pchip(FLOAT          xx,
-                   float_triplet *table,
-                   FLOAT          h);
+double splint_pchip(double          xx,
+                    double_triplet *table,
+                    double          h);
 
-void periodic_spline_pchip(int            n,
-                           float_triplet *table);
+void periodic_spline_pchip(int             n,
+                           double_triplet *table);
 
-FLOAT pchst(FLOAT arg1,
-            FLOAT arg2);
+double pchst(double arg1,
+             double arg2);
 
-FLOAT lagrange_interp(register FLOAT *f,
-                      register FLOAT *x,
-                      register int order);
+double lagrange_interp(register double *f,
+                       register double *x,
+                       register int     order);
 
-FLOAT gamma_nr(FLOAT  xx);
+double inc_gamma_nr(double aa,
+                    double xx);
 
-FLOAT sech2(FLOAT);
+double gamma_nr(double xx);
 
-void exp_integral_setup(float_triplet *exp3table,
-                        float_triplet *exp4table,
-                        int            numdatapoints);
+double sech2(double);
 
-FLOAT normed_legendre(int   l,
-                      int   m,
-                      FLOAT x);
+void exp_integral_setup(double_triplet *exp3table,
+                        double_triplet *exp4table,
+                        int             numdatapoints);
 
-FLOAT machine_epsilon(void);
+double normed_legendre(int    l,
+                       int    m,
+                       double x);
 
-int find_root(FLOAT  x1,
-              FLOAT  x2,
-              FLOAT  xacc,
-              FLOAT *x_root,
-              FLOAT  (*func)(FLOAT));
+double machine_epsilon(void);
 
-int broyden_root(int    n,
-                 FLOAT *x,
-                 void  (*vecfunc)(int,FLOAT *,FLOAT *),
-                 FLOAT tol_f,
-                 int   max_it);
+int find_root(double  x1,
+              double  x2,
+              double  xacc,
+              double *x_root,
+              double  (*func)(double));
+
+int broyden_root(int     n,
+                 double *x,
+                 void  (*vecfunc)(int,double *,double *),
+                 double tol_f,
+                 int    max_it);
 
 int global_step(int     n,
-                FLOAT *x_old,
-                FLOAT  f_old,
-                FLOAT *g,
-                FLOAT *r,
-                FLOAT *sn,
-                FLOAT  max_step,
-                FLOAT *delta,
+                double *x_old,
+                double  f_old,
+                double *g,
+                double *r,
+                double *sn,
+                double  max_step,
+                double *delta,
                 int     step_type,
                 int    *status,
-                FLOAT *x,
-                FLOAT *f,
-                FLOAT *fvec,
-                void   (*vecfunc)(int,FLOAT *,FLOAT *));
+                double *x,
+                double *f,
+                double *fvec,
+                void   (*vecfunc)(int,double *,double *));
 
-int line_search(int    n,
-                FLOAT *x_old,
-                FLOAT  f_old,
-                FLOAT *g,
-                FLOAT *sn,
-                FLOAT  max_step,
-                int   *status,
-                FLOAT *x,
-                FLOAT *f,
-                FLOAT *fvec,
-                void  (*vecfunc)(int,FLOAT *,FLOAT *));
+int line_search(int     n,
+                double *x_old,
+                double  f_old,
+                double *g,
+                double *sn,
+                double  max_step,
+                int    *status,
+                double *x,
+                double *f,
+                double *fvec,
+                void  (*vecfunc)(int,double *,double *));
 
-int dogleg_driver(int    n,
-                  FLOAT *x_old,
-                  FLOAT  f_old,
-                  FLOAT *g,
-                  FLOAT *r,
-                  FLOAT *sn,
-                  FLOAT  max_step,
-                  FLOAT *delta,
-                  int   *status,
-                  FLOAT *x,
-                  FLOAT *f,
-                  FLOAT *fvec,
-                  void  (*vecfunc)(int,FLOAT *,FLOAT *));
+int dogleg_driver(int     n,
+                  double *x_old,
+                  double  f_old,
+                  double *g,
+                  double *r,
+                  double *sn,
+                  double  max_step,
+                  double *delta,
+                  int    *status,
+                  double *x,
+                  double *f,
+                  double *fvec,
+                  void  (*vecfunc)(int,double *,double *));
 
-int dogleg_step(int    n,
-                FLOAT *g,
-                FLOAT *r,
-                FLOAT *sn,
-                FLOAT  newt_length,
-                FLOAT  max_step,
-                FLOAT *delta,
-                int   *first_dog,
-                FLOAT *s_hat,
-                FLOAT *nu_hat,
-                FLOAT *s);
+int dogleg_step(int     n,
+                double *g,
+                double *r,
+                double *sn,
+                double  newt_length,
+                double  max_step,
+                double *delta,
+                int    *first_dog,
+                double *s_hat,
+                double *nu_hat,
+                double *s);
 
-int trust_region(int    n,
-                 FLOAT *x_old,
-                 FLOAT  f_old,
-                 FLOAT *g,
-                 FLOAT *s,
-                 int    newt_taken,
-                 FLOAT  max_step,
-                 int    step_type,
-                 FLOAT *r,
-                 FLOAT *delta,
-                 int   *status,
-                 FLOAT *x_prev,
-                 FLOAT *f_prev,
-                 FLOAT *x,
-                 FLOAT *f,
-                 FLOAT *fvec,
-                 void  (*vecfunc)(int,FLOAT *,FLOAT *));
+int trust_region(int     n,
+                 double *x_old,
+                 double  f_old,
+                 double *g,
+                 double *s,
+                 int     newt_taken,
+                 double  max_step,
+                 int     step_type,
+                 double *r,
+                 double *delta,
+                 int    *status,
+                 double *x_prev,
+                 double *f_prev,
+                 double *x,
+                 double *f,
+                 double *fvec,
+                 void  (*vecfunc)(int,double *,double *));
 
-int qr_decompose(int    n,
-                 FLOAT *r,
-                 FLOAT *c,
-                 FLOAT *d);
+int qr_decompose(int     n,
+                 double *r,
+                 double *c,
+                 double *d);
 
-void qr_update(int    n,
-               FLOAT *r,
-               FLOAT *qt,
-               FLOAT *u,
-               FLOAT *v);
+void qr_update(int     n,
+               double *r,
+               double *qt,
+               double *u,
+               double *v);
 
-void qr_rotate(int    n,
-               FLOAT *r,
-               FLOAT *qt,
-               int    i,
-               FLOAT  a,
-               FLOAT  b);
+void qr_rotate(int     n,
+               double *r,
+               double *qt,
+               int     i,
+               double  a,
+               double  b);
 
-void lu_decompose(int   n,
-                 FLOAT *a,
-                 int   *index,
-                 FLOAT *d);
+void lu_decompose(int    n,
+                 double *a,
+                 int    *index,
+                 double *d);
 
-void lu_backsub(int    n,
-                FLOAT *a,
-                int   *index,
-                FLOAT *b);
+void lu_backsub(int     n,
+                double *a,
+                int    *index,
+                double *b);
 
-void lu_improve(int    n,
-                FLOAT *a,
-                FLOAT *alu,
-                int   *index,
-                FLOAT *b,
-                FLOAT *x);
+void lu_improve(int     n,
+                double *a,
+                double *alu,
+                int    *index,
+                double *b,
+                double *x);
 
-int find_place_in_table(int            n,
-                        float_triplet *table,
-                        FLOAT          x,
-                        FLOAT         *dx);
+int find_place_in_table(int             n,
+                        double_triplet *table,
+                        double          x,
+                        double         *dx);
 
-int hunt_place_in_table(int            n,
-                        float_triplet *table,
-                        FLOAT          x,
-                        FLOAT         *dx,
-                        int            il);
+int hunt_place_in_table(int             n,
+                        double_triplet *table,
+                        double          x,
+                        double         *dx,
+                        int             il);
 
 /*
  * Choices for pivot_type in tridiag():
@@ -403,105 +406,105 @@ int hunt_place_in_table(int            n,
 #define WITHOUT_PIVOTING 0
 #define WITH_PIVOTING    1
 
-void tridiag(int    n,
-             FLOAT *a,
-             FLOAT *b,
-             FLOAT *c,
-             FLOAT *r,
-             FLOAT *u,
+void tridiag(int     n,
+             double *a,
+             double *b,
+             double *c,
+             double *r,
+             double *u,
              int    pivot_type);
 
 void band_decomp(int     n,
                  int     m1,
                  int     m2,
-                 FLOAT  *a,
-                 FLOAT  *al,
+                 double *a,
+                 double *al,
                  int    *index,
-                 FLOAT  *d);
+                 double *d);
 
 void band_back_sub(int     n,
                    int     m1,
                    int     m2,
-                   FLOAT  *a,
-                   FLOAT  *al,
+                   double *a,
+                   double *al,
                    int    *index,
-                   FLOAT  *b);
+                   double *b);
 
 void band_multiply(int     n,
                    int     m1,
                    int     m2,
-                   FLOAT  *a,
-                   FLOAT  *x,
-                   FLOAT  *b);
+                   double *a,
+                   double *x,
+                   double *b);
 
 void band_improve(int     n,
                   int     m1,
                   int     m2,
-                  FLOAT  *aorig,
-                  FLOAT  *a,
-                  FLOAT  *al,
+                  double *aorig,
+                  double *a,
+                  double *al,
                   int    *index,
-                  FLOAT  *b,
-                  FLOAT  *x);
+                  double *b,
+                  double *x);
 
-FLOAT poly_interp(int     n,
-                  FLOAT  *xa,
-                  FLOAT  *ya,
-                  FLOAT   x,
-                  FLOAT  *dy);
+double poly_interp(int    n,
+                  double *xa,
+                  double *ya,
+                  double  x,
+                  double *dy);
 
-void poly_coeff(int    n,
-                FLOAT *x,
-                FLOAT *y,
-                FLOAT *coeff);
+void poly_coeff(int     n,
+                double *x,
+                double *y,
+                double *coeff);
 
-FLOAT nth_trapezoidal(int   n,
-                      FLOAT (*func)(FLOAT),
-                      FLOAT a,
-                      FLOAT b);
+double nth_trapezoidal(int   n,
+                      double (*func)(double),
+                      double a,
+                      double b);
 
-FLOAT romberg_integral(FLOAT (*func)(FLOAT),
-                       FLOAT a,
-                       FLOAT b,
-                       FLOAT tol);
+double romberg_integral(double (*func)(double),
+                        double a,
+                        double b,
+                        double tol);
 
-void crank_nicolson(int    n,
-                    FLOAT  dt,
-                    FLOAT *z,
-                    FLOAT *A,
-                    FLOAT *mu,
-                    FLOAT *rho,
-                    FLOAT *ANS);
+void crank_nicolson(int     n,
+                    double  dt,
+                    double *z,
+                    double *A,
+                    double *mu,
+                    double *rho,
+                    double *ANS);
 
-void compact_differentiation(int    action,
-                             int    n,
-                             FLOAT *z,
-                             FLOAT *f,
-                             FLOAT *dfdz);
+void compact_differentiation(int     action,
+                             int     n,
+                             double *z,
+                             double *f,
+                             double *dfdz);
 
-void compact_integration(int    n,
-                         FLOAT *z,
-                         FLOAT *dfdz,
-                         FLOAT *f);
+void compact_integration(int     n,
+                         double *z,
+                         double *dfdz,
+                         double *f);
 
-void hqr(FLOAT *a,
-         int    n,
-         FLOAT *wr,
-         FLOAT *wi);
+void hqr(double *a,
+         int     n,
+         double *wr,
+         double *wi);
 
-void quicksort(FLOAT *mag, 
-               int    left, 
-               int    right);
+void quicksort(double *mag, 
+               int     left, 
+               int     right);
 
-void swap(FLOAT *mag,
-          int    i,
-          int    j);
+void swap(double *mag,
+          int     i,
+          int     j);
 
-void four1(FLOAT          *,
+void four1(double *,
            unsigned long, 
            int              );
 
-void realft(FLOAT          *,
+void realft(double *,
             unsigned long,
             int             );
 
@@ -509,40 +512,40 @@ void realft(FLOAT          *,
  * NOTE: For LINUX, with -D_BSD_SOURCE cabs() is defined, such that
  * a type-mismatch error occurs if we name the function c_abs() as cabs().
  */
-complex c_num(FLOAT x, FLOAT y);
+complex c_num(double x, double y);
 complex c_mult(complex z1,complex z2);
 complex c_add(complex z1,complex z2);
 complex c_sub(complex z1,complex z2);
 complex c_exp(complex z);
-FLOAT   c_abs(complex z);
-FLOAT   c_real(complex z);
-FLOAT   c_imag(complex z);
+double  c_abs(complex z);
+double  c_real(complex z);
+double  c_imag(complex z);
 
 int fcmp(double x1,
          double x2);
 
-void least_squares(FLOAT *x,
-                   FLOAT *y,
-                   int    n,
-                   FLOAT *a);
+void least_squares(double *x,
+                   double *y,
+                   int     n,
+                   double *a);
 
-void savitzky_golay(FLOAT *c,
-                    int    np,
-                    int    nl,
-                    int    nr,
-                    int    ld,
-                    int    m);
+void savitzky_golay(double *c,
+                    int     np,
+                    int     nl,
+                    int     nr,
+                    int     ld,
+                    int     m);
 
-FLOAT random_number(long *idum);
+double random_number(long *idum);
 
-FLOAT lat_centric_to_graphic(FLOAT lat,
-                             FLOAT rerp);
+double lat_centric_to_graphic(double lat,
+                              double rerp);
 
-FLOAT lat_graphic_to_centric(FLOAT lat,
-                             FLOAT rerp);
+double lat_graphic_to_centric(double lat,
+                              double rerp);
 
-FLOAT surface_area_oblate(FLOAT a,
-                          FLOAT c);
+double surface_area_oblate(double a,
+                           double c);
 
 void util_error(char *calling_function,
                 char *Message);

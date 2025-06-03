@@ -2,7 +2,8 @@
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 2013-2019 Thomas Greathouse, Timothy Dowling      *
+ * Copyright (C) 2024-2025 Thomas Greathouse, Ramanakumar Sankar   *
+ * Copyright (C) 2013-2023 Thomas Greathouse, Timothy Dowling      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -90,10 +91,9 @@
  *   heatingver12()
  */
 
-void rt_longwave(planetspec *planet,
-                 EPIC_FLOAT *heating,
-                 int         i_stride,
-                 int         action)
+void rt_longwave(double *heating,
+                 int     i_stride,
+                 int     action)
 {
   int
     K,J,I,
@@ -105,12 +105,12 @@ void rt_longwave(planetspec *planet,
     ierror[TWOSTR_NERR];
   double
     radius;
-  EPIC_FLOAT
+  double
     x,dx;
   static double
    *gg,
    *tauc;
-  static float_triplet
+  static double_triplet
    *tau_table;
   static rt_band
     *fir,
@@ -131,7 +131,7 @@ void rt_longwave(planetspec *planet,
     /*
      * Zero longwave heating array.
      */
-    memset(heating,0,Nelem3d*sizeof(EPIC_FLOAT));
+    memset(heating,0,Nelem3d*sizeof(double));
 
     for (J = JLO; J <= JHI; J++) {
       jj = 2*J+1;
@@ -185,7 +185,7 @@ void rt_longwave(planetspec *planet,
         fir->scat_yes = FALSE;
         memset(&SSALB(1),0,ds->nlyr*sizeof(double));
 
-        fir_opacity(planet,J,I,fir,ds);
+        fir_opacity(J,I,fir,ds);
 
         /*
          * Loop over wavenumber bins.
@@ -265,7 +265,7 @@ void rt_longwave(planetspec *planet,
         midir->scat_yes = FALSE;
         memset(&SSALB(1),0,ds->nlyr*sizeof(double));
 
-        midir_opacity(planet,J,I,midir,ds);
+        midir_opacity(J,I,midir,ds);
 
         /*
          * Loop over wavenumber bins.
@@ -491,7 +491,7 @@ void rt_longwave(planetspec *planet,
      */
     gg        = dvector( 0,ds->nlyr-1,dbmsname);
     tauc      = dvector( 0,ds->nlyr,  dbmsname);
-    tau_table = ftriplet(0,ds->nlyr,  dbmsname);
+    tau_table = dtriplet(0,ds->nlyr,  dbmsname);
 
     deltam = FALSE;
     for (lc = 1; lc <= ds->nlyr; lc++) {
@@ -528,7 +528,7 @@ void rt_longwave(planetspec *planet,
      */
     if (gg)        free_dvector(gg,        0,ds->nlyr-1,dbmsname);
     if (tauc)      free_dvector(tauc,      0,ds->nlyr,  dbmsname);
-    if (tau_table) free_ftriplet(tau_table,0,ds->nlyr,  dbmsname);
+    if (tau_table) free_dtriplet(tau_table,0,ds->nlyr,  dbmsname);
 
     if (fir || midir) free_rt_longwave(fir,midir,ds);
 
@@ -682,7 +682,7 @@ void init_rt_longwave(rt_band      *fir,
   fir->cia->nt = (int)nc_len;
 
   /* Allocate memory for temperatures */
-  fir->cia->t = fvector(0,fir->cia->nt-1,dbmsname);
+  fir->cia->t = dvector(0,fir->cia->nt-1,dbmsname);
 
   /* Read in temperature array */
   nc_err = nc_inq_varid(nc_id,"temperature",&nc_varid);
@@ -710,15 +710,15 @@ void init_rt_longwave(rt_band      *fir,
   fir->nwn = (int)nc_len;
 
   /* Allocate memory for wavenumbers */
-  fir->wn   = fvector(0,fir->nwn-1,dbmsname);
-  fir->wnlo = fvector(0,fir->nwn-1,dbmsname);
-  fir->wnhi = fvector(0,fir->nwn-1,dbmsname);
+  fir->wn   = dvector(0,fir->nwn-1,dbmsname);
+  fir->wnlo = dvector(0,fir->nwn-1,dbmsname);
+  fir->wnhi = dvector(0,fir->nwn-1,dbmsname);
 
   /* Allocate memory for cia data */
-  fir->cia->h2_h2  = fvector(0,fir->nwn*fir->cia->nt-1, dbmsname);
-  fir->cia->h2_he  = fvector(0,fir->nwn*fir->cia->nt-1, dbmsname);
+  fir->cia->h2_h2  = dvector(0,fir->nwn*fir->cia->nt-1, dbmsname);
+  fir->cia->h2_he  = dvector(0,fir->nwn*fir->cia->nt-1, dbmsname);
   if (var.species[CH_4_INDEX].on == TRUE) {
-    fir->cia->h2_ch4 = fvector(0,fir->nwn*fir->cia->nt-1,dbmsname);
+    fir->cia->h2_ch4 = dvector(0,fir->nwn*fir->cia->nt-1,dbmsname);
   }
 
   /* 
@@ -770,7 +770,7 @@ void init_rt_longwave(rt_band      *fir,
   }
 
   /* Allocate memory for opac, start and count vectors */
-  opac  = fvector(0,(int)nc_len-1,dbmsname);
+  opac  = dvector(0,(int)nc_len-1,dbmsname);
   start = (size_t *)calloc(3,sizeof(size_t));
   if (!start) {
     sprintf(Message,"error allocating start vector");
@@ -819,10 +819,10 @@ void init_rt_longwave(rt_band      *fir,
   }
 
   /* Allocate memory for dtauc */
-  fir->dtauc = fvector(0,fir->nwn*ds->nlyr-1,dbmsname);
+  fir->dtauc = dvector(0,fir->nwn*ds->nlyr-1,dbmsname);
 
   /* Free allocated memory */
-  free_fvector(opac,0,(int)nc_len-1,dbmsname);
+  free_dvector(opac,0,(int)nc_len-1,dbmsname);
   free(start);
   free(count);
 
@@ -901,7 +901,7 @@ void init_rt_longwave(rt_band      *fir,
   midir->k_nu->nt = (int)nc_len;
 
   /* Allocate memory for temperatures */
-  midir->k_nu->t = fvector(0,midir->k_nu->nt-1,dbmsname);
+  midir->k_nu->t = dvector(0,midir->k_nu->nt-1,dbmsname);
 
   /* Read in temperature array */
   nc_err = nc_inq_varid(nc_id,"temperature",&nc_varid);
@@ -929,7 +929,7 @@ void init_rt_longwave(rt_band      *fir,
   midir->k_nu->np = (int)nc_len;
 
   /* Allocate memory for pressures */
-  midir->k_nu->p = fvector(0,midir->k_nu->np-1,dbmsname);
+  midir->k_nu->p = dvector(0,midir->k_nu->np-1,dbmsname);
 
   /* Read in pressure array */
   nc_err = nc_inq_varid(nc_id,"pressure",&nc_varid);
@@ -963,9 +963,9 @@ void init_rt_longwave(rt_band      *fir,
   midir->nwn = (int)nc_len;
 
   /* Allocate memory for wavenumbers */
-  midir->wn   = fvector(0,midir->nwn-1,dbmsname);
-  midir->wnlo = fvector(0,midir->nwn-1,dbmsname);
-  midir->wnhi = fvector(0,midir->nwn-1,dbmsname);
+  midir->wn   = dvector(0,midir->nwn-1,dbmsname);
+  midir->wnlo = dvector(0,midir->nwn-1,dbmsname);
+  midir->wnhi = dvector(0,midir->nwn-1,dbmsname);
 
   /* Read in wavenumber arrays */
   nc_err = nc_inq_varid(nc_id,"wavelength_center",&nc_varid);
@@ -1010,23 +1010,23 @@ void init_rt_longwave(rt_band      *fir,
   /* Allocate memory for k_nu values */
   if (var.species[CH_4_INDEX].on == TRUE) {
     midir->k_nu->on   = TRUE;
-    midir->k_nu->ch4 = fvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    midir->k_nu->ch4 = dvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
   }
   if (var.species[C_2H_2_INDEX].on == TRUE) {
     midir->k_nu->on    = TRUE;
-    midir->k_nu->c2h2 = fvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    midir->k_nu->c2h2 = dvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
   }
   if (var.species[C_2H_6_INDEX].on == TRUE) {
     midir->k_nu->on    = TRUE;
-    midir->k_nu->c2h6 = fvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    midir->k_nu->c2h6 = dvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
   }
   if (var.species[NH_3_INDEX].on == TRUE) {
     midir->k_nu->on   = TRUE;
-    midir->k_nu->nh3 = fvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    midir->k_nu->nh3 = dvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
   }
   if (var.species[PH_3_INDEX].on == TRUE) {
     midir->k_nu->on   = TRUE;
-    midir->k_nu->ph3 = fvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    midir->k_nu->ph3 = dvector(0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
   }
 
   if (midir->k_nu->on) {
@@ -1278,7 +1278,7 @@ void init_rt_longwave(rt_band      *fir,
   midir->cia->nt = (int)nc_len;
 
   /* Allocate memory for temperatures */
-  midir->cia->t = fvector(0,midir->cia->nt-1, dbmsname);
+  midir->cia->t = dvector(0,midir->cia->nt-1, dbmsname);
 
   /* Read in temperature array */
   nc_err = nc_inq_varid(nc_id,"temperature",&nc_varid);
@@ -1315,9 +1315,9 @@ void init_rt_longwave(rt_band      *fir,
   }
 
   /* Allocate memory for cia data */
-  midir->cia->h2_h2  = fvector(0,midir->nwn*midir->cia->nt-1,dbmsname);
-  midir->cia->h2_he  = fvector(0,midir->nwn*midir->cia->nt-1,dbmsname);
-  midir->cia->h2_ch4 = fvector(0,midir->nwn*midir->cia->nt-1,dbmsname);
+  midir->cia->h2_h2  = dvector(0,midir->nwn*midir->cia->nt-1,dbmsname);
+  midir->cia->h2_he  = dvector(0,midir->nwn*midir->cia->nt-1,dbmsname);
+  midir->cia->h2_ch4 = dvector(0,midir->nwn*midir->cia->nt-1,dbmsname);
 
   /* Read number of pairs of gases included for collision-induced absorption */
   nc_err = nc_inq_dimid(nc_id,"continuum_opacity_source",&nc_dimid);
@@ -1332,7 +1332,7 @@ void init_rt_longwave(rt_band      *fir,
   }
 
   /* Allocate memory */
-  opac  = fvector(0,(int)nc_len-1,dbmsname);
+  opac  = dvector(0,(int)nc_len-1,dbmsname);
   start = (size_t *)calloc(3,sizeof(size_t));
   if (!start) {
     sprintf(Message,"error allocating start");
@@ -1379,10 +1379,10 @@ void init_rt_longwave(rt_band      *fir,
   }
 
   /* Allocate memory for dtauc */
-  midir->dtauc = fvector(0,midir->nwn*ds->nlyr-1,dbmsname);
+  midir->dtauc = dvector(0,midir->nwn*ds->nlyr-1,dbmsname);
 
   /* Free allocated memory */
-  free_fvector(opac,0,(int)nc_len-1,dbmsname);
+  free_dvector(opac,0,(int)nc_len-1,dbmsname);
   free(start);
   free(count);
 
@@ -1416,19 +1416,19 @@ void free_rt_longwave(rt_band      *fir,
    *--------------------------------------------------------------------*/
 
   /* Free wavenumbers */
-  if (fir->wn)   free_fvector(fir->wn,  0,fir->nwn-1,dbmsname);
-  if (fir->wnlo) free_fvector(fir->wnlo,0,fir->nwn-1,dbmsname);
-  if (fir->wnhi) free_fvector(fir->wnhi,0,fir->nwn-1,dbmsname);
+  if (fir->wn)   free_dvector(fir->wn,  0,fir->nwn-1,dbmsname);
+  if (fir->wnlo) free_dvector(fir->wnlo,0,fir->nwn-1,dbmsname);
+  if (fir->wnhi) free_dvector(fir->wnhi,0,fir->nwn-1,dbmsname);
 
   /* Free dtauc */
-  if (fir->dtauc) free_fvector(fir->dtauc,0,fir->nwn*ds->nlyr-1,dbmsname);
+  if (fir->dtauc) free_dvector(fir->dtauc,0,fir->nwn*ds->nlyr-1,dbmsname);
 
   /* Free cia */
   if (fir->cia) {
-    if (fir->cia->t)      free_fvector(fir->cia->t,0,fir->cia->nt-1,dbmsname);
-    if (fir->cia->h2_h2)  free_fvector(fir->cia->h2_h2, 0,fir->nwn*fir->cia->nt-1,dbmsname);
-    if (fir->cia->h2_he)  free_fvector(fir->cia->h2_he, 0,fir->nwn*fir->cia->nt-1,dbmsname);
-    if (fir->cia->h2_ch4) free_fvector(fir->cia->h2_ch4,0,fir->nwn*fir->cia->nt-1,dbmsname);
+    if (fir->cia->t)      free_dvector(fir->cia->t,0,fir->cia->nt-1,dbmsname);
+    if (fir->cia->h2_h2)  free_dvector(fir->cia->h2_h2, 0,fir->nwn*fir->cia->nt-1,dbmsname);
+    if (fir->cia->h2_he)  free_dvector(fir->cia->h2_he, 0,fir->nwn*fir->cia->nt-1,dbmsname);
+    if (fir->cia->h2_ch4) free_dvector(fir->cia->h2_ch4,0,fir->nwn*fir->cia->nt-1,dbmsname);
     free(fir->cia);
   }
 
@@ -1437,31 +1437,31 @@ void free_rt_longwave(rt_band      *fir,
    *--------------------------------------------------------------------*/
 
   /* Free wavenumbers */
-  if (midir->wn)   free_fvector(midir->wn,  0,midir->nwn-1,dbmsname);
-  if (midir->wnlo) free_fvector(midir->wnlo,0,midir->nwn-1,dbmsname);
-  if (midir->wnhi) free_fvector(midir->wnhi,0,midir->nwn-1,dbmsname);
+  if (midir->wn)   free_dvector(midir->wn,  0,midir->nwn-1,dbmsname);
+  if (midir->wnlo) free_dvector(midir->wnlo,0,midir->nwn-1,dbmsname);
+  if (midir->wnhi) free_dvector(midir->wnhi,0,midir->nwn-1,dbmsname);
 
   /* Free dtauc */
-  if (midir->dtauc) free_fvector(midir->dtauc,0,midir->nwn*ds->nlyr-1,dbmsname);
+  if (midir->dtauc) free_dvector(midir->dtauc,0,midir->nwn*ds->nlyr-1,dbmsname);
 
   /* Free k_nu */
   if (midir->k_nu) {
-    if (midir->k_nu->t)    free_fvector(midir->k_nu->t,0,midir->k_nu->nt-1,dbmsname);
-    if (midir->k_nu->p)    free_fvector(midir->k_nu->p,0,midir->k_nu->np-1,dbmsname);
-    if (midir->k_nu->ch4)  free_fvector(midir->k_nu->ch4, 0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
-    if (midir->k_nu->c2h2) free_fvector(midir->k_nu->c2h2,0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
-    if (midir->k_nu->c2h6) free_fvector(midir->k_nu->c2h6,0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
-    if (midir->k_nu->nh3)  free_fvector(midir->k_nu->nh3, 0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
-    if (midir->k_nu->ph3)  free_fvector(midir->k_nu->ph3, 0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    if (midir->k_nu->t)    free_dvector(midir->k_nu->t,0,midir->k_nu->nt-1,dbmsname);
+    if (midir->k_nu->p)    free_dvector(midir->k_nu->p,0,midir->k_nu->np-1,dbmsname);
+    if (midir->k_nu->ch4)  free_dvector(midir->k_nu->ch4, 0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    if (midir->k_nu->c2h2) free_dvector(midir->k_nu->c2h2,0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    if (midir->k_nu->c2h6) free_dvector(midir->k_nu->c2h6,0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    if (midir->k_nu->nh3)  free_dvector(midir->k_nu->nh3, 0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
+    if (midir->k_nu->ph3)  free_dvector(midir->k_nu->ph3, 0,midir->nwn*midir->k_nu->nt*midir->k_nu->np-1,dbmsname);
     free(midir->k_nu);
   }
 
   /* Free cia */
   if (midir->cia) {
-    if (midir->cia->t)      free_fvector(midir->cia->t,0,midir->cia->nt-1,dbmsname);
-    if (midir->cia->h2_h2)  free_fvector(midir->cia->h2_h2, 0,midir->nwn*midir->cia->nt-1,dbmsname);
-    if (midir->cia->h2_he)  free_fvector(midir->cia->h2_he, 0,midir->nwn*midir->cia->nt-1,dbmsname);
-    if (midir->cia->h2_ch4) free_fvector(midir->cia->h2_ch4,0,midir->nwn*midir->cia->nt-1,dbmsname);
+    if (midir->cia->t)      free_dvector(midir->cia->t,0,midir->cia->nt-1,dbmsname);
+    if (midir->cia->h2_h2)  free_dvector(midir->cia->h2_h2, 0,midir->nwn*midir->cia->nt-1,dbmsname);
+    if (midir->cia->h2_he)  free_dvector(midir->cia->h2_he, 0,midir->nwn*midir->cia->nt-1,dbmsname);
+    if (midir->cia->h2_ch4) free_dvector(midir->cia->h2_ch4,0,midir->nwn*midir->cia->nt-1,dbmsname);
     free(midir->cia);
   }
 
@@ -1478,8 +1478,7 @@ void free_rt_longwave(rt_band      *fir,
  * Fortran subroutine:
  *   firver3()
  */
-void fir_opacity(planetspec   *planet,
-                 int           J,
+void fir_opacity(int           J,
                  int           I,
                  rt_band      *fir,
                  disort_state *ds)
@@ -1493,7 +1492,7 @@ void fir_opacity(planetspec   *planet,
     n_amagat;
   static int
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
    *tcia_table;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -1505,7 +1504,7 @@ void fir_opacity(planetspec   *planet,
 
   if (!initialized) {
     /* Allocate Memory */
-    tcia_table = ftriplet(0,fir->cia->nt,dbmsname);
+    tcia_table = dtriplet(0,fir->cia->nt,dbmsname);
 
     /* Assign values */
     for (itemp = 1; itemp <= fir->cia->nt; itemp++) {
@@ -1568,13 +1567,29 @@ void fir_opacity(planetspec   *planet,
       }
 
       if (var.species[CH_4_INDEX].on == TRUE) {
+        int
+          iq;
+        const double
+          mu_dry_inv = planet->rgas/R_GAS;
+        register double
+          sum,x;
+
         for (iwn = 1; iwn <= fir->nwn; iwn++) {
           /* H_2-CH_4 */
           m     = (FIR_CIA_H2_CH4(itemp+1,iwn)-FIR_CIA_H2_CH4(itemp,iwn))/dt;
           b     = FIR_CIA_H2_CH4(itemp,iwn)-m*FIR_CIA_T(itemp);
           dtau  = m*temp+b;
-          tau   = dtau*X(CH_4_INDEX,VAPOR,K,J,I);
 
+          /*
+           * Find number fraction of methane vapor, x.
+           */
+          sum = mu_dry_inv;
+          for (iq = 0; iq < grid.nq; iq++) {
+            sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+          }
+          x = Q(CH_4_INDEX,VAPOR,K,J,I)/(var.species[CH_4_INDEX].molar_mass*sum);
+
+          tau                = dtau*x;
           tau               *= planet->x_h2*n_amagat*n_amagat*dz_km;
           FIR_DTAUC(lc,iwn) += tau;
         }
@@ -1602,8 +1617,7 @@ void fir_opacity(planetspec   *planet,
 #define TTAU(itemp)     t_table[itemp-1].x
 #define TCIA(itemp)     tcia_table[itemp-1].x
 
-void midir_opacity(planetspec   *planet,
-                   int           J,
+void midir_opacity(int           J,
                    int           I,
                    rt_band      *midir,
                    disort_state *ds)
@@ -1624,7 +1638,7 @@ void midir_opacity(planetspec   *planet,
     hc_k = 1.43879;  /* h*c/k_b [K/cm-1] */
   static int
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
    *logp_table,
    *t_table,
    *tcia_table;
@@ -1639,9 +1653,9 @@ void midir_opacity(planetspec   *planet,
   if (!initialized) {
     if (midir->k_nu->on) {
       /* Allocate memory */
-      logp_table = ftriplet(0,midir->k_nu->np-1,dbmsname);
-      t_table    = ftriplet(0,midir->k_nu->nt-1,dbmsname);
-      tcia_table = ftriplet(0,midir->cia->nt,   dbmsname);
+      logp_table = dtriplet(0,midir->k_nu->np-1,dbmsname);
+      t_table    = dtriplet(0,midir->k_nu->nt-1,dbmsname);
+      tcia_table = dtriplet(0,midir->cia->nt,   dbmsname);
 
       /* Assign values */
       for (ipress = 1; ipress <= midir->k_nu->np; ipress++) {
@@ -1711,13 +1725,29 @@ void midir_opacity(planetspec   *planet,
       }
 
       if (var.species[CH_4_INDEX].on == TRUE) {
+        int
+          iq;
+        const double
+          mu_dry_inv = planet->rgas/R_GAS;
+        register double
+          sum,x;
+
         for (iwn = 1; iwn <= midir->nwn; iwn++) {
           /* H_2-CH_4 */
           m     = (MIDIR_CIA_H2_CH4(itemp+1,iwn)-MIDIR_CIA_H2_CH4(itemp,iwn))/dt;
           b     = MIDIR_CIA_H2_CH4(itemp,iwn)-m*MIDIR_CIA_T(itemp);
           dtau  = m*temp+b;
-          tau   = dtau*X(CH_4_INDEX,VAPOR,K,J,I);
 
+          /*
+           * Find number fraction of methane vapor, x.
+           */
+          sum = mu_dry_inv;
+          for (iq = 0; iq < grid.nq; iq++) {
+            sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+          }
+          x = Q(CH_4_INDEX,VAPOR,K,J,I)/(var.species[CH_4_INDEX].molar_mass*sum);
+
+          tau                  = dtau*x;
           tau                 *= planet->x_h2*n_amagat*n_amagat*dz_km;
           MIDIR_DTAUC(lc,iwn) += tau;
         }
@@ -1738,6 +1768,13 @@ void midir_opacity(planetspec   *planet,
       invt  = 1./temp;
 
       if (var.species[CH_4_INDEX].on) {
+        int
+          iq;
+        const double
+          mu_dry_inv = planet->rgas/R_GAS;
+        register double
+          sum,x;
+
         for (iwn = 1; iwn <= midir->nwn; iwn++) {
           m     = (MIDIR_K_NU_CH4(ipress+1,itemp,iwn)-MIDIR_K_NU_CH4(ipress,itemp,iwn))/dlogp;
           b     = MIDIR_K_NU_CH4(ipress,itemp,iwn)-m*LOGPTAU(ipress);  
@@ -1750,11 +1787,27 @@ void midir_opacity(planetspec   *planet,
           ec    = log(dtau1/dtau2)/(hc_k*(invt2-invt1));
           dtau  = dtau1*exp(hc_k*ec*(invt1-invt));
 
-          MIDIR_DTAUC(lc,iwn) += dtau*X(CH_4_INDEX,VAPOR,K,J,I)*n_amagat*dz_km;
+          /*
+           * Find number fraction of methane vapor, x.
+           */
+          sum = mu_dry_inv;
+          for (iq = 0; iq < grid.nq; iq++) {
+            sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+          }
+          x = Q(CH_4_INDEX,VAPOR,K,J,I)/(var.species[CH_4_INDEX].molar_mass*sum);
+
+          MIDIR_DTAUC(lc,iwn) += dtau*x*n_amagat*dz_km;
         }
       }
 
       if (var.species[C_2H_2_INDEX].on) {
+        int
+          iq;
+        const double
+          mu_dry_inv = planet->rgas/R_GAS;
+        register double
+          sum,x;
+
         for (iwn = 1; iwn <= midir->nwn; iwn++) {
           m     = (MIDIR_K_NU_C2H2(ipress+1,itemp,iwn)-MIDIR_K_NU_C2H2(ipress,itemp,iwn))/dlogp;
           b     = MIDIR_K_NU_C2H2(ipress,itemp,iwn)-m*LOGPTAU(ipress);  
@@ -1767,11 +1820,27 @@ void midir_opacity(planetspec   *planet,
           ec    = log(dtau1/dtau2)/(hc_k*(invt2-invt1));
           dtau  = dtau1*exp(hc_k*ec*(invt1-invt));
 
-          MIDIR_DTAUC(lc,iwn) += dtau*X(C_2H_2_INDEX,VAPOR,K,J,I)*n_amagat*dz_km;
+          /*
+           * Find number fraction, x.
+           */
+          sum = mu_dry_inv;
+          for (iq = 0; iq < grid.nq; iq++) {
+            sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+          }
+          x = Q(C_2H_2_INDEX,VAPOR,K,J,I)/(var.species[C_2H_2_INDEX].molar_mass*sum);
+
+          MIDIR_DTAUC(lc,iwn) += dtau*x*n_amagat*dz_km;
         }
       }
 
       if (var.species[C_2H_6_INDEX].on) {
+        int
+          iq;
+        const double
+          mu_dry_inv = planet->rgas/R_GAS;
+        register double
+          sum,x;
+
         for (iwn = 1; iwn <= midir->nwn; iwn++) {
           m     = (MIDIR_K_NU_C2H6(ipress+1,itemp,iwn)-MIDIR_K_NU_C2H6(ipress,itemp,iwn))/dlogp;
           b     = MIDIR_K_NU_C2H6(ipress,itemp,iwn)-m*LOGPTAU(ipress);  
@@ -1784,11 +1853,27 @@ void midir_opacity(planetspec   *planet,
           ec    = log(dtau1/dtau2)/(hc_k*(invt2-invt1));
           dtau  = dtau1*exp(hc_k*ec*(invt1-invt));
 
-          MIDIR_DTAUC(lc,iwn) += dtau*X(C_2H_6_INDEX,VAPOR,K,J,I)*n_amagat*dz_km;
+          /*
+           * Find number fraction, x.
+           */
+          sum = mu_dry_inv;
+          for (iq = 0; iq < grid.nq; iq++) {
+            sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+          }
+          x = Q(C_2H_6_INDEX,VAPOR,K,J,I)/(var.species[C_2H_6_INDEX].molar_mass*sum);
+
+          MIDIR_DTAUC(lc,iwn) += dtau*x*n_amagat*dz_km;
         }
       }
 
       if (var.species[NH_3_INDEX].on) {
+        int
+          iq;
+        const double
+          mu_dry_inv = planet->rgas/R_GAS;
+        register double
+          sum,x;
+
         for (iwn = 1; iwn <= midir->nwn; iwn++) {
           m     = (MIDIR_K_NU_NH3(ipress+1,itemp,iwn)-MIDIR_K_NU_NH3(ipress,itemp,iwn))/dlogp;
           b     = MIDIR_K_NU_NH3(ipress,itemp,iwn)-m*LOGPTAU(ipress);  
@@ -1801,11 +1886,27 @@ void midir_opacity(planetspec   *planet,
           ec    = log(dtau1/dtau2)/(hc_k*(invt2-invt1));
           dtau  = dtau1*exp(hc_k*ec*(invt1-invt));
 
-          MIDIR_DTAUC(lc,iwn) += dtau*X(NH_3_INDEX,VAPOR,K,J,I)*n_amagat*dz_km;
+          /*
+           * Find number fraction, x.
+           */
+          sum = mu_dry_inv;
+          for (iq = 0; iq < grid.nq; iq++) {
+            sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+          }
+          x = Q(NH_3_INDEX,VAPOR,K,J,I)/(var.species[NH_3_INDEX].molar_mass*sum);
+
+          MIDIR_DTAUC(lc,iwn) += dtau*x*n_amagat*dz_km;
         }
       }
 
       if (var.species[PH_3_INDEX].on) {
+        int
+          iq;
+        const double
+          mu_dry_inv = planet->rgas/R_GAS;
+        register double
+          sum,x;
+
         for (iwn = 1; iwn <= midir->nwn; iwn++) {
           m     = (MIDIR_K_NU_PH3(ipress+1,itemp,iwn)-MIDIR_K_NU_PH3(ipress,itemp,iwn))/dlogp;
           b     = MIDIR_K_NU_PH3(ipress,itemp,iwn)-m*LOGPTAU(ipress);  
@@ -1818,7 +1919,16 @@ void midir_opacity(planetspec   *planet,
           ec    = log(dtau1/dtau2)/(hc_k*(invt2-invt1));
           dtau  = dtau1*exp(hc_k*ec*(invt1-invt));
 
-          MIDIR_DTAUC(lc,iwn) += dtau*X(PH_3_INDEX,VAPOR,K,J,I)*n_amagat*dz_km;
+          /*
+           * Find number fraction, x.
+           */
+          sum = mu_dry_inv;
+          for (iq = 0; iq < grid.nq; iq++) {
+            sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+          }
+          x = Q(PH_3_INDEX,VAPOR,K,J,I)/(var.species[PH_3_INDEX].molar_mass*sum);
+
+          MIDIR_DTAUC(lc,iwn) += dtau*x*n_amagat*dz_km;
         }
       }
     }
@@ -1853,10 +1963,9 @@ void midir_opacity(planetspec   *planet,
  *   heatingver12()
  */
 
-void rt_shortwave(planetspec *planet,
-                  EPIC_FLOAT *heating,
-                  int         i_stride,
-                  int         action)
+void rt_shortwave(double *heating,
+                  int     i_stride,
+                  int     action)
 {
   int
     K,J,I,
@@ -1871,12 +1980,12 @@ void rt_shortwave(planetspec *planet,
     subsolar_lat,alpha,
     glat,clat,
     radius;
-  EPIC_FLOAT
+  double
     x,dx;
   static double
    *gg,
    *tauc;
-  static float_triplet
+  static double_triplet
    *tau_table;
   static rt_band
    *nir,
@@ -1898,18 +2007,18 @@ void rt_shortwave(planetspec *planet,
     /*
      * Zero heating array.
      */
-    memset(heating,0,Nelem3d*sizeof(EPIC_FLOAT));
+    memset(heating,0,Nelem3d*sizeof(double));
 
     /* 
      * Inverse-square attenuation of solar flux.
      * The function radius_vector() returns the planet's distance from the Sun [AU].
      */
-    solar_flux_attenuation = 1./SQR(radius_vector(planet,var.model_time));
+    solar_flux_attenuation = 1./SQR(radius_vector(var.model_time));
 
     /*
      * Subsolar latitude (planetocentric) [deg].
      */
-    subsolar_lat = solar_declination(planet,L_s);
+    subsolar_lat = solar_declination(L_s);
 
     for (J = JLO; J <= JHI; J++) {
       jj = 2*J+1;
@@ -1930,7 +2039,7 @@ void rt_shortwave(planetspec *planet,
          *
          * NOTE: The input latitudes to ring_shadow() are planetocentric.
          */
-        solar_flux_attenuation *= ring_shadow(planet,clat,subsolar_lat); 
+        solar_flux_attenuation *= ring_shadow(clat,subsolar_lat); 
       }
 
       /*
@@ -1944,7 +2053,7 @@ void rt_shortwave(planetspec *planet,
         /*
          * Hour angle, alpha [deg]
          */
-        alpha = (grid.lon[2*I+1]-east_longitude_of_solar_noon(planet,var.model_time,L_s));
+        alpha = (grid.lon[2*I+1]-east_longitude_of_solar_noon(var.model_time,L_s));
         /*
          * Calculate cosine of solar zenith angle.
          * See Meeus (2005), eqn. (13.6)
@@ -2000,7 +2109,7 @@ void rt_shortwave(planetspec *planet,
         nir->scat_yes = FALSE;
         memset(&SSALB(1),0,ds->nlyr*sizeof(double));
 
-        nir_opacity(planet,J,I,nir,ds);
+        nir_opacity(J,I,nir,ds);
 
         /*
          * Loop over correlated-k bins.
@@ -2082,7 +2191,7 @@ void rt_shortwave(planetspec *planet,
          * VIS: 10000, 40000 cm-1 *
          *------------------------*/
 
-        vis_opacity(planet,J,I,vis,ds);
+        vis_opacity(J,I,vis,ds);
 
         /*
          * Loop over wavenumber bins.
@@ -2162,7 +2271,7 @@ void rt_shortwave(planetspec *planet,
          * UV: 40000, 100000 cm-1 *
          *------------------------*/
 
-        uv_opacity(planet,J,I,uv,ds);
+        uv_opacity(J,I,uv,ds);
 
         /*
          * Loop over wavenumber bins.
@@ -2402,7 +2511,7 @@ void rt_shortwave(planetspec *planet,
      */
     gg        = dvector( 0,ds->nlyr-1,dbmsname);
     tauc      = dvector( 0,ds->nlyr,  dbmsname);
-    tau_table = ftriplet(0,ds->nlyr,  dbmsname);
+    tau_table = dtriplet(0,ds->nlyr,  dbmsname);
 
     /*
      * Set independent variable for spline on tau data,
@@ -2411,7 +2520,7 @@ void rt_shortwave(planetspec *planet,
      */
     for (lev = 0; lev <= ds->nlyr; lev++) {
       kk               = 2*(lev+1);
-      tau_table[lev].x = (EPIC_FLOAT)kk;
+      tau_table[lev].x = (double)kk;
     }
 
     deltam = FALSE;
@@ -2444,7 +2553,7 @@ void rt_shortwave(planetspec *planet,
      */
     if (gg)        free_dvector(gg,        0,ds->nlyr-1,dbmsname);
     if (tauc)      free_dvector(tauc,      0,ds->nlyr,  dbmsname);
-    if (tau_table) free_ftriplet(tau_table,0,ds->nlyr,  dbmsname);
+    if (tau_table) free_dtriplet(tau_table,0,ds->nlyr,  dbmsname);
 
     if (nir || vis || uv) free_rt_shortwave(nir,vis,uv,ds);
 
@@ -2524,7 +2633,7 @@ void init_rt_shortwave(rt_band      *nir,
   double
     tmp,band_fraction,
     wavelength_start,wavelength_end;
-  EPIC_FLOAT
+  double
     lambda_bot,lambda_top,tol;
   double
    *wave,
@@ -2633,7 +2742,7 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for g weights */
-  nir->k_nu->delg = fvector(0,nir->k_nu->ng-1,dbmsname);
+  nir->k_nu->delg = dvector(0,nir->k_nu->ng-1,dbmsname);
 
   /* Read in g weights */
   for (ig = 1; ig <= nir->k_nu->ng+1; ig++) {
@@ -2649,7 +2758,7 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for pressures */
-  nir->k_nu->p = fvector(0,nir->k_nu->np-1,dbmsname);
+  nir->k_nu->p = dvector(0,nir->k_nu->np-1,dbmsname);
 
   /* Read in pressures */
   for (ipress = 1; ipress <= nir->k_nu->np; ipress++) {
@@ -2664,7 +2773,7 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for temperatures */
-  nir->k_nu->t = fvector(0,nir->k_nu->nt-1,dbmsname);
+  nir->k_nu->t = dvector(0,nir->k_nu->nt-1,dbmsname);
 
   /* Read in temperatures */
   for (itemp = 1; itemp <= nir->k_nu->nt; itemp++) {
@@ -2675,15 +2784,15 @@ void init_rt_shortwave(rt_band      *nir,
   }
 
   /* Allocate memory for k_nu CH4 data */
-  nir->k_nu->ch4 = fvector(0,nir->nwn
+  nir->k_nu->ch4 = dvector(0,nir->nwn
                             *nir->k_nu->ng
                             *nir->k_nu->np
                             *nir->k_nu->nt-1,dbmsname);
 
   /* Allocate memory for wavenumbers */
-  nir->wn   = fvector(0,nir->nwn-1,dbmsname);
-  nir->wnlo = fvector(0,nir->nwn-1,dbmsname);
-  nir->wnhi = fvector(0,nir->nwn-1,dbmsname);
+  nir->wn   = dvector(0,nir->nwn-1,dbmsname);
+  nir->wnlo = dvector(0,nir->nwn-1,dbmsname);
+  nir->wnhi = dvector(0,nir->nwn-1,dbmsname);
 
   icount = 0;
   for (iwn = 1; iwn <= nir->nwn; iwn++) {
@@ -2784,7 +2893,7 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for temperatures */
-  nir->cia->t = fvector(0,nir->cia->nt-1,dbmsname);
+  nir->cia->t = dvector(0,nir->cia->nt-1,dbmsname);
 
   /* Read in temperatures */
   for (itemp = 1; itemp <= 4; itemp++) {
@@ -2798,11 +2907,11 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for input cia data */
-  wave = fvector(0,ncia-1,dbmsname);
-  opac = fvector(0,ncia*nir->cia->nt-1,dbmsname);
+  wave = dvector(0,ncia-1,dbmsname);
+  opac = dvector(0,ncia*nir->cia->nt-1,dbmsname);
 
   /* Allocate memory for H2-H2 cia data */
-  nir->cia->h2_h2 = fvector(0,nir->nwn*nir->cia->nt-1,dbmsname);
+  nir->cia->h2_h2 = dvector(0,nir->nwn*nir->cia->nt-1,dbmsname);
 
   for (icia = 1; icia <= ncia; icia++) {
     fscanf(infile,"%lf",&WAVE(icia));
@@ -2848,8 +2957,8 @@ void init_rt_shortwave(rt_band      *nir,
   }
 
   /* Free allocated memory */
-  free_fvector(wave,0,ncia-1,            dbmsname);
-  free_fvector(opac,0,ncia*nir->cia->nt-1,dbmsname);
+  free_dvector(wave,0,ncia-1,            dbmsname);
+  free_dvector(opac,0,ncia*nir->cia->nt-1,dbmsname);
 
   /* Close data file */
   fclose(infile);
@@ -2860,7 +2969,7 @@ void init_rt_shortwave(rt_band      *nir,
    */
 
   /* Allocate memory for NIR solar flux */
-  nir->fluxtot = fvector(0,nir->nwn-1,dbmsname);
+  nir->fluxtot = dvector(0,nir->nwn-1,dbmsname);
 
   /* Fractional tolerance for Romberg integration of solar flux. */
   tol = 1.e-8;
@@ -2877,7 +2986,7 @@ void init_rt_shortwave(rt_band      *nir,
   /*
    * Allocate memory for dtauc
    */
-  nir->dtauc = fvector(0,nir->nwn*nir->k_nu->ng*ds->nlyr-1,dbmsname);
+  nir->dtauc = dvector(0,nir->nwn*nir->k_nu->ng*ds->nlyr-1,dbmsname);
 
   /*--------------------------------------------------------------------*
    * VIS (visible, 10000 to 40000 cm-1)                                 *
@@ -2930,8 +3039,8 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory */
-  vac     = fvector(0,nopac-1,dbmsname);
-  methane = fvector(0,nopac-1,dbmsname);
+  vac     = dvector(0,nopac-1,dbmsname);
+  methane = dvector(0,nopac-1,dbmsname);
 
   /*
    * Set bin size
@@ -2946,9 +3055,9 @@ void init_rt_shortwave(rt_band      *nir,
   vis->nwn = nopac/bin_size;
 
   /* Allocate memory for wavenumbers */
-  vis->wn   = fvector(0,vis->nwn-1,dbmsname);
-  vis->wnlo = fvector(0,vis->nwn-1,dbmsname);
-  vis->wnhi = fvector(0,vis->nwn-1,dbmsname);
+  vis->wn   = dvector(0,vis->nwn-1,dbmsname);
+  vis->wnlo = dvector(0,vis->nwn-1,dbmsname);
+  vis->wnhi = dvector(0,vis->nwn-1,dbmsname);
 
   for (iopac = nopac; iopac >= 1; iopac--) {
     fscanf(infile,"%lf %*lf %lf %*lf %*lf %*lf %*lf %*lf",&VAC(iopac),&METHANE(iopac));
@@ -2962,7 +3071,7 @@ void init_rt_shortwave(rt_band      *nir,
 
   vis->k_nu->on  = TRUE;
 
-  vis->k_nu->ch4 = fvector(0,vis->nwn-1,dbmsname);
+  vis->k_nu->ch4 = dvector(0,vis->nwn-1,dbmsname);
 
   /*
    * Read in methane opacity data
@@ -2982,8 +3091,8 @@ void init_rt_shortwave(rt_band      *nir,
   }
 
   /* Free allocated memory */
-  free_fvector(vac,    0,nopac-1,dbmsname);
-  free_fvector(methane,0,nopac-1,dbmsname);
+  free_dvector(vac,    0,nopac-1,dbmsname);
+  free_dvector(methane,0,nopac-1,dbmsname);
 
   /* Close data file */
   fclose(infile);
@@ -3008,9 +3117,9 @@ void init_rt_shortwave(rt_band      *nir,
   vis->sigma->on = FALSE;
 
   if (vis->sigma->on) {
-    vis->sigma->h2  = fvector(0,vis->nwn-1,dbmsname);
-    vis->sigma->he  = fvector(0,vis->nwn-1,dbmsname);
-    vis->sigma->ch4 = fvector(0,vis->nwn-1,dbmsname);
+    vis->sigma->h2  = dvector(0,vis->nwn-1,dbmsname);
+    vis->sigma->he  = dvector(0,vis->nwn-1,dbmsname);
+    vis->sigma->ch4 = dvector(0,vis->nwn-1,dbmsname);
 
     cross_section_rayleigh(vis);
   }
@@ -3054,7 +3163,7 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for temperatures */
-  vis->cia->t = fvector(0,vis->cia->nt-1,dbmsname);
+  vis->cia->t = dvector(0,vis->cia->nt-1,dbmsname);
 
   /* Read in temperatures */
   for (itemp = 1; itemp <= 4; itemp++) {
@@ -3068,11 +3177,11 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for input cia data */
-  wave = fvector(0,ncia-1,dbmsname);
-  opac = fvector(0,ncia*nir->cia->nt-1,dbmsname);
+  wave = dvector(0,ncia-1,dbmsname);
+  opac = dvector(0,ncia*nir->cia->nt-1,dbmsname);
 
   /* Allocate memory for H2-H2 cia data */
-  vis->cia->h2_h2 = fvector(0,vis->nwn*vis->cia->nt-1,dbmsname);
+  vis->cia->h2_h2 = dvector(0,vis->nwn*vis->cia->nt-1,dbmsname);
 
   for (icia = 1; icia <= ncia; icia++) {
     fscanf(infile,"%lf",&WAVE(icia));
@@ -3118,8 +3227,8 @@ void init_rt_shortwave(rt_band      *nir,
   }
 
   /* Free allocated memory */
-  free_fvector(wave,0,ncia-1,            dbmsname);
-  free_fvector(opac,0,ncia*vis->cia->nt-1,dbmsname);
+  free_dvector(wave,0,ncia-1,            dbmsname);
+  free_dvector(opac,0,ncia*vis->cia->nt-1,dbmsname);
 
   fclose(infile);
 
@@ -3128,7 +3237,7 @@ void init_rt_shortwave(rt_band      *nir,
    */
 
   /* Allocate memory for VIS solar flux */
-  vis->fluxtot = fvector(0,vis->nwn-1,dbmsname);
+  vis->fluxtot = dvector(0,vis->nwn-1,dbmsname);
 
   /* Fractional tolerance for Romberg integration of solar flux. */
   tol = 1.e-8;
@@ -3145,10 +3254,10 @@ void init_rt_shortwave(rt_band      *nir,
   /*
    * Allocate memory for dtauc, ssalb
    */
-  vis->dtauc = fvector(0,vis->nwn*ds->nlyr-1,dbmsname);
+  vis->dtauc = dvector(0,vis->nwn*ds->nlyr-1,dbmsname);
 
   if (vis->sigma->on) {
-    vis->ssalb = fvector(0,vis->nwn*ds->nlyr-1,dbmsname);
+    vis->ssalb = dvector(0,vis->nwn*ds->nlyr-1,dbmsname);
   }
 
   /*--------------------------------------------------------------------*
@@ -3210,9 +3319,9 @@ void init_rt_shortwave(rt_band      *nir,
   fgets(header,N_STR,infile);
 
   /* Allocate memory for wavenumbers */
-  uv->wn   = fvector(0,uv->nwn-1,dbmsname);
-  uv->wnlo = fvector(0,uv->nwn-1,dbmsname);
-  uv->wnhi = fvector(0,uv->nwn-1,dbmsname);
+  uv->wn   = dvector(0,uv->nwn-1,dbmsname);
+  uv->wnlo = dvector(0,uv->nwn-1,dbmsname);
+  uv->wnhi = dvector(0,uv->nwn-1,dbmsname);
 
   /* 
    * Allocate memory for opacity cross sections
@@ -3228,10 +3337,10 @@ void init_rt_shortwave(rt_band      *nir,
 
   uv->k->on   = TRUE;
 
-  uv->k->ch4  = fvector(0,uv->nwn-1,dbmsname);
-  uv->k->c2h2 = fvector(0,uv->nwn-1,dbmsname);
-  uv->k->c2h4 = fvector(0,uv->nwn-1,dbmsname);
-  uv->k->c2h6 = fvector(0,uv->nwn-1,dbmsname);
+  uv->k->ch4  = dvector(0,uv->nwn-1,dbmsname);
+  uv->k->c2h2 = dvector(0,uv->nwn-1,dbmsname);
+  uv->k->c2h4 = dvector(0,uv->nwn-1,dbmsname);
+  uv->k->c2h6 = dvector(0,uv->nwn-1,dbmsname);
   
   /* Read in opacity cross sections and wavenumbers */
   for (iwn = uv->nwn; iwn >= 1; iwn--) {
@@ -3273,9 +3382,9 @@ void init_rt_shortwave(rt_band      *nir,
   uv->sigma->on =FALSE;
 
   if (uv->sigma->on) {
-    uv->sigma->h2  = fvector(0,uv->nwn-1,dbmsname);
-    uv->sigma->he  = fvector(0,uv->nwn-1,dbmsname);
-    uv->sigma->ch4 = fvector(0,uv->nwn-1,dbmsname);
+    uv->sigma->h2  = dvector(0,uv->nwn-1,dbmsname);
+    uv->sigma->he  = dvector(0,uv->nwn-1,dbmsname);
+    uv->sigma->ch4 = dvector(0,uv->nwn-1,dbmsname);
 
     cross_section_rayleigh(uv);
   }
@@ -3285,7 +3394,7 @@ void init_rt_shortwave(rt_band      *nir,
    */
 
   /* Allocate memory for UV solar flux */
-  uv->fluxtot = fvector(0,uv->nwn-1, dbmsname);
+  uv->fluxtot = dvector(0,uv->nwn-1, dbmsname);
 
   /* Fractional tolerance for Romberg integration of solar flux. */
   tol = 1.e-8;
@@ -3302,10 +3411,10 @@ void init_rt_shortwave(rt_band      *nir,
   /*
    * Allocate memory for dtauc, ssalb
    */
-  uv->dtauc = fvector(0,uv->nwn*ds->nlyr-1,dbmsname);
+  uv->dtauc = dvector(0,uv->nwn*ds->nlyr-1,dbmsname);
 
   if (uv->sigma->on) {
-    uv->ssalb = fvector(0,uv->nwn*ds->nlyr-1,dbmsname);
+    uv->ssalb = dvector(0,uv->nwn*ds->nlyr-1,dbmsname);
   }
 
   return;
@@ -3344,22 +3453,22 @@ void free_rt_shortwave(rt_band      *nir,
    *--------------------------------------------------------------------*/
 
   /* Free wavenumbers */
-  if (nir->wn)   free_fvector(nir->wn,  0,nir->nwn-1,dbmsname);
-  if (nir->wnlo) free_fvector(nir->wnlo,0,nir->nwn-1,dbmsname);
-  if (nir->wnhi) free_fvector(nir->wnhi,0,nir->nwn-1,dbmsname);
+  if (nir->wn)   free_dvector(nir->wn,  0,nir->nwn-1,dbmsname);
+  if (nir->wnlo) free_dvector(nir->wnlo,0,nir->nwn-1,dbmsname);
+  if (nir->wnhi) free_dvector(nir->wnhi,0,nir->nwn-1,dbmsname);
 
   /* Free NIR solar flux */
-  if (nir->fluxtot) free_fvector(nir->fluxtot,0,nir->nwn-1,dbmsname);
+  if (nir->fluxtot) free_dvector(nir->fluxtot,0,nir->nwn-1,dbmsname);
 
   /* Free dtauc */
-  if (nir->dtauc) free_fvector(nir->dtauc,0,nir->nwn*nir->k_nu->ng*ds->nlyr-1,dbmsname);
+  if (nir->dtauc) free_dvector(nir->dtauc,0,nir->nwn*nir->k_nu->ng*ds->nlyr-1,dbmsname);
 
   if (nir->k_nu) {
     /* Free k_nu */
-    if (nir->k_nu->delg) free_fvector(nir->k_nu->delg,0,nir->k_nu->ng-1,dbmsname);
-    if (nir->k_nu->p)    free_fvector(nir->k_nu->p,   0,nir->k_nu->np-1,dbmsname);
-    if (nir->k_nu->t)    free_fvector(nir->k_nu->t,   0,nir->k_nu->nt-1,dbmsname);
-    if (nir->k_nu->ch4)  free_fvector(nir->k_nu->ch4, 0,nir->nwn
+    if (nir->k_nu->delg) free_dvector(nir->k_nu->delg,0,nir->k_nu->ng-1,dbmsname);
+    if (nir->k_nu->p)    free_dvector(nir->k_nu->p,   0,nir->k_nu->np-1,dbmsname);
+    if (nir->k_nu->t)    free_dvector(nir->k_nu->t,   0,nir->k_nu->nt-1,dbmsname);
+    if (nir->k_nu->ch4)  free_dvector(nir->k_nu->ch4, 0,nir->nwn
                                      *nir->k_nu->ng
                                      *nir->k_nu->np
                                      *nir->k_nu->nt-1,dbmsname);
@@ -3368,8 +3477,8 @@ void free_rt_shortwave(rt_band      *nir,
 
   /* Free cia */
   if (nir->cia) {
-    if (nir->cia->t)     free_fvector(nir->cia->t,    0,nir->cia->nt-1,dbmsname);
-    if (nir->cia->h2_h2) free_fvector(nir->cia->h2_h2,0,nir->nwn*nir->cia->nt-1,dbmsname);
+    if (nir->cia->t)     free_dvector(nir->cia->t,    0,nir->cia->nt-1,dbmsname);
+    if (nir->cia->h2_h2) free_dvector(nir->cia->h2_h2,0,nir->nwn*nir->cia->nt-1,dbmsname);
     free(nir->cia);
   }
 
@@ -3378,35 +3487,35 @@ void free_rt_shortwave(rt_band      *nir,
    *--------------------------------------------------------------------*/
 
   /* Free wavenumbers */
-  if (vis->wn)   free_fvector(vis->wn,  0,vis->nwn-1,dbmsname);
-  if (vis->wnlo) free_fvector(vis->wnlo,0,vis->nwn-1,dbmsname);
-  if (vis->wnhi) free_fvector(vis->wnhi,0,vis->nwn-1,dbmsname);
+  if (vis->wn)   free_dvector(vis->wn,  0,vis->nwn-1,dbmsname);
+  if (vis->wnlo) free_dvector(vis->wnlo,0,vis->nwn-1,dbmsname);
+  if (vis->wnhi) free_dvector(vis->wnhi,0,vis->nwn-1,dbmsname);
 
   /* Free VIS solar flux */
-  if (vis->fluxtot) free_fvector(vis->fluxtot,0,vis->nwn-1,dbmsname);
+  if (vis->fluxtot) free_dvector(vis->fluxtot,0,vis->nwn-1,dbmsname);
 
   /* Free dtauc, ssalb */
-  if (vis->dtauc) free_fvector(vis->dtauc,0,vis->nwn*ds->nlyr-1,dbmsname);
-  if (vis->ssalb) free_fvector(vis->ssalb,0,vis->nwn*ds->nlyr-1,dbmsname);
+  if (vis->dtauc) free_dvector(vis->dtauc,0,vis->nwn*ds->nlyr-1,dbmsname);
+  if (vis->ssalb) free_dvector(vis->ssalb,0,vis->nwn*ds->nlyr-1,dbmsname);
 
   /* Free k_nu */
   if (vis->k_nu) {
-    if (vis->k_nu->ch4) free_fvector(vis->k_nu->ch4,0,vis->nwn-1,dbmsname);
+    if (vis->k_nu->ch4) free_dvector(vis->k_nu->ch4,0,vis->nwn-1,dbmsname);
     free(vis->k_nu);
   }
 
   /* Free sigma */
   if (vis->sigma) {
-    if (vis->sigma->h2)  free_fvector(vis->sigma->h2, 0,vis->nwn-1,dbmsname);
-    if (vis->sigma->he)  free_fvector(vis->sigma->he, 0,vis->nwn-1,dbmsname);
-    if (vis->sigma->ch4) free_fvector(vis->sigma->ch4,0,vis->nwn-1,dbmsname);
+    if (vis->sigma->h2)  free_dvector(vis->sigma->h2, 0,vis->nwn-1,dbmsname);
+    if (vis->sigma->he)  free_dvector(vis->sigma->he, 0,vis->nwn-1,dbmsname);
+    if (vis->sigma->ch4) free_dvector(vis->sigma->ch4,0,vis->nwn-1,dbmsname);
     free(vis->sigma);
   }
 
   /* Free cia */
   if (vis->cia) {
-    if (vis->cia->t)     free_fvector(vis->cia->t,    0,vis->cia->nt-1,dbmsname);
-    if (vis->cia->h2_h2) free_fvector(vis->cia->h2_h2,0,vis->nwn*vis->cia->nt-1,dbmsname);
+    if (vis->cia->t)     free_dvector(vis->cia->t,    0,vis->cia->nt-1,dbmsname);
+    if (vis->cia->h2_h2) free_dvector(vis->cia->h2_h2,0,vis->nwn*vis->cia->nt-1,dbmsname);
     free(vis->cia);
   }
 
@@ -3415,31 +3524,31 @@ void free_rt_shortwave(rt_band      *nir,
    *--------------------------------------------------------------------*/
 
   /* Free wavenumbers */
-  if (uv->wn)   free_fvector(uv->wn,  0,uv->nwn-1,dbmsname);
-  if (uv->wnlo) free_fvector(uv->wnlo,0,uv->nwn-1,dbmsname);
-  if (uv->wnhi) free_fvector(uv->wnhi,0,uv->nwn-1,dbmsname);
+  if (uv->wn)   free_dvector(uv->wn,  0,uv->nwn-1,dbmsname);
+  if (uv->wnlo) free_dvector(uv->wnlo,0,uv->nwn-1,dbmsname);
+  if (uv->wnhi) free_dvector(uv->wnhi,0,uv->nwn-1,dbmsname);
 
   /* Free UV solar flux */
-  if (uv->fluxtot) free_fvector(uv->fluxtot,0,uv->nwn-1,dbmsname);
+  if (uv->fluxtot) free_dvector(uv->fluxtot,0,uv->nwn-1,dbmsname);
 
   /* Free dtauc, ssalb */
-  if (uv->dtauc) free_fvector(uv->dtauc,0,uv->nwn*ds->nlyr-1,dbmsname);
-  if (uv->ssalb) free_fvector(uv->ssalb,0,uv->nwn*ds->nlyr-1,dbmsname);
+  if (uv->dtauc) free_dvector(uv->dtauc,0,uv->nwn*ds->nlyr-1,dbmsname);
+  if (uv->ssalb) free_dvector(uv->ssalb,0,uv->nwn*ds->nlyr-1,dbmsname);
 
   /* Free k */
   if (uv->k) {
-    if (uv->k->ch4)  free_fvector(uv->k->ch4, 0,uv->nwn-1,dbmsname);
-    if (uv->k->c2h2) free_fvector(uv->k->c2h2,0,uv->nwn-1,dbmsname);
-    if (uv->k->c2h4) free_fvector(uv->k->c2h4,0,uv->nwn-1,dbmsname);
-    if (uv->k->c2h6) free_fvector(uv->k->c2h6,0,uv->nwn-1,dbmsname);
+    if (uv->k->ch4)  free_dvector(uv->k->ch4, 0,uv->nwn-1,dbmsname);
+    if (uv->k->c2h2) free_dvector(uv->k->c2h2,0,uv->nwn-1,dbmsname);
+    if (uv->k->c2h4) free_dvector(uv->k->c2h4,0,uv->nwn-1,dbmsname);
+    if (uv->k->c2h6) free_dvector(uv->k->c2h6,0,uv->nwn-1,dbmsname);
     free(uv->k);
   }
 
   /* Free sigma */
   if (uv->sigma) {
-    if (uv->sigma->h2)  free_fvector(uv->sigma->h2, 0,uv->nwn-1,dbmsname);
-    if (uv->sigma->he)  free_fvector(uv->sigma->he, 0,uv->nwn-1,dbmsname);
-    if (uv->sigma->ch4) free_fvector(uv->sigma->ch4,0,uv->nwn-1,dbmsname);
+    if (uv->sigma->h2)  free_dvector(uv->sigma->h2, 0,uv->nwn-1,dbmsname);
+    if (uv->sigma->he)  free_dvector(uv->sigma->he, 0,uv->nwn-1,dbmsname);
+    if (uv->sigma->ch4) free_dvector(uv->sigma->ch4,0,uv->nwn-1,dbmsname);
     free(uv->sigma);
   }
 
@@ -3463,8 +3572,7 @@ void free_rt_shortwave(rt_band      *nir,
 #define TTAU(itemp)     t_table[itemp-1].x
 #define TCIA(itemp)     tcia_table[itemp-1].x
 
-void nir_opacity(planetspec   *planet,
-                 int           J,
+void nir_opacity(int           J,
                  int           I,
                  rt_band      *nir,
                  disort_state *ds)
@@ -3481,9 +3589,15 @@ void nir_opacity(planetspec   *planet,
     logdtau1,logdtau2,
     dtau,h2_h2_factor,
     n_amagat;
+  int
+    iq;
+  const double
+    mu_dry_inv = planet->rgas/R_GAS;
+  register double
+    sum,x_CH_4;
   static int
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
    *t_table,
    *logp_table,
    *tcia_table;
@@ -3498,9 +3612,9 @@ void nir_opacity(planetspec   *planet,
   if (!initialized) {
     if (nir->k_nu->on) {
       /* Allocate memory */
-      t_table    = ftriplet(0,nir->k_nu->nt-1,dbmsname);
-      logp_table = ftriplet(0,nir->k_nu->np-1,dbmsname);
-      tcia_table = ftriplet(0,nir->cia->nt-1, dbmsname);
+      t_table    = dtriplet(0,nir->k_nu->nt-1,dbmsname);
+      logp_table = dtriplet(0,nir->k_nu->np-1,dbmsname);
+      tcia_table = dtriplet(0,nir->cia->nt-1, dbmsname);
 
       /* Assign values */
       for (ipress = 1; ipress <= nir->k_nu->np; ipress++) {
@@ -3515,6 +3629,14 @@ void nir_opacity(planetspec   *planet,
     }
 
     initialized = TRUE;
+  }
+
+  /*
+   * Check that methane is turned on.
+   */
+  if (!var.species[CH_4_INDEX].on) {
+    sprintf(Message,"CH_4 is not turned on");
+    epic_error(dbmsname,Message);
   }
 
   ds->flag.planck = nir->planck;
@@ -3541,6 +3663,15 @@ void nir_opacity(planetspec   *planet,
      * Calculate number density [amagat]
      */
     n_amagat = (P3(K,J,I)*273.15)/(T3(K,J,I)*1.01325e+5);
+
+    /*
+     * Calculate number fraction for methane.
+     */
+    sum = mu_dry_inv;
+    for (iq = 0; iq < grid.nq; iq++) {
+      sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+    }
+    x_CH_4 = Q(CH_4_INDEX,VAPOR,K,J,I)/(var.species[CH_4_INDEX].molar_mass*sum);
 
     /*
      * DISORT layer thickness [km]
@@ -3593,7 +3724,7 @@ void nir_opacity(planetspec   *planet,
           /*
            * Ensure non-negative dtauc.
            */
-          NIR_DTAUC(lc,ig,iwn) += MAX(dtau*X(CH_4_INDEX,VAPOR,K,J,I)*n_amagat*dz_km,0.);
+          NIR_DTAUC(lc,ig,iwn) += MAX(dtau*x_CH_4*n_amagat*dz_km,0.);
         }
       }
     }
@@ -3642,8 +3773,7 @@ void nir_opacity(planetspec   *planet,
 
 #define TCIA(itemp) tcia_table[itemp-1].x
 
-void vis_opacity(planetspec   *planet,
-                 int           J,
+void vis_opacity(int           J,
                  int           I,
                  rt_band      *vis,
                  disort_state *ds)
@@ -3657,9 +3787,15 @@ void vis_opacity(planetspec   *planet,
     cd_xh2,cd_xhe,cd_xch4,
     n_amagat,h2_h2_factor,
     dz;
+  int
+    iq;
+  const double
+    mu_dry_inv = planet->rgas/R_GAS;
+  register double
+    sum,x_CH_4;
   static int
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
    *tcia_table;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -3671,7 +3807,7 @@ void vis_opacity(planetspec   *planet,
 
   if (!initialized) {
     /* Allocate memory */
-    tcia_table = ftriplet(0,vis->cia->nt-1,dbmsname);
+    tcia_table = dtriplet(0,vis->cia->nt-1,dbmsname);
 
     /* Assign values */
     for (itemp = 1; itemp <= vis->cia->nt; itemp++) {
@@ -3737,12 +3873,23 @@ void vis_opacity(planetspec   *planet,
       }
     }
 
+    if (var.species[CH_4_INDEX].on) {
+      /*
+       * Calculate number fraction for methane.
+       */
+      sum = mu_dry_inv;
+      for (iq = 0; iq < grid.nq; iq++) {
+        sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+      }
+      x_CH_4 = Q(CH_4_INDEX,VAPOR,K,J,I)/(var.species[CH_4_INDEX].molar_mass*sum);
+    }
+
     if (vis->k_nu->on) {
       /*
        * Methane absorption.
        */
       if (var.species[CH_4_INDEX].on == TRUE) {
-        cd_xch4 = (dz/1000.)*n_amagat*X(CH_4_INDEX,VAPOR,K,J,I);
+        cd_xch4 = (dz/1000.)*n_amagat*x_CH_4;
 
         for (iwn = 1; iwn <= vis->nwn; iwn++) {
           VIS_DTAUC(lc,iwn) += cd_xch4*VIS_K_NU_CH4(iwn);
@@ -3759,7 +3906,7 @@ void vis_opacity(planetspec   *planet,
       cd_xh2  = dz*n_amagat*(N_STP*1.e-4)*planet->x_h2;
       cd_xhe  = dz*n_amagat*(N_STP*1.e-4)*planet->x_he;
       if (var.species[CH_4_INDEX].on == TRUE) {
-        cd_xch4 = dz*n_amagat*(N_STP*1.e-4)*X(CH_4_INDEX,VAPOR,K,J,I);
+        cd_xch4 = dz*n_amagat*(N_STP*1.e-4)*x_CH_4;
       }
       else {
         cd_xch4 = 0.;
@@ -3784,8 +3931,7 @@ void vis_opacity(planetspec   *planet,
 
 /*============ uv_opacity() =======================================*/
 
-void uv_opacity(planetspec   *planet,
-                int           J,
+void uv_opacity(int           J,
                 int           I,
                 rt_band      *uv,
                 disort_state *ds)
@@ -3849,28 +3995,92 @@ void uv_opacity(planetspec   *planet,
     cd_xhe  = cd*planet->x_he;
 
     if (var.species[CH_4_INDEX].on == TRUE) {
-      cd_xch4 = cd*X(CH_4_INDEX,VAPOR,K,J,I);
+      int
+        iq;
+      const double
+        mu_dry_inv = planet->rgas/R_GAS;
+      register double
+        sum,x;
+
+      /*
+       * Find number fraction, x.
+       */
+      sum = mu_dry_inv;
+      for (iq = 0; iq < grid.nq; iq++) {
+        sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+      }
+      x = Q(CH_4_INDEX,VAPOR,K,J,I)/(var.species[CH_4_INDEX].molar_mass*sum);
+
+      cd_xch4 = cd*x;
     }
     else {
       cd_xch4 = 0.;
     }
 
     if (var.species[C_2H_2_INDEX].on == TRUE) {
-      cd_xc2h2 = cd*X(C_2H_2_INDEX,VAPOR,K,J,I);
+      int
+        iq;
+      const double
+        mu_dry_inv = planet->rgas/R_GAS;
+      register double
+        sum,x;
+
+      /*
+       * Find number fraction, x.
+       */
+      sum = mu_dry_inv;
+      for (iq = 0; iq < grid.nq; iq++) {
+        sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+      }
+      x = Q(C_2H_2_INDEX,VAPOR,K,J,I)/(var.species[C_2H_2_INDEX].molar_mass*sum);
+
+      cd_xc2h2 = cd*x;
     }
     else {
       cd_xc2h2 = 0.;
     }
 
     if (var.species[C_2H_4_INDEX].on == TRUE) {
-      cd_xc2h4 = cd*X(C_2H_4_INDEX,VAPOR,K,J,I);
+      int
+        iq;
+      const double
+        mu_dry_inv = planet->rgas/R_GAS;
+      register double
+        sum,x;
+
+      /*
+       * Find number fraction, x.
+       */
+      sum = mu_dry_inv;
+      for (iq = 0; iq < grid.nq; iq++) {
+        sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+      }
+      x = Q(C_2H_4_INDEX,VAPOR,K,J,I)/(var.species[C_2H_4_INDEX].molar_mass*sum);
+
+      cd_xc2h4 = cd*x;
     }
     else {
       cd_xc2h4 = 0.;
     }
 
     if (var.species[C_2H_6_INDEX].on == TRUE) {
-      cd_xc2h6 = cd*X(C_2H_6_INDEX,VAPOR,K,J,I);
+      int
+        iq;
+      const double
+        mu_dry_inv = planet->rgas/R_GAS;
+      register double
+        sum,x;
+
+      /*
+       * Find number fraction, x.
+       */
+      sum = mu_dry_inv;
+      for (iq = 0; iq < grid.nq; iq++) {
+        sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
+      }
+      x = Q(C_2H_6_INDEX,VAPOR,K,J,I)/(var.species[C_2H_6_INDEX].molar_mass*sum);
+
+      cd_xc2h6 = cd*x;
     }
     else {
       cd_xc2h6 = 0.;
@@ -3965,7 +4175,7 @@ void cross_section_rayleigh(rt_band *band)
  *
  * Using the Gueymard (2004, Solar Energy 76, 423-453) solar spectra.
  */
-EPIC_FLOAT solar_irradiance(EPIC_FLOAT lambda)
+double solar_irradiance(double lambda)
 {
   char
     header[N_STR];
@@ -3973,9 +4183,9 @@ EPIC_FLOAT solar_irradiance(EPIC_FLOAT lambda)
     i,
     ndat,
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     lambda_d;
-  static float_triplet
+  static double_triplet
     *table;
   FILE
     *infile;
@@ -4007,7 +4217,7 @@ EPIC_FLOAT solar_irradiance(EPIC_FLOAT lambda)
     fgets(header,N_STR,infile);
 
     /* Allocate memory */
-    table = ftriplet(0,ndat-1,dbmsname);
+    table = dtriplet(0,ndat-1,dbmsname);
 
     /* Read in data */
     for (i = 0; i < ndat; i++) {
@@ -4554,9 +4764,8 @@ void beer_law_only(disort_state  *ds,
  *   shadow()
  */
 
-double ring_shadow(planetspec *planet,
-                   double      lat,
-                   double      subsolar_lat)
+double ring_shadow(double lat,
+                   double subsolar_lat)
 {
   const double         /* Radii [km] for Saturn's main rings and the Cassini Division */
     rcint  =  74655.,

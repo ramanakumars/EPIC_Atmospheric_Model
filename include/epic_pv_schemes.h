@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2011 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 1998-2023 Timothy Dowling                         *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *

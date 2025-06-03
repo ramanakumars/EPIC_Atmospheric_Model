@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -55,7 +56,7 @@ variablespec
  *     obliquity[deg],
  *     omega_sidereal,omega_synodic,wlon_noon_J2000,
  *     cp,cpr=cp/rgas,rgas,p0,kappa=1/cpr,
- *     GM,J2,
+ *     g0,GM,J2,
  *     x_h2,x_he,x_3,
  *     a[AU],e,i[deg],
  *     lon_ascending_node[deg],lon_perihelion[deg],mean_lon[deg],
@@ -105,7 +106,8 @@ variablespec
  *  they are a sum of angles measured in different planes, and hence are listed with IAU-convention values.
  *
  *  The gravitational parameters GM and J2 are taken from
- *  The Planetary Scientist's Companion (Lodders and Fegley, 1998). 
+ *  The Planetary Scientist's Companion (Lodders and Fegley, 1998).
+ *  The standard gravity, g0, is from nssdc.gsfc.nasa.gov, and for Earth is CODATA 2018.
  *
  *  Typical kinematic viscosities, kinvisc, are from D.C. Wilcox (2000)
  *  Basic Fluid Mechanics, DCW Industries, 689. These numbers correspond
@@ -132,7 +134,7 @@ variablespec
  *       as an argument as well.
  */
 planetspec
-  *planet,
+  *planet,    /* This is the global declaration of the main planet pointer */
    venus   = {VENUS_INDEX,
               "Venus","terrestrial",
               "J2000",
@@ -140,7 +142,7 @@ planetspec
               2.7,                             /* IAU: 177.3 */
               2.9924e-7,6.2289e-7,200.51,
               860.,4.50,191.,92.e+5,0.222,
-              0.32486e+15,6.e-6,
+              8.87,0.32486e+15,6.e-6,
               0.,0.,1.,
               0.72333199,0.00677323,3.39471,
               76.68069,131.53298,181.97973,
@@ -154,7 +156,7 @@ planetspec
               23.45,
               7.2921e-5,7.272205e-5,359.96,
               1004.,3.48,287.1,1.e+5,0.287,
-              0.39860e+15,1082.636e-6,
+              9.80665,0.39860e+15,1082.636e-6,
               0.,0.,1.,
               1.00000011,0.01671022,0.00005,
               -11.26064,102.94719,100.46435,
@@ -168,7 +170,7 @@ planetspec
               25.19,
               7.0882e-5,7.0776e-5,43.26,
               735.,3.83,192.,610.,0.261,   /* cp = 735 at 200 K, varies with temp.; R. Haberle, email 8/10/15 */
-              0.042828375e+15,1960.454e-6,
+              3.727,0.042828375e+15,1960.454e-6,
               0.,0.,1.,
               1.52366231,0.09341233,1.85061,
               49.57854,336.04084,355.45332,
@@ -182,7 +184,7 @@ planetspec
               3.12,
               1.7585e-4,1.7584e-4,69.54,
               9092.8,2.50,3637.,1.e+5,.4,
-              126.6865e+15,14697.0e-6,
+              25.92,126.6865e+15,14697.0e-6,
               0.864,0.136,0.,
               5.20336301,0.04839266,1.30530,
               100.55615,14.75385,34.40438,
@@ -196,8 +198,8 @@ planetspec
               26.73,
               1.65117e-4,1.65117e-4,298.79,  /* Using System IIIw rotation period = 10h34m13s, not Voyager SKR System III = 10h39m24s */
               10976.,2.939,3735.,1.e+5,.34,  /* Using avg_mu = 2*.877+4*.118 = 2.226 */
-              37.931208e+15,16291.9e-6,      /* GM Jacobson et al (2006, Astron. J.), J2 after Helled et al (2009, Icarus), with System IIIw */
-              0.877,0.118,0.005,             /* Conrath et al (2000, Icarus 144, 124-134) */
+              11.19,37.931208e+15,16291.9e-6,      /* GM Jacobson et al (2006, Astron. J.), J2 after Helled et al (2009, Icarus), with System IIIw */
+              0.877,0.118,0.005,                   /* Conrath et al (2000, Icarus 144, 124-134) */
               9.53707032,0.05415060,2.48446,
               113.71504,92.43194,49.94432,
               29.458,
@@ -210,7 +212,7 @@ planetspec
               0.27,                            /* Titan obliquity from http://www.gtti.it/GTTI08/papers/persi.pdf */
               4.5608e-6,4.5608e-6,87.45, 
               1044.,3.60,290.,1.467e+5,.2778,
-              0.008978e+15,33.599e-6,          /* J2 from Iess et al. (2012), Table 2, SOL1a. */
+              1.352,0.008978e+15,33.599e-6,    /* J2 from Iess et al. (2012), Table 2, SOL1a. */
               0.,0.,1.,
               9.53707032,0.05415060,2.48446,
               113.71504,92.43194,49.94432,
@@ -224,7 +226,7 @@ planetspec
               82.14,                            /* IAU: 97.86 */
               1.0124e-4,1.0124e-4,355.62,
               9280.,2.67,3480.,1.e+5,.375,
-              5.79395e+15,3516.0e-6,
+              9.01,5.79395e+15,3516.0e-6,
               0.85,0.15,0.,
               19.19126393,0.04716771,0.76986,
               74.22988,170.96424,313.23218,
@@ -238,7 +240,7 @@ planetspec
               29.56,
               1.0834e-4,1.0834e-4,153.64,
               9280.,2.67,3480.,1.e+5,.375,
-              6.83473e+15,3538.0e-6,
+              11.27,6.83473e+15,3538.0e-6,
               0.81,0.19,0.,
               30.06896348,0.00858587,1.76917,
               131.72169,44.97135,304.88003,
@@ -252,7 +254,7 @@ planetspec
               62.0,                             /* IAU: 118.0 NOTE: Need to update obliquity for Pluto. */
               1.1386e-5,1.1386e-5,133.68,
               1.,1.,1.,0.3,1.,                      /* NOTE: Need data for Pluto. */
-              0.000884e+15,0.,                  /* NOTE: Need J2 for Pluto. */        
+              0.62,0.000884e+15,0.,                  /* NOTE: Need J2 for Pluto. */        
               0.,0.,1.,
               39.48168677,.24880766,17.14175,
               110.30347,224.06676,238.92881,
@@ -266,7 +268,7 @@ planetspec
               3.12,
               1.7585e-4,1.7584e-4,69.54,
               9092.8,2.50,3637.,1.e+5,.4,
-              126.6865e+15,14697.0e-6,
+              25.92,126.6865e+15,14697.0e-6,
               0.864,0.136,0.,
               5.20336301,0.04839266,1.30530,
               100.55615,14.75385,34.40438,
@@ -287,7 +289,7 @@ planetspec
                  23.45,
                  7.2921e-5,7.272205e-5,359.13,
                  1004.,3.5,286.86,1.e+5,0.2857,
-                 0.39860e+15,1082.636e-6,
+                 9.8,0.39860e+15,1082.636e-6,
                  0.,0.,1.,
                  1.00000011,0.01671022,0.00005,
                  -11.26064,102.94719,100.46435,
@@ -305,7 +307,7 @@ planetspec
               23.45,
               7.2921e-5,7.272205e-5,359.13,
               1004.,3.5,286.86,1.e+5,0.2857,
-              0.39860e+15,1082.636e-6,
+              9.8,0.39860e+15,1082.636e-6,
               0.,0.,1.,
               1.00000011,0.01671022,0.00005,
               -11.26064,102.94719,100.46435,
@@ -334,7 +336,7 @@ planetspec
                  2.7,                     /* IAU: 177.3 */
                  2.9924e-7,6.2289e-7,200.51,
                  860.,4.50,191.,92.e+5,0.222,
-                 0.32486e+15,6.e-6,
+                 8.87,0.32486e+15,6.e-6,
                  0.,0.,1.,
                  0.72333199,0.00677323,3.39471,
                  76.68069,131.53298,181.97973,
@@ -602,39 +604,33 @@ int
 /*
  * Global variables used to communicate with rho_minus_rho().
  */
-EPIC_FLOAT
+double
   RHOMRHO_fp,
   RHOMRHO_p,
   RHOMRHO_mu,
   RHOMRHO_density;
-planetspec
-  *RHOMRHO_planet;
 
 /*
  * Global variables used to communicate with th_minus_th_p() and
  * th_minus_th_t().
  */
-EPIC_FLOAT
+double
   THMTH_fp,
   THMTH_temperature,
   THMTH_theta,
   THMTH_p;
-planetspec
-  *THMTH_planet;
 
 /*
  * Global variables used to communicate with fpe_minus_fpe().
  */
-EPIC_FLOAT
+double
   FPEMFPE_p,
   FPEMFPE_theta;
-planetspec
-  *FPEMFPE_planet;
 
 /*
  * Global variables used to communicate with sgth_minus_sgth().
  */
-EPIC_FLOAT
+double
   SGTHMSGTH_theta,
   SGTHMSGTH_sigmatheta;
 

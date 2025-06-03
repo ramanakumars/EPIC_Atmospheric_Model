@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -33,28 +34,27 @@
 /*=================== restore_mass() ========================================*/
 
 /*
- * We currently just maintain a floor of grid.h_min[K] for H and 0.0
- * for mixing-ratio variables like H_2O_liquid.
+ * We currently just maintain a floor of grid.h_min[K] for H and Q_MIN
+ * for mixing-ratio variables (Qs).
  *
  * Returns TRUE if any adjustment was made, otherwise returns FALSE.
  *
  * NOTE: Previously we distributed mass vertically, but we found that
  *       this tends to generate unwanted gravity waves.
  *       
- * NOTE: This function should not call set_p2_etc() itself.
+ * NOTE: This function should not call set_p2_etc().
  */
 
-int restore_mass(planetspec *planet,
-                 int         species_index,
-                 int         phase_index)
+int restore_mass(int species_index,
+                 int phase_index)
 {
   register int
     K,J,I;
   int
     changed=FALSE;
-  register EPIC_FLOAT
+  register double
     tol;
-  EPIC_FLOAT
+  double
     *pt;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -70,15 +70,8 @@ int restore_mass(planetspec *planet,
       for (J = JLOPAD; J <= JHIPAD; J++) {
         for (I = ILOPAD; I <= IHIPAD; I++) {
           pt = &Q(species_index,phase_index,K,J,I);
-          /*
-           * Introducing the truncation gradually proves to be beneficial.
-           */
-          if (*pt < 0.) {
+          if (fcmp(*pt,tol) < 0) {
             *pt     = tol;
-            changed = TRUE;
-          }
-          else if (*pt < 2.*tol) {
-            *pt     = tol+.5*(*pt);
             changed = TRUE;
           }
         }
@@ -93,15 +86,8 @@ int restore_mass(planetspec *planet,
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
               pt = &H(K,J,I);
-              /*
-               * Introducing the truncation gradually proves to be beneficial.
-               */
-              if (*pt < 0.) {
+              if (fcmp(*pt,tol) < 0) {
                 *pt     = tol;
-                changed = TRUE;
-              }
-              else if (*pt < 2.*tol) {
-                *pt     = tol+.5*(*pt);
                 changed = TRUE;
               }
             }
@@ -114,15 +100,8 @@ int restore_mass(planetspec *planet,
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
               pt = &NU_TURB(K,J,I);
-              /*
-               * Introducing the truncation gradually proves to be beneficial.
-               */
-              if (*pt < 0.) {
+              if (fcmp(*pt,tol) < 0) {
                 *pt     = tol;
-                changed = TRUE;
-              }
-              else if (*pt < 2.*tol) {
-                *pt     = tol+.5*(*pt);
                 changed = TRUE;
               }
             }
@@ -136,15 +115,8 @@ int restore_mass(planetspec *planet,
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
               pt = &THETA(K,J,I);
-              /*
-               * Introducing the truncation gradually proves to be beneficial.
-               */
-              if (*pt < 0.) {
+              if (fcmp(*pt,tol) < 0) {
                 *pt     = tol;
-                changed = TRUE;
-              }
-              else if (*pt < 2.*tol) {
-                *pt     = tol+.5*(*pt);
                 changed = TRUE;
               }
             }
@@ -152,12 +124,12 @@ int restore_mass(planetspec *planet,
         }
       break;
       case FPARA_INDEX:
-        tol = 0.;
+        tol = Q_MIN;
         for (K = KLOPAD; K <= KHIPAD; K++) {
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
               pt = &FPARA(K,J,I);
-              if (*pt < tol) {
+              if (fcmp(*pt,tol) < 0) {
                 *pt     = tol;
                 changed = TRUE;
               }
@@ -199,8 +171,8 @@ int restore_mass(planetspec *planet,
 #define HIGH_LAT_V(j,i)   high_lat_v[  (i-1)+(j-JLO)*(grid.ni/2+1)]
 #define HIGH_LAT_DIV(j,i) high_lat_div[(i-1)+(j-JLO)*(grid.ni/2+1)]
 
-void zonal_filter(int         index,
-                  EPIC_FLOAT *buffji)
+void zonal_filter(int     index,
+                  double *buffji)
 {
   register int 
     Kay,J,I,
@@ -211,22 +183,12 @@ void zonal_filter(int         index,
     initialized = FALSE,
     has_pole    = FALSE,
     warned      = TRUE;   /* Set warned to FALSE here if a one-time warning is desired */
-  static EPIC_FLOAT 
+  static double 
     *data,
     *sendbuf,
     *high_lat_h,
     *high_lat_v,
     *high_lat_div;
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
-
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -265,12 +227,12 @@ void zonal_filter(int         index,
     /*
      * Free allocated memory
      */
-    free_fvector(data,   1,grid.ni,dbmsname);
-    free_fvector(sendbuf,1,grid.ni,dbmsname);
+    free_dvector(data,   1,grid.ni,dbmsname);
+    free_dvector(sendbuf,1,grid.ni,dbmsname);
 
-    free_fvector(high_lat_h,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
-    free_fvector(high_lat_v,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
-    free_fvector(high_lat_div,0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    free_dvector(high_lat_h,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    free_dvector(high_lat_v,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    free_dvector(high_lat_div,0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
 
     initialized = FALSE;
   }
@@ -278,7 +240,7 @@ void zonal_filter(int         index,
   if (!initialized) {
     register int
       n,nn;
-    EPIC_FLOAT 
+    double 
       m0,n0,rln,rlt,lat0,
       re,rp,r,
       tmp0,tmp1,fac,al1,al2;
@@ -286,12 +248,12 @@ void zonal_filter(int         index,
     /*
      * Allocate memory
      */
-    data       = fvector(1,grid.ni,dbmsname);
-    sendbuf    = fvector(1,grid.ni,dbmsname);
+    data       = dvector(1,grid.ni,dbmsname);
+    sendbuf    = dvector(1,grid.ni,dbmsname);
 
-    high_lat_h   = fvector(0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
-    high_lat_v   = fvector(0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
-    high_lat_div = fvector(0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    high_lat_h   = dvector(0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    high_lat_v   = dvector(0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    high_lat_div = dvector(0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
 
     lat0 = LAT0*DEG;
 
@@ -452,7 +414,7 @@ void zonal_filter(int         index,
 
 #if defined(EPIC_MPI)
         /* zero sendbuf[] array, which is global in span, running from 1 to grid.ni */
-        memset(sendbuf+1,0,grid.ni*sizeof(EPIC_FLOAT));
+        memset(sendbuf+1,0,grid.ni*sizeof(double));
 
         /* Assign local values to sendbuf[] */
         for (I = ILO; I <= IHI; I++) {
@@ -465,7 +427,7 @@ void zonal_filter(int         index,
          *
          * NOTE: This is part of the inefficiency regarding cutting in the I direction with a zonal FFT.
          */
-        MPI_Allreduce(sendbuf+1,data+1,grid.ni,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(sendbuf+1,data+1,grid.ni,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #else
         for (I = 1; I <= grid.ni; I++) {
           data[I] = BUFFJI(J,I);
@@ -504,7 +466,7 @@ void zonal_filter(int         index,
 
 #if defined(EPIC_MPI)
         /* zero sendbuf[] array, which is global in span, running from 1 to grid.ni */
-        memset(sendbuf+1,0,grid.ni*sizeof(EPIC_FLOAT));
+        memset(sendbuf+1,0,grid.ni*sizeof(double));
 
         /* Assign local values to sendbuf[] */
         for (I = ILO; I <= IHI; I++) {
@@ -516,7 +478,7 @@ void zonal_filter(int         index,
          *
          * NOTE: This is part of the inefficiency regarding cutting in the I direction with a zonal FFT.
          */
-        MPI_Allreduce(sendbuf+1,data+1,grid.ni,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(sendbuf+1,data+1,grid.ni,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #else
         for (I = 1; I <= grid.ni; I++) {
           data[I] = BUFFJI(J,I);
@@ -557,7 +519,7 @@ void zonal_filter(int         index,
 
 #if defined(EPIC_MPI)
         /* zero sendbuf[] array, which is global in span, running from 1 to grid.ni */
-        memset(sendbuf+1,0,grid.ni*sizeof(EPIC_FLOAT));
+        memset(sendbuf+1,0,grid.ni*sizeof(double));
 
         /* Assign local values to sendbuf[] */
         for (I = ILO; I <= IHI; I++) {
@@ -569,7 +531,7 @@ void zonal_filter(int         index,
          *
          * NOTE: This is part of the inefficiency regarding cutting in the I direction with a zonal FFT.
          */
-        MPI_Allreduce(sendbuf+1,data+1,grid.ni,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(sendbuf+1,data+1,grid.ni,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #else
         for (I = 1; I <= grid.ni; I++) {
           data[I] = BUFFJI(J,I);
@@ -605,12 +567,12 @@ void zonal_filter(int         index,
     /*
      * Free allocated memory
      */
-    free_fvector(data,   1,grid.ni,dbmsname);
-    free_fvector(sendbuf,1,grid.ni,dbmsname);
+    free_dvector(data,   1,grid.ni,dbmsname);
+    free_dvector(sendbuf,1,grid.ni,dbmsname);
 
-    free_fvector(high_lat_h,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
-    free_fvector(high_lat_v,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
-    free_fvector(high_lat_div,0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    free_dvector(high_lat_h,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    free_dvector(high_lat_v,  0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
+    free_dvector(high_lat_div,0,(JHI-JLO+1)*(grid.ni/2+1)-1,dbmsname);
   }
 
   return;

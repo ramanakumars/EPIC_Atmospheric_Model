@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2019 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 2013-2023 Timothy Dowling                         *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -36,11 +37,11 @@
  * Apply lateral boundary conditions.
  */
 
-void bc_lateral(EPIC_FLOAT *pt,
-                int         dim) {
+void bc_lateral(double *pt,
+                int     dim) {
   int  
     K,J,I;
-  EPIC_FLOAT
+  double
     *buff3d,
     *buffji;  
   /* 

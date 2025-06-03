@@ -1,7 +1,8 @@
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 2002-2011 Csaba J. Palotai                        *
+ * Copyright (C) 2024-2025 Csaba J. Palotai, Ramanakumar Sankar    *
+ * Copyright (C) 2002-2023 Csaba J. Palotai, Timothy E. Dowling    *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -23,9 +24,7 @@
 
 #ifndef EPIC_MICRO_H
 #define EPIC_MICRO_H
-/* * * * * * * * * * * * * epic_microphysics.h * * * * * * * * * * * * * * * 
- *                                                                         *
- *                        Csaba J. Palotai  *A*                            *
+/* * * * * * * * * * * * * epic_microphysics.h * * * * * * * * * * * * * * *
  *                                                                         *
  *              Header file for the EPIC microphysics model                *
  *                                                                         *
@@ -36,12 +35,6 @@
  *       Structures, Constants and Macros      *
  *                                             *
  * * * * * * * * * * * * * * * * * * * * * * * */
-
-/*
- * NOTE: This file does not have the EPIC model definitions like EPIC_FLOAT
- *       available to it (they are defined "downstream"). For cloud microphysics functions
- *       that require these definitions, their prototypes should go in epic.h.
- */
 
 /*
  * CJP 3/3/05
@@ -55,62 +48,82 @@ typedef int boolean;
 
 #define EPSILON machine_epsilon()
 
-typedef struct{
-  double
-    x,y,z;
+typedef struct {
+    double x, y, z;
 } triplet;
 
 /*
  * CJP 10/1/2003
  * Structure for microphysical properties, i.e. threshold values, densities
- * We can specify different or same values for each species.             
- * The values are being assigned in set_species_thermo_data() 
+ * We can specify different or same values for each species.
+ * The values are being assigned in set_species_thermo_data()
  *
  */
-  
-/* 
+
+/*
  * Microphysical properties structure, CJP 10/15/2003
  * Modified for multi-planet applications, TD 4/30/09
  *
- * NOTE: The following have been removed from microphysics_spec, because the scheme currently does not use them:
- *   n_c,     Droplet concentration [m-3],  H04 p109; typically 3.e+8
- *   r_cr,    Critical mean droplet radius,  H04 p109; typically 8.e-6
- *   m_i0,    Initial mass of a new ice crystal, D89 p3103; typically 1.e-12
+ * NOTE: The following have been removed from microphysics_spec, because the scheme currently does
+ * not use them: n_c,     Droplet concentration [m-3],  H04 p109; typically 3.e+8 r_cr,    Critical
+ * mean droplet radius,  H04 p109; typically 8.e-6 m_i0,    Initial mass of a new ice crystal, D89
+ * p3103; typically 1.e-12
  */
 
 typedef struct {
-  double
-    rain_density,
-    snow_density,
-    rain_threshold,            /*  Threshold specific mass value for autoconversion LIQUID-->RAIN [kg/kg] */
-    snow_threshold,            /*  Threshold specific mass value for autoconversion SOLID -->SNOW [kg/kg] */
-    powerlaw_x_i,              /* In powerlaw V_i(D)  = x*(D)^y  for ice crystals */
-    powerlaw_y_i,
-    powerlaw_x_s,              /* In powerlaw V_s(D)  = x*(D)^y  for snow */
-    powerlaw_y_s,
-    powerlaw_x_r,              /* In powerlaw V_r(D)  = x*(D)^y  for rain */
-    powerlaw_y_r,
-    powerlaw_a,                /* In powerlaw     V   = a*(RHOQ)^b        */ 
-    powerlaw_b,
-    powerlaw_c,                /* In powerlaw     N_I = c*(RHOQ)^d        */ 
-    powerlaw_d,
-    powerlaw_m,                /* In powerlaw     M   = alpha*(D)^beta    */
-    powerlaw_n,
-    n_0r,                      /* Intercept value in raindrop size distribution [m-4], FRR96 p526, D89 p3103 */
-    e_r,                       /* Accretion efficiency for rain,  D89 p3104 */
-    d_icrit,                   /* Maximum diameter of cloud ice crystal H04 p108 */
-    f1r,                       /* Coefficient in the ventillation factor, D89 p3103 */
-    f2r,                       /* Coefficient in the ventillation factor, D89 p3103 */
-    f1s,                       /* Coefficient in the ventillation factor, D89 p3103 */
-    f2s,                       /* Coefficient in the ventillation factor, D89 p3103 */
-    p_exp_liq,                 /* Exponent in the (p0/p)^x term for grub:cloud liquid? */
-    p_exp_ice,                 /* Exponent in the (p0/p)^x term for grub:cloud ice? */
-    p_exp_snow,                /* Exponent in the (p0/p)^x term for snow */
-    alpha_raut,                /* Rate coeff. for autoconversion of cloud water [sec-1]. Fowler et al (1996) and Kessler (1969) */
-    q_liq_0,                   /* Threshold value for rain autoconversion [kg kg-1]. Fowler et al. (1996) */
-    t_00;                      /* Supercooled liquid threshold temperature */
+    double rain_density, snow_density, rain_threshold, /*  Threshold specific mass value for
+                                                          autoconversion LIQUID-->RAIN [kg/kg] */
+        snow_threshold, /*  Threshold specific mass value for autoconversion SOLID -->SNOW [kg/kg]
+                         */
+        powerlaw_x_i,   /* In powerlaw V_i(D)  = x*(D)^y  for ice crystals */
+        powerlaw_y_i, powerlaw_x_s, /* In powerlaw V_s(D)  = x*(D)^y  for snow */
+        powerlaw_y_s, powerlaw_x_r, /* In powerlaw V_r(D)  = x*(D)^y  for rain */
+        powerlaw_y_r, powerlaw_a,   /* In powerlaw     V   = a*(RHOQ)^b        */
+        powerlaw_b, powerlaw_c,     /* In powerlaw     N_I = c*(RHOQ)^d        */
+        powerlaw_d, powerlaw_m,     /* In powerlaw     M   = alpha*(D)^beta    */
+        powerlaw_n,
+        n_0r,       /* Intercept value in raindrop size distribution [m-4], FRR96 p526, D89 p3103 */
+        e_r,        /* Accretion efficiency for rain,  D89 p3104 */
+        d_icrit,    /* Maximum diameter of cloud ice crystal H04 p108 */
+        f1r,        /* Coefficient in the ventillation factor, D89 p3103 */
+        f2r,        /* Coefficient in the ventillation factor, D89 p3103 */
+        f1s,        /* Coefficient in the ventillation factor, D89 p3103 */
+        f2s,        /* Coefficient in the ventillation factor, D89 p3103 */
+        p_exp_liq,  /* Exponent in the (p0/p)^x term for grub:cloud liquid? */
+        p_exp_ice,  /* Exponent in the (p0/p)^x term for grub:cloud ice? */
+        p_exp_snow, /* Exponent in the (p0/p)^x term for snow */
+        gamma_s,    /* Gamma(y_snow+4) for snow terminal velocity */
+        gamma_r,    /* Gamma(y_raim+4) for rain terminal velocity */
+        gamma_i,    /* Gamma(y_ice+4) for cloud-ice terminal velocity */
+        alpha_raut, /* Rate coeff. for autoconversion of cloud water [sec-1]. Fowler et al (1996)
+                       and Kessler (1969) */
+        q_liq_0,    /* Threshold value for rain autoconversion [kg kg-1]. Fowler et al. (1996) */
+        t_00,       /* Supercooled liquid threshold temperature */
+        a_s, b_s,   /* Antoine coefficients for saturation vapor pressure for solid  phase */
+        a_l, b_l;   /* Antoine coefficients for saturation vapor pressure for liquid phase */
 } microphysics_spec;
 
+/*
+ * Relaxed Arakawa-Schubert (RAS) moist convective scheme variables that are needed on both
+ * layer and interface, and accessed via the doubled vertical index kk.
+ */
+typedef struct {
+    double henv, hsat, satmo, Lt, hst, gamma, gammaf, qvj, nu;
+} RAS_kk_spec;
+
+/*
+ * RAS variables that are needed on layers.
+ */
+typedef struct {
+    double C, D, E, F, G, H, zeta, eta, xi;
+} RAS_2_spec;
+
+/*
+ * RAS variables that are needed on interfaces.
+ */
+typedef struct {
+    double gammas, gammah, gammai, gammal, quC, quL, quI, hu, su;
+} RAS_3_spec;
 
 /* * * * * * * * * * * * * * * * * *
  *                                 *
@@ -121,39 +134,17 @@ typedef struct {
 /*
  * Functions for the microphysical processes
  */
-void instantaneous_processes(int   is,
-                             int   K,
-                             int   J,
-                             int   I,
-			     int   non_precip,
-			     int   no_heating);
+void instantaneous_processes(int is, int K, int J, int I);
 
-void finite_rate_processes(int     is,
-                           int     K,
-                           int     J,
-	                   int     I,
-                           double  rh_ji,
-			   int     non_precip,
-			   int     no_heating);
-
-double terminal_velocity(int    is,
-                         int    ip,
-                         double pressure,
-                         double temperature,
-                         double precip_density);
+void finite_rate_processes(int is, int K, int J, int I);
 
 void set_species_thermo_data(void);
 
 void set_microphysics_params(int planet_index);
 
-void restore_mass_min(int  is,
-                      int  K);
+double dynvisc(char *globe, double temp);
 
-double dynvisc(  char *globe,
-               double  temp);
+double conductivity(char *globe, double temp);
 
-double conductivity(  char *globe,
-                    double  temp);
-
-/* * * * * * * * * * end of epic_microphysics.h * * * * * * * * * * * * * */ 
+/* * * * * * * * * * end of epic_microphysics.h * * * * * * * * * * * * * */
 #endif

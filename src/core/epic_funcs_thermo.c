@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -25,7 +26,8 @@
  *  Timothy E. Dowling                                                 *
  *                                                                     *
  *  Thermodynamic functions that do not reference EPIC model variables *
- *  by name or index (functions may reference planetspec).             *
+ *  by name or index (functions may reference the global pointer       *
+ *  planet->).                                                         *
  *                                                                     *
  *  This file includes the following:                                  *
  *                                                                     *
@@ -55,15 +57,14 @@
  * NOTE: cpr_out is the low-temperature-limit of cp/rgas.
  */
 
-void thermo_setup(planetspec *planet,
-                  EPIC_FLOAT *cpr_out)
+void thermo_setup(double *cpr_out)
 {
   int
     i,ii,j,m,n,
     jmax = 50;
   int
     jn[2];
-  EPIC_FLOAT
+  double
     xh2,xhe,x3,cpr,
     t0,p0,
     c1,c2,
@@ -71,7 +72,7 @@ void thermo_setup(planetspec *planet,
     ho,hp,ff,so,sp,
     pottempo,pottempp,
     den,term,y,thetaln;
-  EPIC_FLOAT
+  double
     temp[MDIM_THERMO],
     tho[MDIM_THERMO],
     thp[MDIM_THERMO],
@@ -131,7 +132,7 @@ void thermo_setup(planetspec *planet,
    */
 
   for (i = 0; i < MDIM_THERMO; i++) {
-    temperature = 500.*(EPIC_FLOAT)(i+1)/(EPIC_FLOAT)MDIM_THERMO;
+    temperature = 500.*(double)(i+1)/(double)MDIM_THERMO;
     if (temperature < 10.) {
       /*
        * Real hydrogen is not an ideal gas at this low-T limit.
@@ -194,7 +195,7 @@ void thermo_setup(planetspec *planet,
       ho = a[1]+CPRH2*temperature-2.*theta;
       hp = a[2]+CPRH2*temperature;
       /*
-       * entropies normalized at p0, T-->0, per particle divided by K_B
+       * entropies normalized at p0, T-->0, per particle divided by Boltzmann constant, K_B
        */
       so = -log(p/p0)+2.5*log(temperature)
                      +1.5*M_LN2+c1+(ho+2.*theta)/temperature+a[5];
@@ -243,11 +244,11 @@ void thermo_setup(planetspec *planet,
    */
 
   for (m = 0; m < MDIM_THERMO; m++) {
-    thermo.theta_grid[m] = (THLO_THERMO*(EPIC_FLOAT)(MDIM_THERMO-(m+1))
-                           +THHI_THERMO*(EPIC_FLOAT)(m))/(EPIC_FLOAT)(MDIM_THERMO-1);
+    thermo.theta_grid[m] = (THLO_THERMO*(double)(MDIM_THERMO-(m+1))
+                           +THHI_THERMO*(double)(m))/(double)(MDIM_THERMO-1);
   }
   for (n = 0; n < NDIM_THERMO; n++) {
-    thermo.fpdat[n] = ((EPIC_FLOAT)(n))/(EPIC_FLOAT)(NDIM_THERMO-1);
+    thermo.fpdat[n] = ((double)(n))/(double)(NDIM_THERMO-1);
     for (i = 0; i < MDIM_THERMO; i++) {
       thetaln = ( planet->x_h2*CPRH2*((1.-thermo.fpdat[n])*log(tho[i])
                                      +(   thermo.fpdat[n])*log(thp[i]))
@@ -308,19 +309,18 @@ void thermo_setup(planetspec *planet,
  *        to thermo_setup().
  */
 
-EPIC_FLOAT return_temp(planetspec *planet,
-                       EPIC_FLOAT  fp,
-                       EPIC_FLOAT  p,
-                       EPIC_FLOAT  theta)
+double return_temp(double fp,
+                   double p,
+                   double theta)
 {
   int
     m,n,it,
     error_flag;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     p0,kappa;
-  EPIC_FLOAT
+  double
     temperature,
     theta1,
     t1,t2,ttol,
@@ -390,7 +390,7 @@ EPIC_FLOAT return_temp(planetspec *planet,
     }
     else {
       /* 0. < en < NDIM_THERMO-1 */
-      en = (EPIC_FLOAT)(NDIM_THERMO-1)*
+      en = (double)(NDIM_THERMO-1)*
                 (fp                         -thermo.fpdat[0])/
                 (thermo.fpdat[NDIM_THERMO-1]-thermo.fpdat[0]);
       n  = (int)en;
@@ -408,7 +408,7 @@ EPIC_FLOAT return_temp(planetspec *planet,
         fract_fp = fmod(en,1.);
       }
 
-      em = (EPIC_FLOAT)(MDIM_THERMO-1)*
+      em = (double)(MDIM_THERMO-1)*
                 (theta1                          -thermo.theta_grid[0])/
                 (thermo.theta_grid[MDIM_THERMO-1]-thermo.theta_grid[0]);
       m  = (int)em;
@@ -445,7 +445,6 @@ EPIC_FLOAT return_temp(planetspec *planet,
     THMTH_fp     = fp;
     THMTH_p      = p;
     THMTH_theta  = theta;
-    THMTH_planet = planet;
 
     /* Initial guess: */
     ttol  = pow(machine_epsilon(),2./3.);
@@ -487,16 +486,15 @@ EPIC_FLOAT return_temp(planetspec *planet,
 #undef  MAX_IT
 #define MAX_IT 10
 
-EPIC_FLOAT alt_return_temp(planetspec *planet,
-                           EPIC_FLOAT  fp,
-                           EPIC_FLOAT  p,
-                           EPIC_FLOAT  mu,
-                           EPIC_FLOAT  density)
+double alt_return_temp(double fp,
+                       double p,
+                       double mu,
+                       double density)
 {
   int
     it,
     error_flag;
-  EPIC_FLOAT
+  double
     temperature,
     t1,t2,ttol;
   /* 
@@ -521,7 +519,6 @@ EPIC_FLOAT alt_return_temp(planetspec *planet,
     RHOMRHO_p       = p;
     RHOMRHO_mu      = mu;
     RHOMRHO_density = density;
-    RHOMRHO_planet  = planet;
 
     ttol        = pow(machine_epsilon(),2./3.);
     t1          = temperature*0.9;
@@ -556,13 +553,12 @@ EPIC_FLOAT alt_return_temp(planetspec *planet,
  * For use with find_root().
  */
 
-EPIC_FLOAT rho_minus_rho(EPIC_FLOAT temperature)
+double rho_minus_rho(double temperature)
 {
-  EPIC_FLOAT
+  double
     ans;
 
-  ans = RHOMRHO_density-return_density(RHOMRHO_planet,
-                                       RHOMRHO_fp,
+  ans = RHOMRHO_density-return_density(RHOMRHO_fp,
                                        RHOMRHO_p,
                                        temperature,
                                        RHOMRHO_mu,
@@ -575,14 +571,13 @@ EPIC_FLOAT rho_minus_rho(EPIC_FLOAT temperature)
 
 /*======================= return_density() ==================================*/
 
-EPIC_FLOAT return_density(planetspec *planet, 
-                          EPIC_FLOAT  fp,
-                          EPIC_FLOAT  p,
-                          EPIC_FLOAT  theta,
-                          EPIC_FLOAT  mu,
-                          int         temp_type)
+double return_density(double fp,
+                      double p,
+                      double theta,
+                      double mu,
+                      int    temp_type)
 {
-  EPIC_FLOAT 
+  double 
     temperature,
     density,
     b,z_comp;
@@ -595,7 +590,7 @@ EPIC_FLOAT return_density(planetspec *planet,
     dbmsname[]="return_density";
 
   if (temp_type == PASSING_THETA) {
-    temperature = return_temp(planet,fp,p,theta);
+    temperature = return_temp(fp,p,theta);
   }
   else if (temp_type == PASSING_T) {
     temperature = theta;
@@ -611,7 +606,7 @@ EPIC_FLOAT return_density(planetspec *planet,
     /* 
      * Make non-ideal equation of state correction:
      */
-    b        = sum_xx(planet,b_vir,temperature);
+    b        = sum_xx(b_vir,temperature);
     z_comp   = 1.+b*p;
     density /= z_comp;
   }
@@ -623,12 +618,11 @@ EPIC_FLOAT return_density(planetspec *planet,
 
 /*======================= p_from_t_rho_mu() =================================*/
 
-EPIC_FLOAT p_from_t_rho_mu(planetspec *planet,
-                           EPIC_FLOAT  temperature,
-                           EPIC_FLOAT  rho,
-                           EPIC_FLOAT  mu)
+double p_from_t_rho_mu(double temperature,
+                       double rho,
+                       double mu)
 {
-  EPIC_FLOAT
+  double
     p;
 
   p = rho*(R_GAS/mu)*temperature;
@@ -637,7 +631,7 @@ EPIC_FLOAT p_from_t_rho_mu(planetspec *planet,
     /* 
      * Make non-ideal equation of state correction:
      */
-    p /= 1.-p*sum_xx(planet,b_vir,temperature);
+    p /= 1.-p*sum_xx(b_vir,temperature);
   }
 
   return p;
@@ -654,25 +648,24 @@ EPIC_FLOAT p_from_t_rho_mu(planetspec *planet,
  *        to thermo_setup().
  */
 
-EPIC_FLOAT return_theta(planetspec *planet,
-                        EPIC_FLOAT  fp,
-                        EPIC_FLOAT  p,
-                        EPIC_FLOAT  temperature,
-                        EPIC_FLOAT *theta_ortho,
-                        EPIC_FLOAT *theta_para)
+double return_theta(double  fp,
+                    double  p,
+                    double  temperature,
+                    double *theta_ortho,
+                    double *theta_para)
 {
   int
     j,m;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     p0,kappa;
-  EPIC_FLOAT
+  double
     b,b1,tmp,
     theta,thetaln,
     cc,tt,pp,
     em,fract;
-  EPIC_FLOAT
+  double
     thermo_vector[2];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -724,7 +717,7 @@ EPIC_FLOAT return_theta(planetspec *planet,
     }
     else {
       /* 0 < em < MDIM_THERMO-1 */
-      em = (EPIC_FLOAT)(MDIM_THERMO-1)*
+      em = (double)(MDIM_THERMO-1)*
                          (temperature                 -thermo.t_grid[0])/
                          (thermo.t_grid[MDIM_THERMO-1]-thermo.t_grid[0]);
       m  = (int)em;
@@ -764,8 +757,8 @@ EPIC_FLOAT return_theta(planetspec *planet,
      *       and the implementation below may be in error.
      */
     kappa         = planet->kappa;
-    b             = sum_xx(planet,b_vir, temperature);
-    b1            = sum_xx(planet,b1_vir,temperature);
+    b             = sum_xx(b_vir, temperature);
+    b1            = sum_xx(b1_vir,temperature);
     tmp           = exp(-p*(b+b1)*kappa);
     theta        *= tmp;
 
@@ -795,19 +788,18 @@ EPIC_FLOAT return_theta(planetspec *planet,
  *        to thermo_setup().
  */
 
-EPIC_FLOAT return_press(planetspec *planet,
-                        EPIC_FLOAT  fp,
-                        EPIC_FLOAT  temperature,
-                        EPIC_FLOAT  theta)
+double return_press(double fp,
+                    double temperature,
+                    double theta)
 {
   int
     it,
     error_flag;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     p0;
-  EPIC_FLOAT
+  double
     press,p1,p2,
     ptol,p_root;
   /* 
@@ -864,7 +856,6 @@ EPIC_FLOAT return_press(planetspec *planet,
     THMTH_fp          = fp;
     THMTH_temperature = temperature;
     THMTH_theta       = theta;
-    THMTH_planet      = planet;
 
     /* Initial guess: */
     press = p0*pow(temperature/theta,planet->cpr);
@@ -903,14 +894,13 @@ EPIC_FLOAT return_press(planetspec *planet,
  * For use with find_root().
  */
 
-EPIC_FLOAT th_minus_th_p(EPIC_FLOAT p)
+double th_minus_th_p(double p)
 {
-  EPIC_FLOAT
+  double
     theta_ortho,theta_para,
     ans;
 
-  ans = THMTH_theta-return_theta(THMTH_planet,
-                                 THMTH_fp,
+  ans = THMTH_theta-return_theta(THMTH_fp,
                                  p,
                                  THMTH_temperature,
                                  &theta_ortho,&theta_para);
@@ -925,14 +915,13 @@ EPIC_FLOAT th_minus_th_p(EPIC_FLOAT p)
  * For use with find_root().
  */
 
-EPIC_FLOAT th_minus_th_t(EPIC_FLOAT temperature)
+double th_minus_th_t(double temperature)
 {
-  EPIC_FLOAT
+  double
     theta_ortho,theta_para,
     ans;
 
-  ans = THMTH_theta-return_theta(THMTH_planet,
-                                 THMTH_fp,
+  ans = THMTH_theta-return_theta(THMTH_fp,
                                  THMTH_p,
                                  temperature,
                                  &theta_ortho,&theta_para);
@@ -943,13 +932,12 @@ EPIC_FLOAT th_minus_th_t(EPIC_FLOAT temperature)
 
 /*======================= return_enthalpy() =================================*/
 
-EPIC_FLOAT return_enthalpy(planetspec *planet,
-                           EPIC_FLOAT  fp,
-                           EPIC_FLOAT  pressure,
-                           EPIC_FLOAT  temperature,
-                           EPIC_FLOAT *fgibb,
-                           EPIC_FLOAT *fpe,
-                           EPIC_FLOAT *uoup)
+double return_enthalpy(double  fp,
+                       double  pressure,
+                       double  temperature,
+                       double *fgibb,
+                       double *fpe,
+                       double *uoup)
 {
   /*
    * Adapted from Peter Gierasch's Fortran subroutine get_enthalpy().
@@ -959,12 +947,12 @@ EPIC_FLOAT return_enthalpy(planetspec *planet,
    */
   int
     j,m;
-  EPIC_FLOAT
+  double
     b,b1,em,
     rgas,
     ho,hp,enthalpy,
     fract;
-  EPIC_FLOAT
+  double
     thermo_vector[5];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -977,6 +965,9 @@ EPIC_FLOAT return_enthalpy(planetspec *planet,
   if (planet->x_h2 == 0.) {
     /*
      * No hydrogen, so assume cp is constant and set enthalpy = cp*T.
+     *
+     * NOTE: This should be made a correct function of temperature for
+     *       CO_2 atmospheres (Mars, Venus), etc.
      */
     enthalpy = planet->cpr*temperature;
     *fgibb   = 0.;
@@ -1010,7 +1001,7 @@ EPIC_FLOAT return_enthalpy(planetspec *planet,
     }
     else {
       /* 0 < em < MDIM_THERMO-1 */
-      em = (EPIC_FLOAT)(MDIM_THERMO-1)*
+      em = (double)(MDIM_THERMO-1)*
                  (temperature                 -thermo.t_grid[0])/
                  (thermo.t_grid[MDIM_THERMO-1]-thermo.t_grid[0]);
       m = (int)em;
@@ -1022,6 +1013,7 @@ EPIC_FLOAT return_enthalpy(planetspec *planet,
       else {
         fract = fmod(em,1.);
       }
+
       for (j = 0; j < 5; j++) {
         thermo_vector[j] = (1.-fract)*thermo.array[j][m  ]
                           +(   fract)*thermo.array[j][m+1];
@@ -1044,8 +1036,8 @@ EPIC_FLOAT return_enthalpy(planetspec *planet,
      * hydrogen.  Since we are not distinguishing these in the non-ideal 
      * equation of state, we make no corrections to fgibb and uoup.
      */
-    b         = sum_xx(planet,b_vir, temperature);
-    b1        = sum_xx(planet,b1_vir,temperature);
+    b         = sum_xx(b_vir, temperature);
+    b1        = sum_xx(b1_vir,temperature);
     enthalpy += pressure*temperature*(b-b1);
   }
 
@@ -1066,7 +1058,7 @@ EPIC_FLOAT return_enthalpy(planetspec *planet,
 * Adapted from Peter Gierasch's hydrogen() Fortran subroutine.
 */
 
-EPIC_FLOAT return_fpe(EPIC_FLOAT temperature) {
+double return_fpe(double temperature) {
   int
     n,j;
   double
@@ -1096,7 +1088,7 @@ EPIC_FLOAT return_fpe(EPIC_FLOAT temperature) {
     if (j > 1 && term < 1.e-20) break;
   }
 
-  return (EPIC_FLOAT)(z[1]/(z[0]+z[1]));
+  return (double)(z[1]/(z[0]+z[1]));
 }
 
 /*======================= end of return_fpe() ===============================*/
@@ -1114,12 +1106,11 @@ EPIC_FLOAT return_fpe(EPIC_FLOAT temperature) {
  * NOTE: thermo_setup() must have already been called at initialization.
  */
 
-EPIC_FLOAT return_cp(planetspec *planet,
-                     EPIC_FLOAT  fp,
-                     EPIC_FLOAT  p,
-                     EPIC_FLOAT  temp)
+double return_cp(double fp,
+                 double p,
+                 double temp)
 {
-  EPIC_FLOAT
+  double
     cp,h1,h2,
     deltaT,     
     fgibb,fpe,uoup,
@@ -1143,8 +1134,8 @@ EPIC_FLOAT return_cp(planetspec *planet,
      * Handle general case.
      */   
     deltaT = temp*epsilon;
-    h2     = return_enthalpy(planet,fp,p,temp+deltaT,&fgibb,&fpe,&uoup);
-    h1     = return_enthalpy(planet,fp,p,temp-deltaT,&fgibb,&fpe,&uoup);
+    h2     = return_enthalpy(fp,p,temp+deltaT,&fgibb,&fpe,&uoup);
+    h1     = return_enthalpy(fp,p,temp-deltaT,&fgibb,&fpe,&uoup);
     cp     = (h2-h1)/(2.*deltaT);
   }
 
@@ -1158,10 +1149,10 @@ EPIC_FLOAT return_cp(planetspec *planet,
 /*
  * Return cp [J kg-1 K-1] for the given temperature and species.
  */
-EPIC_FLOAT isobaric_specific_heat(EPIC_FLOAT temp,
-                                  int        index)
+double isobaric_specific_heat(double temp,
+                              int    index)
 {
-  EPIC_FLOAT
+  double
     ans;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1177,20 +1168,20 @@ EPIC_FLOAT isobaric_specific_heat(EPIC_FLOAT temp,
        * Data from H.W. Woolley (1954) "Thermodynamic functions for carbon dioxide
        * in the ideal gas state", J. Res. Nat. Bureau Stand. 52, 289-292.
        */
-      EPIC_FLOAT
+      double
         t_d;
       const int
         ndat = 141;
       static int
         i = -2,
         initialized = FALSE;
-      static float_triplet
+      static double_triplet
         *CO2_table;
 
 
       if (!initialized) {
         /* Allocate memory */
-        CO2_table = ftriplet(0,ndat-1,dbmsname);
+        CO2_table = dtriplet(0,ndat-1,dbmsname);
 
         CO2_table[  0].x =   50., CO2_table[  0].y = 3.5001;
         CO2_table[  1].x =   60., CO2_table[  1].y = 3.5002;
@@ -1415,12 +1406,12 @@ EPIC_FLOAT isobaric_specific_heat(EPIC_FLOAT temp,
 #define TOL       1.e-8
 #define MAX_ITER  200
 
-EPIC_FLOAT blackbody_fraction(EPIC_FLOAT wavelength,
-                              EPIC_FLOAT temperature)
+double blackbody_fraction(double wavelength,
+                          double temperature)
 {
   int
     n;
-  EPIC_FLOAT
+  double
     x,term,sum;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 

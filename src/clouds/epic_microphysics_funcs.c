@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 2002-2019 Csaba Palotai *A*                       *
+ * Copyright (C) 2024-2025 Csaba Palotai *A*, Ramanakumar Sankar   *
+ * Copyright (C) 2002-2023 Csaba Palotai *A*, Timothy E. Dowling   *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -21,7 +22,6 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /* * * * * * * * * *  epic_microphysics_funcs.c  * * * * * * * * * *
- *                         v.2.1                                   *        
  *                                                                 *
  *       Functions governing the hydrological cycle.               *
  *       This file includes the following functions:               *
@@ -45,115 +45,127 @@ void set_species_thermo_data(void)
 {
   /*
    * Set species vapor-liquid-solid triple point temperature [K]
-   * and pressure [Pa].
+   * and pressure [Pa], and likewise the vapor-liquid critical point.
    *
-   * grub:gurn:burlap: Need values for FLOAT_MAX placeholders,
-   *                   and need to check other values; need references
+   * grub:gurn:burlap: Need values for placeholders,
+   *                   and need to check other values; need to improve references
    *
    * Lf values:   Constant latent heat of fusion for substance
    *              Used for melting/freezing processes
-   *              Unit: J/kg
+   *              Unit: [J/kg]
    */
 
   /* 
-   * http://www.trgn.com/database/cryogen.htm
+   * Triple point data from https://webbook.nist.gov,
+   * unless otherwise noted.
+   *
+   * Critical point data from Perry's Chemical Engineers' Handbook, 7th Ed., McGraw Hill,
+   * unless otherwise noted.
    */
-  T_triple_pt(H_2O_INDEX) =  273.16;
-  p_triple_pt(H_2O_INDEX) =  607.95;
-  Lf(H_2O_INDEX)          =  333.5e+3;  /* [J/kg] */
-  Lv(H_2O_INDEX)          = 2498.7e+3; 
-  Ls(H_2O_INDEX)          = 2832.2e+3;  /* Average of values from data table. */
 
-  /* http://www.trgn.com/database/cryogen.htm */
-  T_triple_pt(NH_3_INDEX) =  195.5;      /* 195.49 */
-  p_triple_pt(NH_3_INDEX) =   66.2;
-  Lf(NH_3_INDEX)          =  339.0e+3;
-  Lv(NH_3_INDEX)          = 1490.2e+3;
-  Ls(NH_3_INDEX)          = 1829.2e+3;
+  T_triple_pt(H_2O_INDEX)   =  273.16;    /* [K]    */
+  p_triple_pt(H_2O_INDEX)   =  610.;      /* [Pa]   */
+  T_critical_pt(H_2O_INDEX) =  647.13;
+  p_critical_pt(H_2O_INDEX) =   21.94e+6;
+  Lf(H_2O_INDEX)            =  333.5e+3;  /* [J/kg] */
+  Lv(H_2O_INDEX)            = 2498.7e+3; 
+  Ls(H_2O_INDEX)            = 2832.2e+3;  /* Average of values from data table. */
 
-  /* 
-   * Lodders and Fegley (1998), inferred from Table 1.20
-   * http://www.encyclopedia.airliquide.com
-   */
+  /* https://www.engineeringtoolbox.com/ammonia-d_1413.html */
+  T_triple_pt(NH_3_INDEX)   =  195.5;
+  p_triple_pt(NH_3_INDEX)   =  6090.;
+  T_critical_pt(NH_3_INDEX) =  405.4;      /* to match epic/data/chemistry/enthalpy/enth_vs_t.NH_3 */
+  p_critical_pt(NH_3_INDEX) =   11.30e+6;
+  Lf(NH_3_INDEX)            =  339.0e+3;
+  Lv(NH_3_INDEX)            = 1490.2e+3;
+  Ls(NH_3_INDEX)            = 1829.2e+3;
+
+  /* https://webbook.nist.gov/cgi/inchi?ID=C7783064&Mask=4#Thermo-Phase */
   T_triple_pt(H_2S_INDEX)   = 187.61;
   p_triple_pt(H_2S_INDEX)   = 23295.;
-  Lf(H_2S_INDEX)            =    69.75e+3;
-  Lv(H_2S_INDEX)            = FLOAT_MAX;
-  Ls(H_2S_INDEX)            = FLOAT_MAX;
+  T_critical_pt(H_2S_INDEX) = 373.53;
+  p_critical_pt(H_2S_INDEX) = 8.97e+6;
+  Lf(H_2S_INDEX)            = 69750.;
+  Lv(H_2S_INDEX)            = 0.;         /* need these */
+  Ls(H_2S_INDEX)            = 0.;
 
-  /* http://www.trgn.com/database/cryogen.htm */
-  T_triple_pt(CH_4_INDEX)   = 88.7;
-  p_triple_pt(CH_4_INDEX)   = 10031.;
-  Lf(CH_4_INDEX)            =    58.7e+3;
-  Lv(CH_4_INDEX)            = FLOAT_MAX;
-  Ls(CH_4_INDEX)            = FLOAT_MAX;
+  /* https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Units=SI&Mask=4#Thermo-Phase */
+  T_triple_pt(CH_4_INDEX)   = 90.67;
+  p_triple_pt(CH_4_INDEX)   = 11690.;
+  T_critical_pt(CH_4_INDEX) = 190.564;
+  p_critical_pt(CH_4_INDEX) = 4.59e+6;
+  Lf(CH_4_INDEX)            = 58700.;
+  Lv(CH_4_INDEX)            = 0.;            /* need this */
+  Ls(CH_4_INDEX)            = 0.;
 
-  /* http://encyclopedia.airliquide.com */
-  T_triple_pt(C_2H_2_INDEX) = 192.55;
-  p_triple_pt(C_2H_2_INDEX) = 1.282e+5;
-  Lf(C_2H_2_INDEX)          = FLOAT_MAX;
-  Lv(C_2H_2_INDEX)          = 801.9e+3;;
-  Ls(C_2H_2_INDEX)          = FLOAT_MAX;
+  /* https://webbook.nist.gov/cgi/cbook.cgi?ID=C74862&Units=SI&Mask=4#Thermo-Phase */
+  T_triple_pt(C_2H_2_INDEX)   = 192.4;
+  p_triple_pt(C_2H_2_INDEX)   = 128250.;
+  T_critical_pt(C_2H_2_INDEX) = 308.3;
+  p_critical_pt(C_2H_2_INDEX) = 6.138e+6;
+  Lf(C_2H_2_INDEX)            = 0.;          /* need this */
+  Lv(C_2H_2_INDEX)            = 801900.;
+  Ls(C_2H_2_INDEX)            = 0.;
 
-  /* 
-   * http://www.nist.gov/data/PDFfiles/jpcrd294.pdf (Jahangiri et al, 1986, J. Phys. Chem. Ref. Data 15
-   */
-  T_triple_pt(C_2H_4_INDEX) = 103.986;
-  p_triple_pt(C_2H_4_INDEX) = 122.5;
-  Lf(C_2H_4_INDEX)          = 119.37e+3;
-  Lv(C_2H_4_INDEX)          = 482.86e+3;
-  Ls(C_2H_4_INDEX)          = 602.23e+3;
+  /* https://webbook.nist.gov/cgi/cbook.cgi?ID=C74851&Units=SI&Mask=4#Thermo-Phase */
+  T_triple_pt(C_2H_4_INDEX)   = 104.0;
+  p_triple_pt(C_2H_4_INDEX)   = 120.;
+  T_critical_pt(C_2H_4_INDEX) = 282.34;
+  p_critical_pt(C_2H_4_INDEX) = 5.03e+6;
+  Lf(C_2H_4_INDEX)            = 119.37e+3;
+  Lv(C_2H_4_INDEX)            = 482.86e+3;
+  Ls(C_2H_4_INDEX)            = 602.23e+3;
 
-  /* http://encyclopedia.airliquide.com */
-  T_triple_pt(C_2H_6_INDEX) = FLOAT_MAX;
-  p_triple_pt(C_2H_6_INDEX) = FLOAT_MAX;
-  Lf(C_2H_6_INDEX)          = 94.977e+3;
-  Ls(C_2H_6_INDEX)          = 488.76e+3;
+  /* https://webbook.nist.gov/cgi/cbook.cgi?ID=C74840&Units=SI&Mask=4#Thermo-Phase */
+  T_triple_pt(C_2H_6_INDEX)   = 91.;
+  p_triple_pt(C_2H_6_INDEX)   = 1.1;
+  T_critical_pt(C_2H_6_INDEX) = 305.32;
+  p_critical_pt(C_2H_6_INDEX) = 4.85e+6;
+  Lf(C_2H_6_INDEX)            = 94977.;
+  Ls(C_2H_6_INDEX)            = 488760.;
 
-  /*
-   * http://www.trgn.com/database/cryogen.htm
-   * Ls, Forget et al. (1998) 
-   */
-  T_triple_pt(CO_2_INDEX)   = 216.6;
-  p_triple_pt(CO_2_INDEX)   = 518800.;
-  Lf(CO_2_INDEX)            = FLOAT_MAX;
-  Lv(CO_2_INDEX)            = FLOAT_MAX;
-  Ls(CO_2_INDEX)            =    590.e+3;
+  /* https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389&Units=SI&Mask=4#Thermo-Phase */
+  T_triple_pt(CO_2_INDEX)   = 216.58;
+  p_triple_pt(CO_2_INDEX)   = 518500.;
+  T_critical_pt(CO_2_INDEX) = 304.21;
+  p_critical_pt(CO_2_INDEX) =   7.39e+6;
+  Lf(CO_2_INDEX)            = 0.;
+  Lv(CO_2_INDEX)            = 0.;
+  Ls(CO_2_INDEX)            = 590000.;       /* Forget et al. (1998) */
 
-  /*
-   * Lodders and Fegley (1998), inferred from Table 1.20
-   * NOTE: Need to check this, T=317 may just be the top range
-   *       of validity of the solid-vapor curve fit.
-   */
-  T_triple_pt(NH_4SH_INDEX) = 317.;
-  p_triple_pt(NH_4SH_INDEX) = 98600.;
-  Lf(NH_4SH_INDEX)          = FLOAT_MAX;
-  Lv(NH_4SH_INDEX)          = FLOAT_MAX;
-  Ls(NH_4SH_INDEX)          = FLOAT_MAX;
+  T_triple_pt(NH_4SH_INDEX)   = 317.;
+  p_triple_pt(NH_4SH_INDEX)   = 98600.;
+  T_critical_pt(NH_4SH_INDEX) = 0.;        /* need these */
+  p_critical_pt(NH_4SH_INDEX) = 0.;        
+  Lf(NH_4SH_INDEX)            = 0.;
+  Lv(NH_4SH_INDEX)            = 0.;
+  Ls(NH_4SH_INDEX)            = 0.;
 
-  /* http://www.e-cats.com/databook/Page%2022.htm */
+  /* https://www.solutionozone.com/ozone/properties/ */
   T_triple_pt(O_3_INDEX)    = 80.65;
   p_triple_pt(O_3_INDEX)    = 11400.;
-  Lf(O_3_INDEX)             = FLOAT_MAX;
-  Lv(O_3_INDEX)             = FLOAT_MAX;
-  Ls(O_3_INDEX)             = FLOAT_MAX;
+  T_critical_pt(O_3_INDEX)  = 261.; 
+  p_critical_pt(O_3_INDEX)  = 5.57e+6;
+  Lf(O_3_INDEX)             = 0.;          /* need these */
+  Lv(O_3_INDEX)             = 0.;
+  Ls(O_3_INDEX)             = 0.;
 
-  /* http://www.trgn.com/database/cryogen.htm */
   T_triple_pt(N_2_INDEX)    = 63.2;
   p_triple_pt(N_2_INDEX)    = 12870.;
-  Lf(N_2_INDEX)             = FLOAT_MAX;
-  Lv(N_2_INDEX)             = FLOAT_MAX;
-  Ls(N_2_INDEX)             = FLOAT_MAX;
+  T_critical_pt(N_2_INDEX)  = 126.2;
+  p_critical_pt(N_2_INDEX)  = 3.39e+6;
+  Lf(N_2_INDEX)             = 0.;        /* need these */
+  Lv(N_2_INDEX)             = 0.;
+  Ls(N_2_INDEX)             = 0.;
 
-  /*
-   * http://webbook.nist.gov/cgi/cbook.cgi?ID=C7803512&Units=SI&Mask=7
-   * Fluck, The Chemistry of Phosphine 
-   */
+  /* https://webbook.nist.gov/cgi/inchi?ID=C7803512&Mask=4#Thermo-Phase */
   T_triple_pt(PH_3_INDEX)   = 139.41;
-  p_triple_pt(PH_3_INDEX)   = FLOAT_MAX;
-  Lf(PH_3_INDEX)            = 160.89e+3;
-  Lv(PH_3_INDEX)            = FLOAT_MAX;
-  Ls(PH_3_INDEX)            = FLOAT_MAX;
+  p_triple_pt(PH_3_INDEX)   = 0.;        /* need this */
+  T_critical_pt(PH_3_INDEX) = 324.76;
+  p_critical_pt(PH_3_INDEX) = 6.536e+6;
+  Lf(PH_3_INDEX)            =  76.5e+3;
+  Lv(PH_3_INDEX)            = 429.4e+3;
+  Ls(PH_3_INDEX)            = 505.9e+3;
  
   return;
 }
@@ -177,6 +189,11 @@ void set_species_thermo_data(void)
    * T_00 values: Supercooled liquid threshold temperatures
    *              H_20         : -20C
    *              other species:  use triple point
+   *
+   * Interesting paper on aerosol-cloud settling velocities:
+   *   Hinds et al. (2010), Conditions for Cloud Settling and Rayleigh-Taylor Instability,
+   *       Aerosol Sci. Tech. 36, 1128--1138.
+   *
    */
 
 void set_microphysics_params(int planet_index)
@@ -202,11 +219,11 @@ void set_microphysics_params(int planet_index)
       is = H_2O_INDEX;
       RHO_RAIN(  is) =  1000.;        /* Fowler et al. (1996) */
       RHO_SNOW(  is) =   917.0*0.5;   /* Perry's Chem.Eng.Handbook p.2-304. */
-      COEFF_XI(  is) =   14900.0;     /* Hong et al. 2004 */
+      COEFF_XI(  is) =   14900.0;     /* Hong et al. (2004) */
       COEFF_YI(  is) =     1.31;
-      COEFF_XS(  is) =    11.72;      /* Dudhia 1989 */ 
+      COEFF_XS(  is) =    11.72;      /* Dudhia (1989) */ 
       COEFF_YS(  is) =     0.41; 
-      COEFF_XR(  is) =  842.0;        /* Dudhia 1989 */
+      COEFF_XR(  is) =  842.0;        /* Dudhia (1989) */
       COEFF_YR(  is) =    0.8; 
       COEFF_A(   is) =   13.16;
       COEFF_B(   is) =    0.16;
@@ -260,15 +277,16 @@ void set_microphysics_params(int planet_index)
       is = C_2H_6_INDEX;
         T_00(    is) = T_triple_pt(is);
 
+			/* RS 05/03/2020 updating with new termvel fits */
       is = NH_3_INDEX;
       RHO_RAIN(  is) =   733.0;      /* From Bureau of Standards circ.No.142. See hardcopy for chart */ 
       RHO_SNOW(  is) =   786.8*0.5;  /* Yurtseven and Salihoglu, 2002. p.420 */
-      COEFF_XI(  is) =   702.46;
-      COEFF_YI(  is) =     0.8695;
-      COEFF_XS(  is) =    53.065;
-      COEFF_YS(  is) =     0.46179; 
-      COEFF_XR(  is) =  2479.0;
-      COEFF_YR(  is) =     0.76217;
+      COEFF_XI(  is) =   495.2166;   //302.2 702.46;  RS 02/13/2019
+      COEFF_YI(  is) =     0.8807;   //0.833 0.8695; RS 02/13/2019
+      COEFF_XS(  is) =    41.7346;   //29.28 53.065;  RS 02/13/2019
+      COEFF_YS(  is) =     0.5386;   //0.46179
+      COEFF_XR(  is) =  2244.5594;   //2433.0 2479.0;  RS 02/13/2019
+      COEFF_YR(  is) =     0.7499;   //0.759 0.76217; RS 02/13/2019
       COEFF_A(   is) =     16.45;
       COEFF_B(   is) =     0.16;
       COEFF_C(   is) =     5.38e+7; 
@@ -282,9 +300,9 @@ void set_microphysics_params(int planet_index)
       f2r(       is) =     0.308;    /* Coefficient in the ventillation factor, D89 p3103 */
       f1s(       is) =     0.65;     /* Coefficient in the ventillation factor, D89 p3103 */
       f2s(       is) =     0.44;     /* Coefficient in the ventillation factor, D89 p3103 */
-      P_EXP_LIQ( is) =     0.324;    /* Exponent in the (p0/p)^x term for rain: liquid cloud particles do not fall at this point */
-      P_EXP_ICE( is) =     0.238;    /* Exponent in the (p0/p)^x term for cloud ice */
-      P_EXP_SNOW(is) =     0.318;    /* Exponent in the (p0/p)^x term for snow. */
+      P_EXP_LIQ( is) =     0.3518;   //0.306 0.324;    /* Exponent in the (p0/p)^x term for rain: liquid cloud particles do not fall at this point */
+      P_EXP_ICE( is) =     0.1248;   //0.220 0.238;    /* Exponent in the (p0/p)^x term for cloud ice */
+      P_EXP_SNOW(is) =     0.3008;   //0.306 0.318;    /* Exponent in the (p0/p)^x term for snow. */
       ALPHA_RAUT(is) =     0.001;    /* Rate coeff. for autoconversion of cloud water [sec-1]. Fowler et al (1996) and Kessler (1969) */
       Q_LIQ_0(   is) =     0.00025;  /* Threshold value for rain autoconversion [kg kg-1]. Fowler et al. (1996) */
       T_00(      is) = T_triple_pt(is);
@@ -300,16 +318,16 @@ void set_microphysics_params(int planet_index)
       is = H_2O_INDEX;
       RHO_RAIN(  is) =  1000.;        /* Fowler et al. (1996) */
       RHO_SNOW(  is) =   917.0*0.5;   /* Perry's Chem.Eng.Handbook p.2-304. */
-      COEFF_XI(  is) =   735.5; 
-      COEFF_YI(  is) =     0.86273;
-      COEFF_XS(  is) =    54.96; 
-      COEFF_YS(  is) =     0.45254; 
-      COEFF_XR(  is) =  2615.1; 
-      COEFF_YR(  is) =    0.74245; 
+      COEFF_XI(  is) =   535.4084;    // 266.7  /* RS 02/13/2019 original value: 735.5 */ 
+      COEFF_YI(  is) =     0.8746;    //0.788   /* RS 02/13/2019 original value: 0.86273 */
+      COEFF_XS(  is) =    42.8340;    // 54.96; RS 02/13/2019 
+      COEFF_YS(  is) =     0.5271;    // 0.45254; RS 02/13/2019
+      COEFF_XR(  is) =  2376.3599;    //677.0   /* RS 09/06/2018 original value: 2615.1 */
+      COEFF_YR(  is) =     0.7308;    //0.548   /* RS 09/06/2018 original value: 0.74245 */
       COEFF_A(   is) =   13.16;
-      COEFF_B(   is) =    0.16;
-      COEFF_C(   is) =    5.38e+7;
-      COEFF_D(   is) =    0.75;
+      COEFF_B(   is) =    0.16; 
+      COEFF_C(   is) =    5.38e7;//2.93604e5; /* RS changing this to value got from Eq 2.11 original: 5.38e+7; */
+      COEFF_D(   is) =    0.75;//0.59391; /* RS changing this to value got from Eq 2.11 original: 0.75; */
       COEFF_M(   is) =    7.06165e-3; /* HDC04 */ 
       COEFF_N(   is) =    2.0;
       N_0R(      is) =    8.e+6;      /* Intercept value in raindrop size distribution [m-4], FRR96 p526, D89 p3103 */
@@ -319,9 +337,9 @@ void set_microphysics_params(int planet_index)
       f2r(       is) =    0.308;      /* Coefficient in the ventillation factor, D89 p3103 */
       f1s(       is) =    0.65;       /* Coefficient in the ventillation factor, D89 p3103 */
       f2s(       is) =    0.44;       /* Coefficient in the ventillation factor, D89 p3103 */
-      P_EXP_LIQ( is) =    0.331;      /* Exponent in the (p0/p)^x term for rain: liquid cloud particles do not fall at this point */
-      P_EXP_ICE( is) =    0.238;      /* Exponent in the (p0/p)^x term for cloud ice */
-      P_EXP_SNOW(is) =    0.318;      /* Exponent in the (p0/p)^x term for snow */
+      P_EXP_LIQ( is) =    0.3568; //0.240 0.331;      /* Exponent in the (p0/p)^x term for rain: liquid cloud particles do not fall at this point */
+      P_EXP_ICE( is) =    0.1264; //0.329 0.238;      /* Exponent in the (p0/p)^x term for cloud ice */
+      P_EXP_SNOW(is) =    0.3043; //0.312 0.318;      /* Exponent in the (p0/p)^x term for snow */
       ALPHA_RAUT(is) =    0.001;      /* Rate coeff. for autoconversion of cloud water [sec-1]. Fowler et al (1996) and Kessler (1969) */
       Q_LIQ_0(   is) =    0.00025;    /* Threshold value for rain autoconversion [kg kg-1]. Fowler et al. (1996) */
       T_00(      is) =  273.16;
@@ -427,7 +445,7 @@ void set_microphysics_params(int planet_index)
     case NEPTUNE_INDEX:
       is = CH_4_INDEX;
       RHO_RAIN(  is) =   448.9; 
-      RHO_SNOW(  is) =   505.0*0.5;
+      RHO_SNOW(  is) =   0.5*505.0;
       COEFF_XI(  is) =   203.99;
       COEFF_YI(  is) =     0.85989;
       COEFF_XS(  is) =    14.684;
@@ -459,7 +477,96 @@ void set_microphysics_params(int planet_index)
       sprintf(Message,"not yet implemented for planet_index=%d",planet_index);
       epic_error(dbmsname,Message);
     break;
-  }
+  } /* end of switch(planet_index) */
+
+  /* 
+   * RS 03/05/2020 
+   * The Antoine semi-empirical equation for saturated vapor pressure is
+   *    log10(psat) = A - B/T .
+   * Set Antoine coefficients for the different species.
+   */
+
+  is = H_2O_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+  ANT_AS(is) = 12.610; ANT_BS(is) = -2681.18;
+  ANT_AL(is) = 11.079; ANT_BL(is) = -2261.10;
+
+  is = NH_3_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+
+  ANT_AS(is) = 11.900; ANT_BS(is) = -1588.;
+  ANT_AL(is) = 10.201; ANT_BL(is) = -1248.;
+
+  is = H_2S_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+  ANT_AS(is) = 10.610; ANT_BS(is) = -1171.2;
+  ANT_AL(is) =  9.780; ANT_BL(is) = -1015.5;
+
+  is = CH_4_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+  ANT_AS(is) =  9.283; ANT_BS(is) = -475.6;
+  ANT_AL(is) =  9.092; ANT_BL(is) = -459.8;
+
+  is = CO_2_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+
+  ANT_AS(is) = 12.025; ANT_BS(is) = -1336.;
+  ANT_AL(is) = 11.045; ANT_BL(is) = -1201.;
+
+  is = NH_4SH_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+  ANT_AS(is) = 12.600; ANT_BS(is) = -2411.2;
+  ANT_AL(is) = 12.600; ANT_BL(is) = -2411.2;
+
+  is = O_3_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+  ANT_AS(is) =  8.912; ANT_BS(is) = -632.4;
+  ANT_AL(is) =  8.912; ANT_BL(is) = -632.4;
+
+  is = N_2_INDEX;
+  /*
+   * From Table 1.20 of Lodders and Fegley, 1998, 
+   * The Planetary Scientist's Companion, Oxford University Press.
+   * The parameter a has been modified to yield pressure in Pa instead of bar.
+   * Temperature in Kelvin.
+   */
+  ANT_AS(is) =  9.798; ANT_BS(is) = -360.2;
+  ANT_AL(is) =  8.944; ANT_BL(is) = -305.0;
 
   return;
 }
@@ -472,10 +579,10 @@ void set_microphysics_params(int planet_index)
  * Allocate memory for data tables and read in values.
  */
 
-int read_enthalpy_change_data(int             species_index,
-                              float_triplet **pt_hi,
-                              float_triplet **pt_hf,
-                              float_triplet **pt_hg)
+int read_enthalpy_change_data(int              species_index,
+                              double_triplet **pt_hi,
+                              double_triplet **pt_hf,
+                              double_triplet **pt_hg)
 {
   int
     j,
@@ -483,12 +590,12 @@ int read_enthalpy_change_data(int             species_index,
   char
     infile[N_STR],
     header[N_STR];
-  float_triplet
+  double_triplet
     *hi,
     *hf,
     *hg;
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     *buffer;
 #endif
   FILE
@@ -526,18 +633,14 @@ int read_enthalpy_change_data(int             species_index,
      *
      * NOTE: This function should only be called once per species.
      */
-    *pt_hi = hi = ftriplet(0,ndat-1,dbmsname);
-    *pt_hf = hf = ftriplet(0,ndat-1,dbmsname);
-    *pt_hg = hg = ftriplet(0,ndat-1,dbmsname);
+    *pt_hi = hi = dtriplet(0,ndat-1,dbmsname);
+    *pt_hf = hf = dtriplet(0,ndat-1,dbmsname);
+    *pt_hg = hg = dtriplet(0,ndat-1,dbmsname);
 
     if (IAMNODE == NODE0) {
       /* Input enthalpies(T): */
       for (j = 0; j < ndat; j++) {
-#       if EPIC_PRECISION == DOUBLE_PRECISION
           fscanf(enth_vs_t,"%lf %lf %lf %lf",&hi[j].x,&hi[j].y,&hf[j].y,&hg[j].y);
-#       else
-          fscanf(enth_vs_t,"%f %f %f %f",&hi[j].x,&hi[j].y,&hf[j].y,&hg[j].y);
-#       endif
         /* Fill in temperature column for hf and hg. */
         hf[j].x = hi[j].x;
         hg[j].x = hi[j].x;
@@ -549,18 +652,14 @@ int read_enthalpy_change_data(int             species_index,
       /*
        * Pack buffer.
        */
-      buffer = fvector(0,4*ndat-1,dbmsname);
+      buffer = dvector(0,4*ndat-1,dbmsname);
       for (j = 0; j < ndat; j++) {
         buffer[j       ] = hi[j].x;
         buffer[j+1*ndat] = hi[j].y;
         buffer[j+2*ndat] = hf[j].y;
         buffer[j+3*ndat] = hg[j].y;
       }
-#     if EPIC_PRECISION == DOUBLE_PRECISION
          MPI_Bcast(buffer,4*ndat,MPI_DOUBLE,NODE0,para.comm);
-#     else
-         MPI_Bcast(buffer,4*ndat,MPI_FLOAT,NODE0,para.comm);
-#     endif
       /*
        * Unpack buffer.
        */
@@ -574,7 +673,7 @@ int read_enthalpy_change_data(int             species_index,
       spline_pchip(ndat,hf);
       spline_pchip(ndat,hg);
 
-      free_fvector(buffer,0,4*ndat-1,dbmsname);
+      free_dvector(buffer,0,4*ndat-1,dbmsname);
 #   endif
 
   return ndat;
@@ -590,20 +689,20 @@ int read_enthalpy_change_data(int             species_index,
  *
  * The enthalpy data tables are in kJ/kg, which is converted here to J/kg.
  */
-EPIC_FLOAT enthalpy_change(int            species_index,
-                           int            init_phase,
-			   int            final_phase,
-			   EPIC_FLOAT     temperature,
-                           int            ndat,
-                           float_triplet *hi,
-                           float_triplet *hf,
-                           float_triplet *hg)
+double enthalpy_change(int             species_index,
+                       int             init_phase,
+                       int             final_phase,
+                       double          temperature,
+                       int             ndat,
+                       double_triplet *hi,
+                       double_triplet *hf,
+                       double_triplet *hg)
 {
   int
     j;
   static int
     warned_once=FALSE;
-  EPIC_FLOAT
+  double
     enth_change,t_d,
     enth_init,enth_final;
   /*
@@ -616,22 +715,22 @@ EPIC_FLOAT enthalpy_change(int            species_index,
 
   /* Check whether temperature is out of range? */
   if (temperature < hg[0].x) {
-    temperature = hg[0].x;
     if (!warned_once) {
-      sprintf(Message,"%s, init temperature=%g < hg[0].x=%g",
+      sprintf(Message,"%s, temperature=%g < hg[0].x=%g",
                       var.species[species_index].info[0].name,temperature,hg[0].x);
       epic_warning(dbmsname,Message);
       warned_once = TRUE;
     }
+    temperature = hg[0].x;
   }
   else if (temperature > hg[ndat-1].x) {
-    temperature = hg[ndat-1].x;
     if (!warned_once) {
-      sprintf(Message,"%s, init temperature=%g > hg[ndat-1].x=%g",
+      sprintf(Message,"%s, temperature=%g > hg[ndat-1].x=%g",
                       var.species[species_index].info[0].name,temperature,hg[ndat-1].x);
       epic_warning(dbmsname,Message);
       warned_once = TRUE;
     }
+    temperature = hg[ndat-1].x;
   }
   
   /* ======= Interpolate: ======= */
@@ -703,16 +802,16 @@ EPIC_FLOAT enthalpy_change(int            species_index,
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_H_2O(int         init_phase,
-                                int         final_phase, 
-	                        EPIC_FLOAT  temperature)
+double enthalpy_change_H_2O(int     init_phase,
+                            int     final_phase, 
+	                    double  temperature)
 
 {
   static int
     species_index = H_2O_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -745,15 +844,15 @@ EPIC_FLOAT enthalpy_change_H_2O(int         init_phase,
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_NH_3(int         init_phase,
-                                int         final_phase, 
-	                        EPIC_FLOAT  temperature)
+double enthalpy_change_NH_3(int     init_phase,
+                            int     final_phase, 
+	                    double  temperature)
 {
   static int
     species_index = NH_3_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -778,24 +877,24 @@ EPIC_FLOAT enthalpy_change_NH_3(int         init_phase,
   return enthalpy_change(species_index,init_phase,final_phase,temperature,ndat,hi,hf,hg);
 }
 
-/*======================= end of enthalpy_change_NH3 ============================*/
+/*======================= end of enthalpy_change_NH_3 ============================*/
 
-/*======================= enthalpy_change_H_2S() ===============================*/
+/*======================= enthalpy_change_H_2S() =================================*/
 
 /*
  * Returns the enthalpy change of hydrogen sulfide vapor between two temperatures, in J/kg.
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_H_2S(int         init_phase,
-                                int         final_phase, 
-                                EPIC_FLOAT  temperature)
+double enthalpy_change_H_2S(int     init_phase,
+                            int     final_phase, 
+                            double  temperature)
 {
   static int
     species_index = H_2S_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -829,15 +928,15 @@ EPIC_FLOAT enthalpy_change_H_2S(int         init_phase,
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_CH_4(int         init_phase,
-                                int         final_phase, 
-                                EPIC_FLOAT  temperature)
+double enthalpy_change_CH_4(int     init_phase,
+                            int     final_phase, 
+                            double  temperature)
 {
   static int
     species_index = CH_4_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -871,15 +970,15 @@ EPIC_FLOAT enthalpy_change_CH_4(int         init_phase,
  * NOTE: Need to add data.
  */
 
-EPIC_FLOAT enthalpy_change_C_2H_2(int         init_phase,
-                                  int         final_phase, 
-                                  EPIC_FLOAT  temperature)
+double enthalpy_change_C_2H_2(int     init_phase,
+                              int     final_phase, 
+                              double  temperature)
 {
   static int
     species_index = C_2H_2_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -913,15 +1012,15 @@ EPIC_FLOAT enthalpy_change_C_2H_2(int         init_phase,
  * NOTE: Need to add data.
  */
 
-EPIC_FLOAT enthalpy_change_C_2H_4(int         init_phase,
-                                  int         final_phase, 
-                                  EPIC_FLOAT  temperature)
+double enthalpy_change_C_2H_4(int     init_phase,
+                              int     final_phase, 
+                              double  temperature)
 {
   static int
     species_index = C_2H_4_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -955,15 +1054,15 @@ EPIC_FLOAT enthalpy_change_C_2H_4(int         init_phase,
  * NOTE: Need to add data.
  */
 
-EPIC_FLOAT enthalpy_change_C_2H_6(int         init_phase,
-                                  int         final_phase, 
-                                  EPIC_FLOAT  temperature)
+double enthalpy_change_C_2H_6(int     init_phase,
+                              int     final_phase, 
+                              double  temperature)
 {
   static int
     species_index = C_2H_6_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -997,15 +1096,15 @@ EPIC_FLOAT enthalpy_change_C_2H_6(int         init_phase,
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_CO_2(int         init_phase,
-                                int         final_phase, 
-	                        EPIC_FLOAT  temperature)
+double enthalpy_change_CO_2(int     init_phase,
+                            int     final_phase, 
+	                    double  temperature)
 {
   static int
     species_index = CO_2_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -1039,15 +1138,15 @@ EPIC_FLOAT enthalpy_change_CO_2(int         init_phase,
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_NH_4SH(int         init_phase,
-                                  int         final_phase, 
-                                  EPIC_FLOAT  temperature)
+double enthalpy_change_NH_4SH(int     init_phase,
+                              int     final_phase, 
+                              double  temperature)
 {
   static int
     species_index = NH_4SH_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -1081,15 +1180,15 @@ EPIC_FLOAT enthalpy_change_NH_4SH(int         init_phase,
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_O_3(int         init_phase,
-                               int         final_phase, 
-	                       EPIC_FLOAT  temperature)
+double enthalpy_change_O_3(int     init_phase,
+                           int     final_phase, 
+	                   double  temperature)
 {
   static int
     species_index = O_3_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -1123,15 +1222,15 @@ EPIC_FLOAT enthalpy_change_O_3(int         init_phase,
  * C.J.Palotai *A* 03.2003.
  */
 
-EPIC_FLOAT enthalpy_change_N_2(int         init_phase,
-                               int         final_phase, 
-                               EPIC_FLOAT  temperature)
+double enthalpy_change_N_2(int     init_phase,
+                           int     final_phase, 
+                           double  temperature)
 {
   static int
     species_index = N_2_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -1165,15 +1264,15 @@ EPIC_FLOAT enthalpy_change_N_2(int         init_phase,
  * Need data for this function.
  */
 
-EPIC_FLOAT enthalpy_change_PH_3(int         init_phase,
-                                int         final_phase, 
-                                EPIC_FLOAT  temperature)
+double enthalpy_change_PH_3(int     init_phase,
+                            int     final_phase, 
+                            double  temperature)
 {
   static int
     species_index = PH_3_INDEX,
     ndat,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *hi,
     *hf,
     *hg;
@@ -1213,16 +1312,25 @@ EPIC_FLOAT enthalpy_change_PH_3(int         init_phase,
  * Rogers&Yau: A Short Course in Cloud Physics,3rd Ed., p16. 
  */
 
-EPIC_FLOAT sat_vapor_p_H_2O(EPIC_FLOAT temperature)
+double sat_vapor_p_H_2O(double temperature)
 {
-  EPIC_FLOAT
+  double
     t_c,omega,
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =    12.610,
-    b_s = -2681.18,
-    a_l =    11.079,
-    b_l = -2261.10;
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(H_2O_INDEX);
+    b_s = ANT_BS(H_2O_INDEX);
+    a_l = ANT_AL(H_2O_INDEX);
+    b_l = ANT_BL(H_2O_INDEX);
+    initialized = TRUE;
+  }
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1260,15 +1368,24 @@ EPIC_FLOAT sat_vapor_p_H_2O(EPIC_FLOAT temperature)
  * Temperature in Kelvin.
  */
 
-EPIC_FLOAT sat_vapor_p_NH_3(EPIC_FLOAT temperature)
+double sat_vapor_p_NH_3(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =    11.900,
-    b_s = -1588.,
-    a_l =    10.201,
-    b_l = -1248.;
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(NH_3_INDEX);
+    b_s = ANT_BS(NH_3_INDEX);
+    a_l = ANT_AL(NH_3_INDEX);
+    b_l = ANT_BL(NH_3_INDEX);
+    initialized = TRUE;
+  }
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1298,15 +1415,24 @@ EPIC_FLOAT sat_vapor_p_NH_3(EPIC_FLOAT temperature)
  * Temperature in Kelvin.
  */
 
-EPIC_FLOAT sat_vapor_p_H_2S(EPIC_FLOAT temperature)
+double sat_vapor_p_H_2S(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =    10.610,
-    b_s = -1171.2,
-    a_l =     9.780,
-    b_l = -1015.5;
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(H_2S_INDEX);
+    b_s = ANT_BS(H_2S_INDEX);
+    a_l = ANT_AL(H_2S_INDEX);
+    b_l = ANT_BL(H_2S_INDEX);
+    initialized = TRUE;
+  }
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1336,15 +1462,24 @@ EPIC_FLOAT sat_vapor_p_H_2S(EPIC_FLOAT temperature)
  * Temperature in Kelvin.
  */
 
-EPIC_FLOAT sat_vapor_p_CH_4(EPIC_FLOAT temperature)
+double sat_vapor_p_CH_4(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =     9.283,
-    b_s =  -475.6,
-    a_l =     9.092,
-    b_l =  -459.8;
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(CH_4_INDEX);
+    b_s = ANT_BS(CH_4_INDEX);
+    a_l = ANT_AL(CH_4_INDEX);
+    b_l = ANT_BL(CH_4_INDEX);
+    initialized = TRUE;
+  }
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1371,9 +1506,9 @@ EPIC_FLOAT sat_vapor_p_CH_4(EPIC_FLOAT temperature)
  * NOTE: Need this function.
  */
 
-EPIC_FLOAT sat_vapor_p_C_2H_2(EPIC_FLOAT temperature)
+double sat_vapor_p_C_2H_2(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1384,7 +1519,7 @@ EPIC_FLOAT sat_vapor_p_C_2H_2(EPIC_FLOAT temperature)
     dbmsname[]="sat_vapor_p_C_2H_2";
 
   /* Placeholder */
-  sat_vapor_p = 0.;
+  sat_vapor_p = 0.*temperature;
 
   return sat_vapor_p;
 }
@@ -1397,9 +1532,9 @@ EPIC_FLOAT sat_vapor_p_C_2H_2(EPIC_FLOAT temperature)
  * NOTE: Need this function.
  */
 
-EPIC_FLOAT sat_vapor_p_C_2H_4(EPIC_FLOAT temperature)
+double sat_vapor_p_C_2H_4(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1410,7 +1545,7 @@ EPIC_FLOAT sat_vapor_p_C_2H_4(EPIC_FLOAT temperature)
     dbmsname[]="sat_vapor_p_C_2H_4";
 
   /* Placeholder */
-  sat_vapor_p = 0.;
+  sat_vapor_p = 0.*temperature;
 
   return sat_vapor_p;
 }
@@ -1423,9 +1558,9 @@ EPIC_FLOAT sat_vapor_p_C_2H_4(EPIC_FLOAT temperature)
  * NOTE: Need this function.
  */
 
-EPIC_FLOAT sat_vapor_p_C_2H_6(EPIC_FLOAT temperature)
+double sat_vapor_p_C_2H_6(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1436,7 +1571,7 @@ EPIC_FLOAT sat_vapor_p_C_2H_6(EPIC_FLOAT temperature)
     dbmsname[]="sat_vapor_p_C_2H_6";
 
   /* Placeholder */
-  sat_vapor_p = 0.;
+  sat_vapor_p = 0.*temperature;
 
   return sat_vapor_p;
 }
@@ -1452,15 +1587,24 @@ EPIC_FLOAT sat_vapor_p_C_2H_6(EPIC_FLOAT temperature)
  * Temperature in Kelvin.
  */
 
-EPIC_FLOAT sat_vapor_p_CO_2(EPIC_FLOAT temperature)
+double sat_vapor_p_CO_2(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =     12.025,
-    b_s =  -1336.,
-    a_l =     11.045,
-    b_l =  -1201.;
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(CO_2_INDEX);
+    b_s = ANT_BS(CO_2_INDEX);
+    a_l = ANT_AL(CO_2_INDEX);
+    b_l = ANT_BL(CO_2_INDEX);
+    initialized = TRUE;
+  }
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1490,15 +1634,25 @@ EPIC_FLOAT sat_vapor_p_CO_2(EPIC_FLOAT temperature)
  * Temperature in Kelvin.
  */
 
-EPIC_FLOAT sat_vapor_p_NH_4SH(EPIC_FLOAT temperature)
+double sat_vapor_p_NH_4SH(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =     12.60,
-    b_s =  -2411.2,
-    a_l =     12.60,   /* No liquid value listed; here a_l = a_s. */
-    b_l =  -2411.2;    /* No liquid value listed; here b_l = b_s. */
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(NH_4SH_INDEX);
+    b_s = ANT_BS(NH_4SH_INDEX);
+    a_l = ANT_AL(NH_4SH_INDEX);
+    b_l = ANT_BL(NH_4SH_INDEX); /* No liquid value listed; here b_l = b_s. */
+    initialized = TRUE;
+  }    
+    
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1528,15 +1682,25 @@ EPIC_FLOAT sat_vapor_p_NH_4SH(EPIC_FLOAT temperature)
  * Temperature in Kelvin.
  */
 
-EPIC_FLOAT sat_vapor_p_O_3(EPIC_FLOAT temperature)
+double sat_vapor_p_O_3(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =     8.912, /* No solid value listed; here a_s = a_l. */
-    b_s =  -632.4,   /* No solid value listed; here b_s = b_l. */
-    a_l =     8.912,
-    b_l =  -632.4;
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(O_3_INDEX); /* No solid value listed; here a_s = a_l. */
+    b_s = ANT_BS(O_3_INDEX);
+    a_l = ANT_AL(O_3_INDEX);
+    b_l = ANT_BL(O_3_INDEX); 
+    initialized = TRUE;
+  }    
+    
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1566,15 +1730,24 @@ EPIC_FLOAT sat_vapor_p_O_3(EPIC_FLOAT temperature)
  * Temperature in Kelvin.
  */
 
-EPIC_FLOAT sat_vapor_p_N_2(EPIC_FLOAT temperature)
+double sat_vapor_p_N_2(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
-  static EPIC_FLOAT
-    a_s =     9.798,
-    b_s =  -360.2,
-    a_l =     8.944,
-    b_l =  -305.;
+  static double
+    a_s, b_s, a_l, b_l;
+  static int initialized;
+
+  if (!initialized) {
+    /*
+     * Antoine A and B coefficients for solid and liquid phases.
+     */
+    a_s = ANT_AS(N_2_INDEX); 
+    b_s = ANT_BS(N_2_INDEX);
+    a_l = ANT_AL(N_2_INDEX);
+    b_l = ANT_BL(N_2_INDEX); 
+    initialized = TRUE;
+  }    
   /*
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -1601,9 +1774,9 @@ EPIC_FLOAT sat_vapor_p_N_2(EPIC_FLOAT temperature)
  * Need data for this function.
  */
 
-EPIC_FLOAT sat_vapor_p_PH_3(EPIC_FLOAT temperature)
+double sat_vapor_p_PH_3(double temperature)
 {
-  EPIC_FLOAT
+  double
     sat_vapor_p;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1613,7 +1786,8 @@ EPIC_FLOAT sat_vapor_p_PH_3(EPIC_FLOAT temperature)
   static char
     dbmsname[]="sat_vapor_p_PH_3";
 
-  /* Need to write this function */
+  /* Placeholder */
+  sat_vapor_p = 0.*temperature;
 
   return sat_vapor_p;
 }
@@ -1628,17 +1802,17 @@ EPIC_FLOAT sat_vapor_p_PH_3(EPIC_FLOAT temperature)
  *        Jupiter: C.F. Hansen (1979)
  */
 
-EPIC_FLOAT dynvisc(      char   *globe,
-                   EPIC_FLOAT    temp)
+double dynvisc(char   *globe,
+               double  temp)
 {
-  EPIC_FLOAT 
+  double 
     x1, x2,n1,n2,q1,q2,q3,r1,r2,nu;
-  static EPIC_FLOAT 
+  static double 
     viscx[65],viscy[65],visca[2];
   int 
     i,
     n = 64;
-  EPIC_FLOAT 
+  double 
     temperature;
   static int
     initialized=0;
@@ -1703,7 +1877,7 @@ EPIC_FLOAT dynvisc(      char   *globe,
 
 /*============================== end of dynvisc() ================================*/
 
-/*=============================== conductivity() ======================================*/
+/*=============================== conductivity() =================================*/
 
 /*
  * Code for calculating thermal coductivity
@@ -1711,17 +1885,17 @@ EPIC_FLOAT dynvisc(      char   *globe,
  *        Jupiter: C.F. Hansen (1979)
  */
 
-EPIC_FLOAT conductivity(      char   *globe,
-                        EPIC_FLOAT    temp)
+double conductivity(char   *globe,
+                    double  temp)
 {
-  EPIC_FLOAT 
+  double 
     x1, x2,n1,n2,q1,q2,q3,r1,r2,k,k1,k2,v;
-  static EPIC_FLOAT 
+  static double 
     condx[65],condy[65],conda[2];
   int 
     i,
     n = 64;
-  EPIC_FLOAT 
+  double 
     temperature;
   static int
     initialized=0;

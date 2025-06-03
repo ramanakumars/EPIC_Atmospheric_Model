@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -41,7 +42,7 @@
  *           p_phi()                                                         *
  *                                                                           *
  *           For processing non-EPIC input:                                  *
- *             openmars, emars, weizmann                                     *
+ *             openmars, emars                                               *
  *               *_make_arrays()                                             *
  *               *_free_arrays()                                             *
  *               *_var_read()                                                *
@@ -55,7 +56,7 @@
 
 /*====================== set_re_rp() =========================================*/
 
-void set_re_rp(planetspec *planet)
+void set_re_rp(void)
 {
 
   /*
@@ -81,234 +82,6 @@ void set_re_rp(planetspec *planet)
 
 /*====================== end of set_re_rp() ==================================*/
 
-// /*====================== set_re_rp() =========================================*/
-// 
-// /*
-//  * Determine the equatorial and polar radii as a function of vertical index K.
-//  * Assume a uniformly rotating fluid body with no relative winds.  The values
-//  * for grid.re[K] and grid.rp[K] are included in the model input/output, hence
-//  * this function needs to be called only in epic_initial.c.
-//  * 
-//  * NOTE: Oblateness of the geopotential increases with altitude.
-//  */
-// 
-// #undef  MAX_ITER
-// #define MAX_ITER 10
-// #undef  TOL
-// #define TOL      (1.e-9)
-// 
-// /*
-//  * Need to smooth grid.re[K], grid.rp[K].
-//  * Use a Savitzky-Golay filter of order m, width np.
-//  */
-// #undef  SAVITZKY_GOLAY_M
-// #define SAVITZKY_GOLAY_M   2
-// #undef  SAVITZKY_GOLAY_NP
-// #define SAVITZKY_GOLAY_NP (2*(SAVITZKY_GOLAY_M+3)+1)
-// 
-// void set_re_rp(planetspec *planet)
-// {
-//   register int
-//     K,K0,kk,iter,
-//     kay,j,i;
-//   int
-//     nr,nl,
-//     nc = SAVITZKY_GOLAY_NP/2;
-//   EPIC_FLOAT
-//     old_diff,diff,
-//     GM,GM_mid,
-//     spin_factor,area,a,c,
-//     ge,ge_mid,gp,gp_mid,g_avg,m_layer,dp,
-//     change,old_ge,prev_gavg,prev_ge,prev_GM,
-//     dy;
-//   EPIC_FLOAT
-//     c_sav[SAVITZKY_GOLAY_NP],
-//     smooth_re[grid.nk+1],
-//     smooth_rp[grid.nk+1],
-//     extended_re[grid.nk+1+2*nc],
-//     extended_rp[grid.nk+1+2*nc],
-//     xleft[ SAVITZKY_GOLAY_M+1],
-//     xright[SAVITZKY_GOLAY_M+1],
-//    *padded_re,
-//    *padded_rp;
-//   /* 
-//    * The following are part of DEBUG_MILESTONE(.) statements: 
-//    */
-//   int
-//     idbms=0;
-//   static char
-//     dbmsname[]="set_re_rp";
-// 
-//   /*
-//    * Shift padded_re, padded_rp.
-//    */
-//   padded_re = extended_re+nc;
-//   padded_rp = extended_rp+nc;
-// 
-//   /*
-//    * Assume grid.p_ref[kk] and grid.rho_ref[kk] refer to a representative sounding at the equator.
-//    * Assume planet->re is the equatorial radius for the layer K = K0 where grid.p_ref[2*K+1] is 
-//    * closest to 1000 hPa.
-//    */
-//   old_diff = FLOAT_MAX, K0 = INT_MAX;
-//   for (K = 0; K <= KHI; K++) {
-//     kk   = 2*K+1;
-//     diff = fabs(grid.p_ref[kk]-1000.*100.);
-//     if (diff < old_diff) {
-//       K0       = K;
-//       old_diff = diff;
-//     }
-//   }
-//   grid.re[K0] = a = planet->re;
-//   /*
-//    * To get started, estimate GM = planet->GM, c = planet->rp;
-//    */
-//   c            = planet->rp;
-//   GM           = planet->GM;
-//   spin_factor  = (planet->omega_sidereal*a)*(planet->omega_sidereal*a)*(a/GM);
-//   ge           = (1.+1.5*planet->J2-spin_factor)*GM/(a*a);
-//   gp           = (1.-3.*(a/c)*(a/c)*planet->J2)*GM/(c*c);
-//   area         = surface_area_oblate(a,c);
-//   g_avg        = .5*(ge+gp);
-//   m_layer      = (grid.p_ref[2*K0+1]-0.)*area/g_avg;
-//   /* 
-//    * Update estimates of GM, c
-//    */
-//   GM          -= G_NEWTON*m_layer;
-//   grid.rp[K0]  = c = polar_radius(a,planet->J2,GM,planet->omega_sidereal);
-// 
-//   /*
-//    * Need middle values for continuity with downward integration below.
-//    */
-//   GM_mid = GM;
-//   ge_mid = ge;
-//   gp_mid = gp;
-// 
-//   /*
-//    * Integrate the hydrostatic balance equation upwards from K0.
-//    */
-//   for (K = K0-1; K >= 0; K--) {
-//     dp        = (grid.p_ref[2*K+1]-grid.p_ref[2*(K+1)+1]);
-//     prev_ge   = ge;
-//     prev_gavg = .5*(ge+gp);
-//     prev_GM   = GM;
-//     for (iter = 0; iter < MAX_ITER; iter++) {
-//       /*
-//        * Iterate to improve self-consistency
-//        */
-//       old_ge     = ge;
-//       grid.re[K] = a = grid.re[K+1]-dp/(.5*(ge+prev_ge)*grid.rho_ref[2*(K+1)]);
-//       grid.rp[K] = c = polar_radius(a,planet->J2,GM,planet->omega_sidereal);
-//       /*
-//        * Update estimate of GM, ge, gp.
-//        */
-//       area         = .5*(surface_area_oblate(a,c)
-//                         +surface_area_oblate(grid.re[K+1],grid.rp[K+1]));
-//       g_avg        = .5*(.5*(ge+gp)+prev_gavg);
-//       m_layer      = -dp*area/g_avg;
-//       GM           = prev_GM+G_NEWTON*m_layer;
-//       spin_factor  = SQR(planet->omega_sidereal*a)*(a/GM);
-//       ge           = (1.+1.5*planet->J2-spin_factor)*GM/(a*a);
-//       gp           = (1.-3.*(a/c)*(a/c)*planet->J2)*GM/(c*c);
-//       change       = (ge-old_ge)/old_ge;
-//       if (fabs(change) <= TOL) {
-//         break;
-//       }
-//     }
-//   }
-// 
-//   /*
-//    * Integrate the hydrostatic balance equation downwards from K0.
-//    */
-//   GM = GM_mid;
-//   ge = ge_mid;
-//   gp = gp_mid;
-//   for (K = K0+1; K <= KHI; K++) {
-//     dp        = (grid.p_ref[2*(K-1)+1]-grid.p_ref[2*K+1]);
-//     prev_ge   = ge;
-//     prev_gavg = .5*(ge+gp);
-//     prev_GM   = GM;
-//     for (iter = 0; iter < MAX_ITER; iter++) {
-//       /*
-//        * Iterate to improve self-consistency
-//        */
-//       old_ge     = ge;
-//       grid.re[K] = a = grid.re[K-1]+dp/(.5*(ge+prev_ge)*grid.rho_ref[2*K]);
-//       grid.rp[K] = c = polar_radius(a,planet->J2,GM,planet->omega_sidereal);
-//       /*
-//        * Update estimate of GM, ge, gp.
-//        */
-//       area         = .5*(surface_area_oblate(a,c)
-//                         +surface_area_oblate(grid.re[K-1],grid.rp[K-1]));
-//       g_avg        = .5*(.5*(ge+gp)+prev_gavg);
-//       m_layer      = -dp*area/g_avg;
-//       GM           = prev_GM-G_NEWTON*m_layer;
-//       spin_factor  = SQR(planet->omega_sidereal*a)*(a/GM);
-//       ge           = (1.+1.5*planet->J2-spin_factor)*GM/(a*a);
-//       gp           = (1.-3.*(a/c)*(a/c)*planet->J2)*GM/(c*c);
-//       change       = (ge-old_ge)/old_ge;
-//       if (fabs(change) <= TOL) {
-//         break;
-//       }
-//     }
-//   }
-// 
-//   if (grid.nk >= SAVITZKY_GOLAY_NP-1) {
-//     /*
-//      * Smooth grid.re[K] and grid.rp[K].
-//      * See Savitzky-Golay parameters defined at top of function.
-//      *
-//      * NOTE: Near the endpoints, we tried off-centering the filter in a continuous manner,
-//      *       but this generated glitches in the second derivative of re[K] and rp[K].
-//      *       Instead, we pad the endpoints with a polynomial fit of order SAVITZKY_GOLAY_M,
-//      *       which allows us to run a centered filter across the array from K = 0 to grid.nk,
-//      *       resulting in a smooth second-derivative for grid.re[K] and grid.rp[K].
-//      *
-//      * Extend ends of re[K], rp[K] with a polynomial fit of order SAVITZKY_GOLAY_M,
-//      * fitted to the respective end points.
-//      */
-//     for (kay = 0; kay <= SAVITZKY_GOLAY_M; kay++) {
-//       xleft[ kay] = (EPIC_FLOAT)kay;
-//       xright[kay] = (EPIC_FLOAT)(kay+grid.nk-SAVITZKY_GOLAY_M);
-//     }
-//     for (kay = -nc; kay < 0; kay++) {
-//       padded_re[kay]         = poly_interp(SAVITZKY_GOLAY_M+1,xleft, grid.re,                         (EPIC_FLOAT)kay,          &dy);
-//       padded_rp[kay]         = poly_interp(SAVITZKY_GOLAY_M+1,xleft, grid.rp,                         (EPIC_FLOAT)kay,          &dy);
-//       padded_re[grid.nk-kay] = poly_interp(SAVITZKY_GOLAY_M+1,xright,grid.re+grid.nk-SAVITZKY_GOLAY_M,(EPIC_FLOAT)(grid.nk-kay),&dy);
-//       padded_rp[grid.nk-kay] = poly_interp(SAVITZKY_GOLAY_M+1,xright,grid.rp+grid.nk-SAVITZKY_GOLAY_M,(EPIC_FLOAT)(grid.nk-kay),&dy);
-//     }
-//     for (K = 0; K <= grid.nk; K++) {
-//       padded_re[K] = grid.re[K];
-//       padded_rp[K] = grid.rp[K];
-//     }
-// 
-//     /* Zero smooth arrays. */
-//     memset(smooth_re,0,(grid.nk+1)*sizeof(EPIC_FLOAT));
-//     memset(smooth_rp,0,(grid.nk+1)*sizeof(EPIC_FLOAT));
-// 
-//     /* Centered filter */
-//     nl = nr = nc;
-//     savitzky_golay(c_sav,SAVITZKY_GOLAY_NP,nl,nr,0,SAVITZKY_GOLAY_M);
-//     for (K = 0; K <= KHI; K++) {
-//       for (kay = K-nl,i = 0; kay <= K+nr; kay++,i++) {
-//         /* c_sav[] uses a wrap-around index */
-//         j             = (SAVITZKY_GOLAY_NP+nl-i)%SAVITZKY_GOLAY_NP;
-//         smooth_re[K] += padded_re[kay]*c_sav[j];
-//         smooth_rp[K] += padded_rp[kay]*c_sav[j];
-//       }
-//     }
-// 
-//     for (K = 0; K <= KHI; K++) {
-//       grid.re[K] = smooth_re[K];
-//       grid.rp[K] = smooth_rp[K];
-//     }
-//   }
-// 
-//   return;
-// }
-// 
-// /*====================== end of set_re_rp() ==================================*/
-
 /*====================== init_phi_surface() ==================================*/
 
 /*
@@ -317,8 +90,7 @@ void set_re_rp(planetspec *planet)
  * The level phi = 0 corresponds to an appropriate reference radius.
  */
 
-void init_phi_surface(planetspec       *planet,
-                      init_defaultspec *def)
+void init_phi_surface(void)
 {
   int
     K,J,I,
@@ -337,7 +109,7 @@ void init_phi_surface(planetspec       *planet,
     end[TWODIM];
   size_t
     index[1];
-  EPIC_FLOAT
+  double
     nc_grid_globe_lonbot,
     nc_grid_globe_lontop,
     nc_grid_globe_latbot,
@@ -346,7 +118,7 @@ void init_phi_surface(planetspec       *planet,
     nc_grid_geometry[GEOM_STR],
     nc_planet_name[N_STR],  /* NOTE: If [16], on Darwin next variable sometimes overwritten */
     phi_surface_nc[N_STR];
-  EPIC_FLOAT
+  double
     lonr,latr,sin_lat,cos_lat,
     sum,r,phi,
     rerp,
@@ -354,7 +126,7 @@ void init_phi_surface(planetspec       *planet,
     two_l,lplusm,lminusm,
     ge,gp,
     spin_factor,sinlat2,coslat2;
-  EPIC_FLOAT
+  double
    ***p_lm,
     **cos_mlon,
     **sin_mlon,
@@ -362,13 +134,11 @@ void init_phi_surface(planetspec       *planet,
     **s_lm_r;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *gravity;            /* Some planets need an estimate of surface gravity vs latitude */
   char
     data_file_name[N_STR],
     header[N_STR];
-  nc_type
-    nc_float_type;
   FILE
     *infile_r;
   struct dirent
@@ -381,12 +151,6 @@ void init_phi_surface(planetspec       *planet,
   static char
     dbmsname[]="init_phi_surface";
 
-#if EPIC_PRECISION == DOUBLE_PRECISION
-   nc_float_type  = NC_DOUBLE;
-#else
-   nc_float_type  = NC_FLOAT;
-#endif
-
   if (!initialized) {
     if (strcmp(planet->type,"terrestrial") != 0) {
       sprintf(Message,"planet->type=%s not implemented",planet->type);
@@ -394,7 +158,7 @@ void init_phi_surface(planetspec       *planet,
     }
 
     /* Allocate memory */
-    gravity = fvector(0,JHI-JLO,dbmsname);
+    gravity = dvector(0,JHI-JLO,dbmsname);
 
     /*
      * Set up surface gravity vs latitude, for cases that need it.
@@ -423,7 +187,7 @@ void init_phi_surface(planetspec       *planet,
      * Held-Suarez test case has no topography.
      * Set PHI_SURFACE(J,I) = 0. and return.
      */
-    memset(var.phi_surface.value,0,sizeof(EPIC_FLOAT)*Nelem2d);
+    memset(var.phi_surface.value,0,sizeof(double)*Nelem2d);
     return;
   }
   else if (strcmp(planet->name,"Goldmine") == 0) {
@@ -434,16 +198,16 @@ void init_phi_surface(planetspec       *planet,
      *
      * NOTE: grid.rln[kk][jj], grid.rlt[kk][jj] not available.
      */
-    EPIC_FLOAT
+    double
       x,y,r2,a,height;
 
-    grid.aux_fa = height = 1000.*input_float("Height of mountain [km]\n",8.);
+    grid.aux_fa = height = 1000.*input_double("Height of mountain [km]\n",8.,1);
     if (height == 0.){
-      memset(var.phi_surface.value,0,sizeof(EPIC_FLOAT)*Nelem2d);
+      memset(var.phi_surface.value,0,sizeof(double)*Nelem2d);
       return;
     }
     else {
-      grid.aux_fb = a = 1000.*input_float("Gaussian width [km]\n",80.);
+      grid.aux_fb = a = 1000.*input_double("Gaussian width [km]\n",80.,1);
       for (J = JLO; J <= JHI; J++){
         y = (grid.lat[2*J+1]-grid.lat[2*(grid.nj/2)-1])*DEG*planet->re;
         for (I = ILO; I <= IHI; I++){
@@ -550,11 +314,7 @@ void init_phi_surface(planetspec       *planet,
         }
 
         /* latbot */
-#if EPIC_PRECISION == DOUBLE_PRECISION
         nc_err = nc_get_att_double(nc_id,NC_GLOBAL,"grid_globe_latbot",&nc_grid_globe_latbot);
-#else
-        nc_err = nc_get_att_float(nc_id,NC_GLOBAL,"grid_globe_latbot",&nc_grid_globe_latbot);
-#endif
         if (nc_err != NC_NOERR) {
           fprintf(stderr,"Warning: init_phi_surface(): %s\n", nc_strerror(nc_err));
           continue;
@@ -565,11 +325,7 @@ void init_phi_surface(planetspec       *planet,
         }
 
         /* lattop */
-#if EPIC_PRECISION == DOUBLE_PRECISION
         nc_err = nc_get_att_double(nc_id,NC_GLOBAL,"grid_globe_lattop",&nc_grid_globe_lattop);
-#else
-        nc_err = nc_get_att_float(nc_id,NC_GLOBAL,"grid_globe_lattop",&nc_grid_globe_lattop);
-#endif
         if (nc_err != NC_NOERR) {
           fprintf(stderr,"Warning: init_phi_surface(): %s\n", nc_strerror(nc_err));
           continue;
@@ -580,11 +336,7 @@ void init_phi_surface(planetspec       *planet,
         }
 
         /* lonbot */
-#if EPIC_PRECISION == DOUBLE_PRECISION
         nc_err = nc_get_att_double(nc_id,NC_GLOBAL,"grid_globe_lonbot",&nc_grid_globe_lonbot);
-#else
-        nc_err = nc_get_att_float(nc_id,NC_GLOBAL,"grid_globe_lonbot",&nc_grid_globe_lonbot);
-#endif
         if (nc_err != NC_NOERR) {
           fprintf(stderr,"Warning: init_phi_surface(): %s\n", nc_strerror(nc_err));
           continue;
@@ -595,11 +347,7 @@ void init_phi_surface(planetspec       *planet,
         }
 
         /* lontop */
-#if EPIC_PRECISION == DOUBLE_PRECISION
         nc_err = nc_get_att_double(nc_id,NC_GLOBAL,"grid_globe_lontop",&nc_grid_globe_lontop);
-#else
-        nc_err = nc_get_att_float(nc_id,NC_GLOBAL,"grid_globe_lontop",&nc_grid_globe_lontop);
-#endif
         if (nc_err != NC_NOERR) {
           fprintf(stderr,"Warning: init_phi_surface(): %s\n", nc_strerror(nc_err));
           continue;
@@ -643,7 +391,7 @@ void init_phi_surface(planetspec       *planet,
     for (node = 0; node < num_nodes; node++) {
       get_jlohi(node,num_nodes,start+1,end+1);
       read_array(node,TWODIM,start,end,var.phi_surface.info[0].name,
-                 var.phi_surface.info[0].index,var.phi_surface.value,EPIC_FLOAT_ARRAY,nc_id);
+                 var.phi_surface.info[0].index,var.phi_surface.value,DOUBLE_ARRAY,nc_id);
     }
     if (IAMNODE == NODE0) {
       /* Close file. */
@@ -779,54 +527,54 @@ void init_phi_surface(planetspec       *planet,
   /*
    * Allocate memory for (l,m) spherical-harmonic coefficients, p_lm.
    */
-  p_lm = (EPIC_FLOAT ***)calloc(JHI-JLO+1,sizeof(EPIC_FLOAT **));
+  p_lm = (double ***)calloc(JHI-JLO+1,sizeof(double **));
   if (!p_lm) {
     sprintf(Message,"calloc error allocating p_lm");
     epic_error(dbmsname,Message);
   }
   for (J = JLO; J <= JHI; J++) {
-    p_lm[J-JLO] = (EPIC_FLOAT **)calloc(max_l+1,sizeof(EPIC_FLOAT *));
+    p_lm[J-JLO] = (double **)calloc(max_l+1,sizeof(double *));
     if (!p_lm[J-JLO]) {
       sprintf(Message,"calloc error allocating p_lm[%d-%d]",J,JLO);
       epic_error(dbmsname,Message);
     }
     for (l = 0; l <= max_l; l++) {
-      p_lm[J-JLO][l] = fvector(0,l,dbmsname);
+      p_lm[J-JLO][l] = dvector(0,l,dbmsname);
     }
   }
 
-  cos_mlon = (EPIC_FLOAT **)calloc(grid.ni,sizeof(EPIC_FLOAT *));
+  cos_mlon = (double **)calloc(grid.ni,sizeof(double *));
   if (!cos_mlon) {
     sprintf(Message,"calloc error allocating cos_mlon");
     epic_error(dbmsname,Message);
   }
-  sin_mlon = (EPIC_FLOAT **)calloc(grid.ni,sizeof(EPIC_FLOAT *));
+  sin_mlon = (double **)calloc(grid.ni,sizeof(double *));
   if (!sin_mlon) {
     sprintf(Message,"calloc error allocating sin_mlon");
     epic_error(dbmsname,Message);
   }
   for (I = ILO; I <= IHI; I++) {
     ilocal = I-ILO;
-    cos_mlon[ilocal] = fvector(0,max_l,dbmsname);
-    sin_mlon[ilocal] = fvector(0,max_l,dbmsname);
+    cos_mlon[ilocal] = dvector(0,max_l,dbmsname);
+    sin_mlon[ilocal] = dvector(0,max_l,dbmsname);
   }
 
   if (max_l >= 0) {
-    c_lm_r = (EPIC_FLOAT **)calloc(max_l+1,sizeof(EPIC_FLOAT *));
+    c_lm_r = (double **)calloc(max_l+1,sizeof(double *));
     if (!c_lm_r) {
       sprintf(Message,"calloc error allocating c_lm_r");
       epic_error(dbmsname,Message);
     }
 
-    s_lm_r = (EPIC_FLOAT **)calloc(max_l+1,sizeof(EPIC_FLOAT *));
+    s_lm_r = (double **)calloc(max_l+1,sizeof(double *));
     if (!s_lm_r) {
       sprintf(Message,"calloc error allocating s_lm_r");
       epic_error(dbmsname,Message);
     }
 
     for (l = 0; l <= max_l; l++) {
-      c_lm_r[l] = fvector(0,l,dbmsname);
-      s_lm_r[l] = fvector(0,l,dbmsname);
+      c_lm_r[l] = dvector(0,l,dbmsname);
+      s_lm_r[l] = dvector(0,l,dbmsname);
     }
   }
 
@@ -838,33 +586,15 @@ void init_phi_surface(planetspec       *planet,
       /*-------* 
        * Venus *
        *-------*/
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(infile_r," %lf",&r0);
-#else
-      fscanf(infile_r," %f",&r0);
-#endif
 
       /* Convert reference radius from km to m. */
       r0 *= 1.e+3;
       for (l = 0; l <= max_l; l++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
-          fscanf(infile_r," %lf",c_lm_r[l]);
-#else
-          fscanf(infile_r," %f",c_lm_r[l]);
-#endif
-
+        fscanf(infile_r," %lf",c_lm_r[l]);
         for (m = 1; m <= l; m++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
           fscanf(infile_r," %lf",c_lm_r[l]+m);
           fscanf(infile_r," %lf",s_lm_r[l]+m);
-#else
-          fscanf(infile_r," %f",c_lm_r[l]+m);
-          fscanf(infile_r," %f",s_lm_r[l]+m);
-#endif
-
         }
       }
       fclose(infile_r);
@@ -878,13 +608,7 @@ void init_phi_surface(planetspec       *planet,
       r0 = 0.;
       for (l = 0; l <= max_l; l++) {
         for (m = 0; m <= l; m++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
           fscanf(infile_r,"%*d %*d %lf %lf",c_lm_r[l]+m,s_lm_r[l]+m);
-#else
-          fscanf(infile_r,"%*d %*d %f %f",c_lm_r[l]+m,s_lm_r[l]+m);
-#endif
-
         }
       }
       fclose(infile_r);
@@ -896,13 +620,7 @@ void init_phi_surface(planetspec       *planet,
 
       for (l = 0; l <= max_l; l++) {
         for (m = 0; m <= l; m++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
           fscanf(infile_r," %*d, %*d, %lf, %lf, %*f, %*f",c_lm_r[l]+m,s_lm_r[l]+m);
-#else
-          fscanf(infile_r," %*d, %*d, %f, %f, %*f, %*f",c_lm_r[l]+m,s_lm_r[l]+m);
-#endif
-
         }
       }
       fclose(infile_r);
@@ -912,7 +630,7 @@ void init_phi_surface(planetspec       *planet,
        * Titan *
        *-------*/
 
-      EPIC_FLOAT
+      double
         tmp1,tmp2,
         sign;
 
@@ -923,26 +641,13 @@ void init_phi_surface(planetspec       *planet,
       for (l = 0; l <= max_l; l++) {
         m    = 0;
         sign = 1.;
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(infile_r," %*d %*d %lf %*lf",c_lm_r[l]+m);
-#else
-        fscanf(infile_r," %*d %*d %f %*f",  c_lm_r[l]+m);
-#endif
-
         for (m = 1; m <= l; m++) {
           /*
            * The Corlies et al.(2017) coefficients need the (-1)^m, Condon-Shortley phase factor.
            */
           sign = -sign;
-
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
           fscanf(infile_r," %*d %*d %lf %*lf %*d %*d %lf %*lf",&tmp1,&tmp2);
-#else
-          fscanf(infile_r," %*d %*d %f %*f %*d %*d %f %*f",    &tmp1,&tmp2);
-#endif
-
           c_lm_r[l][m] = sign*tmp1;
           s_lm_r[l][m] = sign*tmp2;
         }
@@ -971,8 +676,8 @@ void init_phi_surface(planetspec       *planet,
     ilocal = I-ILO;
     lonr   = grid.lon[2*I+1]*DEG;
     for (m = 0; m <= max_l; m++) {
-      cos_mlon[ilocal][m] = cos((EPIC_FLOAT)m*lonr);
-      sin_mlon[ilocal][m] = sin((EPIC_FLOAT)m*lonr);
+      cos_mlon[ilocal][m] = cos((double)m*lonr);
+      sin_mlon[ilocal][m] = sin((double)m*lonr);
     }
   }
 
@@ -1026,11 +731,11 @@ void init_phi_surface(planetspec       *planet,
       }
     }
     if (IAMNODE == NODE0) {
-      fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(EPIC_FLOAT)(jlocal+1)/(JHI-JLO+1)));
+      fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(double)(jlocal+1)/(JHI-JLO+1)));
     }
 
     if (strncmp(planet->name,"Titan",5) == 0) {
-      EPIC_FLOAT
+      double
         coef,norm;
 
       /*
@@ -1088,7 +793,7 @@ void init_phi_surface(planetspec       *planet,
         PHI_SURFACE(J,I) = gravity[J-JLO]*r0*(sum-1.);
       }
       if (IAMNODE == NODE0) {
-        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(EPIC_FLOAT)(jlocal+1)/(JHI-JLO+1)));
+        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(double)(jlocal+1)/(JHI-JLO+1)));
       }
     }
     /* Need bc_lateral() here. */
@@ -1129,7 +834,7 @@ void init_phi_surface(planetspec       *planet,
         PHI_SURFACE(J,I) = gravity[J-JLO]*sum;
       }
       if (IAMNODE == NODE0) {
-        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(EPIC_FLOAT)(jlocal+1)/(JHI-JLO+1)));
+        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(double)(jlocal+1)/(JHI-JLO+1)));
       }
     }
     /* Need bc_lateral() here. */
@@ -1151,7 +856,7 @@ void init_phi_surface(planetspec       *planet,
      *       the OpenMARS model did not do this, we were not able to find a self-consistent
      *       way of using it.
      */
-    EPIC_FLOAT
+    double
       g0         = 3.71,
       reduce_J2  = 0.06,
       lowest_lat = 1.e+20,
@@ -1194,7 +899,7 @@ void init_phi_surface(planetspec       *planet,
         PHI_SURFACE(J,I) = g0*r;
       }
       if (IAMNODE == NODE0) {
-        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(EPIC_FLOAT)(jlocal+1)/(JHI-JLO+1)));
+        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(double)(jlocal+1)/(JHI-JLO+1)));
       }
     }
     /* Need bc_lateral() here. */
@@ -1243,7 +948,7 @@ void init_phi_surface(planetspec       *planet,
      *
      * NOTE: The second instance of "q_r" in Mitri et al. (2014), Eq. (12) should be "q_t".
      */
-    EPIC_FLOAT
+    double
       q_r  =   3.9528e-5,
       q_t  =  -1.1858e-4,
       C_20 = -33.5990e-6,
@@ -1275,7 +980,7 @@ void init_phi_surface(planetspec       *planet,
         PHI_SURFACE(J,I)    = gravity[J-JLO]*(sum-reference_ellipsoid);
       }
       if (IAMNODE == NODE0) {
-        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(EPIC_FLOAT)(jlocal+1)/(JHI-JLO+1)));
+        fprintf(stderr,"\b\b\b\b%3d%%",(int)(100.*(double)(jlocal+1)/(JHI-JLO+1)));
       }
     }
     /* Need bc_lateral() here. */
@@ -1290,8 +995,8 @@ void init_phi_surface(planetspec       *planet,
    */
   if (max_l >= 0) {
     for (l = max_l; l >= 0; l--) {
-      free_fvector(s_lm_r[l],0,l,dbmsname);
-      free_fvector(c_lm_r[l],0,l,dbmsname);
+      free_dvector(s_lm_r[l],0,l,dbmsname);
+      free_dvector(c_lm_r[l],0,l,dbmsname);
     }
     free(s_lm_r);
     free(c_lm_r);
@@ -1299,8 +1004,8 @@ void init_phi_surface(planetspec       *planet,
 
   for (I = ILO; I <= IHI; I++) {
     ilocal = I-ILO;
-    free_fvector(sin_mlon[ilocal],0,max_l,dbmsname);
-    free_fvector(cos_mlon[ilocal],0,max_l,dbmsname);
+    free_dvector(sin_mlon[ilocal],0,max_l,dbmsname);
+    free_dvector(cos_mlon[ilocal],0,max_l,dbmsname);
   }
   free(sin_mlon);
   free(cos_mlon);
@@ -1308,7 +1013,7 @@ void init_phi_surface(planetspec       *planet,
   for (J = JLO; J <= JHI; J++) {
     jlocal = J-JLO;
     for (l = 0; l <= max_l; l++) {
-      free_fvector(   p_lm[jlocal][l],0,max_l,dbmsname);
+      free_dvector(   p_lm[jlocal][l],0,max_l,dbmsname);
     }
     free(   p_lm[jlocal]);
   }
@@ -1331,7 +1036,7 @@ void init_phi_surface(planetspec       *planet,
     grid.re[K] = planet->re;
     grid.rp[K] = planet->rp;
   }
-  set_fmn(planet);
+  set_fmn();
   /*
    * Call with negative index to cause function re-initialization on next call.
    */
@@ -1355,10 +1060,10 @@ void init_phi_surface(planetspec       *planet,
     WRITEI(&grid.nj,grid_nj,1);
     WRITEI(&grid.ni,grid_ni,1);
     WRITEC(grid.geometry,grid_geometry,GEOM_STR);
-    WRITEF(&grid.globe_lonbot,grid_globe_lonbot,1);
-    WRITEF(&grid.globe_lontop,grid_globe_lontop,1);
-    WRITEF(&grid.globe_latbot,grid_globe_latbot,1);
-    WRITEF(&grid.globe_lattop,grid_globe_lattop,1);
+    WRITED(&grid.globe_lonbot,grid_globe_lonbot,1);
+    WRITED(&grid.globe_lontop,grid_globe_lontop,1);
+    WRITED(&grid.globe_latbot,grid_globe_latbot,1);
+    WRITED(&grid.globe_lattop,grid_globe_lattop,1);
 
     /*
      * PHI_SURFACE(J,I) resides on the p-grid.
@@ -1370,7 +1075,7 @@ void init_phi_surface(planetspec       *planet,
      * lon (I direction): 
      */
     nc_def_dim(nc_id,"lon_p",idim,&var.phi_surface.info[0].dimid[NETCDF_I_INDEX]);
-    nc_def_var(nc_id,"lon_p",nc_float_type,ONEDIM,
+    nc_def_var(nc_id,"lon_p",NC_DOUBLE,ONEDIM,
                &var.phi_surface.info[0].dimid[NETCDF_I_INDEX],
                &var.phi_surface.info[0].coorid[NETCDF_I_INDEX]);
     nc_put_att_text(nc_id,var.phi_surface.info[0].coorid[NETCDF_I_INDEX],"units",
@@ -1379,7 +1084,7 @@ void init_phi_surface(planetspec       *planet,
      * lat (J direction):
      */
     nc_def_dim(nc_id,"lat_p",jdim,&var.phi_surface.info[0].dimid[NETCDF_J_INDEX]);
-    nc_def_var(nc_id,"lat_p",nc_float_type,ONEDIM,
+    nc_def_var(nc_id,"lat_p",NC_DOUBLE,ONEDIM,
                &var.phi_surface.info[0].dimid[NETCDF_J_INDEX],
                &var.phi_surface.info[0].coorid[NETCDF_J_INDEX]);
     nc_put_att_text(nc_id,var.phi_surface.info[0].coorid[NETCDF_J_INDEX],"units",
@@ -1388,7 +1093,7 @@ void init_phi_surface(planetspec       *planet,
                     strlen("planetographic")+1,"planetographic");
 
     /* phi_surface */
-    nc_def_var(nc_id,"phi_surface",nc_float_type,TWODIM,
+    nc_def_var(nc_id,"phi_surface",NC_DOUBLE,TWODIM,
                &var.phi_surface.info[0].dimid[NETCDF_J_INDEX],
                &var.phi_surface.info[0].id);
     nc_put_att_text(nc_id,var.phi_surface.info[0].id,"units",
@@ -1405,26 +1110,16 @@ void init_phi_surface(planetspec       *planet,
      */
     for (I = 1; I <= grid.ni; I++) {
       index[0] = I-1;
-#if EPIC_PRECISION == DOUBLE_PRECISION
       nc_put_var1_double(nc_id,var.phi_surface.info[0].coorid[NETCDF_I_INDEX],
                          index,&(grid.lon[2*I+1]));
-#else
-      nc_put_var1_float(nc_id,var.phi_surface.info[0].coorid[NETCDF_I_INDEX],
-                        index,&(grid.lon[2*I+1]));
-#endif
     }
     /*
      * Latitude:
      */
     for (J = grid.jlo; J <= grid.nj; J++) {
       index[0] = J-grid.jlo;
-#if EPIC_PRECISION == DOUBLE_PRECISION
       nc_put_var1_double(nc_id,var.phi_surface.info[0].coorid[NETCDF_J_INDEX],
                          index,&(grid.lat[2*J+1]));
-#else
-      nc_put_var1_float(nc_id,var.phi_surface.info[0].coorid[NETCDF_J_INDEX],
-                        index,&(grid.lat[2*J+1]));
-#endif
     }
   }
 
@@ -1441,7 +1136,7 @@ void init_phi_surface(planetspec       *planet,
   for (node = 0; node < num_nodes; node++) {
     get_jlohi(node,num_nodes,start+1,end+1);
     write_array(node,TWODIM,start,end,0,var.phi_surface.info[0].name,
-                var.phi_surface.info[0].index,var.phi_surface.value,EPIC_FLOAT_ARRAY,nc_id);
+                var.phi_surface.info[0].index,var.phi_surface.value,DOUBLE_ARRAY,nc_id);
   }
 
   if (IAMNODE == NODE0) {
@@ -1497,18 +1192,9 @@ int is_phi_surface_file(const struct dirent *entry)
 #define RHO_FINE(iitp,J)   rho_fine[iitp][J-JLO]
 #define U_FINE(iitp,J)     u_fine[iitp][J-JLO]
 
-#undef  ACOMPACT
-#define ACOMPACT(i,j) acompact[(m1+m2+1)*(i)+(j)]
-#undef  AORIG
-#define AORIG(i,j) aorig[(m1+m2+1)*(i)+(j)]
-#undef  AL
-#define AL(i,j) al[m1*(i)+(j)]
-
-void init_with_u(planetspec        *planet,
-                 int                floor_tp,
-                 int                ceiling_tp,
-                 init_defaultspec  *def,
-                 EPIC_FLOAT       **Buff2D)
+void init_with_u(int                 floor_tp,
+                 int                 ceiling_tp,
+                 init_defaultspec   *def)
 {
   int
     K,J,I,
@@ -1517,7 +1203,7 @@ void init_with_u(planetspec        *planet,
     n,m1,m2,
     count,
    *index;
-  EPIC_FLOAT
+  double
     pressure,temperature,density,
     fpara,mu,theta,
     fgibb,fpe,uoup,
@@ -1528,7 +1214,7 @@ void init_with_u(planetspec        *planet,
     dz10,dz20,dz30,dz21,dz31,dz32,
     df0,df1,df2,df3,
     neglogp,h,tmp,tmp2;
-  EPIC_FLOAT
+  double
     *mudat,
     *exnerdat,
     *rhodat,
@@ -1546,9 +1232,7 @@ void init_with_u(planetspec        *planet,
     **exner_fine,
     **rho_fine,
     **u_fine;
-  EPIC_FLOAT
-    *aorig,*acompact,*al,*b,*borig,d;
-  float_triplet
+  double_triplet
     *buff_triplet;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1574,81 +1258,81 @@ void init_with_u(planetspec        *planet,
    * Allocate memory:
    */
    if (grid.coord_type == COORD_ISENTROPIC) {
-     thetadat = fvector(0,var.ntp-1,dbmsname);
-     exnerdat = fvector(0,var.ntp-1,dbmsname);
+     thetadat = dvector(0,var.ntp-1,dbmsname);
+     exnerdat = dvector(0,var.ntp-1,dbmsname);
    }
    else {
-     rhodat = fvector(0,var.ntp-1,dbmsname);
-     mudat  = fvector(0,var.ntp-1,dbmsname);
+     rhodat = dvector(0,var.ntp-1,dbmsname);
+     mudat  = dvector(0,var.ntp-1,dbmsname);
    }
 
-   fpdat        = fvector(0,var.ntp-1,dbmsname);
-   udy          = fvector(0,grid.nj+1,dbmsname);
-   pvhudy       = fvector(0,grid.nj+1,dbmsname);
-   bern         = fvector(0,grid.nj+1,dbmsname);
-   buff_triplet = ftriplet(0,IMAX(var.ntp,grid.nk+1),dbmsname);
+   fpdat        = dvector(0,var.ntp-1,dbmsname);
+   udy          = dvector(0,grid.nj+1,dbmsname);
+   pvhudy       = dvector(0,grid.nj+1,dbmsname);
+   bern         = dvector(0,grid.nj+1,dbmsname);
+   buff_triplet = dtriplet(0,IMAX(var.ntp,grid.nk+1),dbmsname);
 
    /*
     * Allocate 2D arrays for mont_fine or phi_fine, etc.
     */
    if (grid.coord_type == COORD_ISENTROPIC) {
-     mont_fine = (EPIC_FLOAT **)calloc(var.ntp,sizeof(EPIC_FLOAT *));
+     mont_fine = (double **)calloc(var.ntp,sizeof(double *));
      if (!mont_fine) {
        sprintf(Message,"unable to allocate mont_fine");
        epic_error(dbmsname,Message);
      }
 
-     p_fine = (EPIC_FLOAT **)calloc(var.ntp,sizeof(EPIC_FLOAT *));
+     p_fine = (double **)calloc(var.ntp,sizeof(double *));
      if (!p_fine) {
        sprintf(Message,"unable to allocate p_fine");
        epic_error(dbmsname,Message);
      }
 
-     exner_fine = (EPIC_FLOAT **)calloc(var.ntp,sizeof(EPIC_FLOAT *));
+     exner_fine = (double **)calloc(var.ntp,sizeof(double *));
      if (!exner_fine) {
        sprintf(Message,"unable to allocate exner_fine");
        epic_error(dbmsname,Message);
      }
 
      for (iitp = 0; iitp < var.ntp; iitp++) {
-       mont_fine[iitp]  = fvector(0,JHI-JLO,dbmsname);
-       p_fine[iitp]     = fvector(0,JHI-JLO,dbmsname);
-       exner_fine[iitp] = fvector(0,JHI-JLO,dbmsname);
+       mont_fine[iitp]  = dvector(0,JHI-JLO,dbmsname);
+       p_fine[iitp]     = dvector(0,JHI-JLO,dbmsname);
+       exner_fine[iitp] = dvector(0,JHI-JLO,dbmsname);
      }
    }
    else {
-     phi_fine = (EPIC_FLOAT **)calloc(var.ntp,sizeof(EPIC_FLOAT *));
+     phi_fine = (double **)calloc(var.ntp,sizeof(double *));
      if (!phi_fine) {
        sprintf(Message,"unable to allocate phi_fine");
        epic_error(dbmsname,Message);
      }
 
-     theta_fine = (EPIC_FLOAT **)calloc(var.ntp,sizeof(EPIC_FLOAT *));
+     theta_fine = (double **)calloc(var.ntp,sizeof(double *));
      if (!theta_fine) {
        sprintf(Message,"unable to allocate theta_fine");
        epic_error(dbmsname,Message);
      }
 
-     rho_fine = (EPIC_FLOAT **)calloc(var.ntp,sizeof(EPIC_FLOAT *));
+     rho_fine = (double **)calloc(var.ntp,sizeof(double *));
      if (!rho_fine) {
        sprintf(Message,"unable to allocate rho_fine");
        epic_error(dbmsname,Message);
      }
 
      for (iitp = 0; iitp < var.ntp; iitp++) {
-       phi_fine[iitp]   = fvector(0,JHI-JLO,dbmsname);
-       theta_fine[iitp] = fvector(0,JHI-JLO,dbmsname);
-       rho_fine[iitp]   = fvector(0,JHI-JLO,dbmsname);
+       phi_fine[iitp]   = dvector(0,JHI-JLO,dbmsname);
+       theta_fine[iitp] = dvector(0,JHI-JLO,dbmsname);
+       rho_fine[iitp]   = dvector(0,JHI-JLO,dbmsname);
      }
    }
 
-   u_fine = (EPIC_FLOAT **)calloc(var.ntp,sizeof(EPIC_FLOAT *));
+   u_fine = (double **)calloc(var.ntp,sizeof(double *));
    if (!u_fine) {
      sprintf(Message,"unable to allocate u_fine");
      epic_error(dbmsname,Message);
    }
    for (iitp = 0; iitp < var.ntp; iitp++) {
-     u_fine[iitp] = fvector(0,JHI-JLO,dbmsname);
+     u_fine[iitp] = dvector(0,JHI-JLO,dbmsname);
    }
 
   /*
@@ -1663,7 +1347,7 @@ void init_with_u(planetspec        *planet,
      * Set thetadat, exnerdat.
      */
     for (iitp = floor_tp; iitp <= ceiling_tp; iitp++) {
-      thetadat[iitp] = return_theta(planet,fpdat[iitp],var.pdat[iitp],var.tdat[iitp],&theta_ortho,&theta_para);
+      thetadat[iitp] = return_theta(fpdat[iitp],var.pdat[iitp],var.tdat[iitp],&theta_ortho,&theta_para);
       exnerdat[iitp] = planet->cp*var.tdat[iitp]/thetadat[iitp];
     }
   }
@@ -1674,7 +1358,7 @@ void init_with_u(planetspec        *planet,
      */
     for (iitp = floor_tp; iitp <= ceiling_tp; iitp++) {
       mudat[iitp]  = mu_p(var.pdat[iitp]);
-      rhodat[iitp] = return_density(planet,fpdat[iitp],var.pdat[iitp],var.tdat[iitp],mudat[iitp],PASSING_T);
+      rhodat[iitp] = return_density(fpdat[iitp],var.pdat[iitp],var.tdat[iitp],mudat[iitp],PASSING_T);
     }
   }
 
@@ -1872,7 +1556,7 @@ void init_with_u(planetspec        *planet,
        *
        * NOTE: kk is not related to K in this iitp loop.
        */
-      tmp2 = FLOAT_MAX;
+      tmp2 = DBL_MAX;
       for (kaykay = 1; kaykay <= 2*KHI+1; kaykay++) {
         tmp = fabs(thetadat[iitp]-grid.theta_ref[kaykay]);
         if (tmp < tmp2) {
@@ -1888,7 +1572,7 @@ void init_with_u(planetspec        *planet,
        *
        * NOTE: kk is not related to K in this iitp loop.
        */
-      tmp2 = FLOAT_MAX;
+      tmp2 = DBL_MAX;
       for (kaykay = 1; kaykay <= 2*KHI+1; kaykay++) {
         tmp = fabs(var.pdat[iitp]-grid.p_ref[kaykay]);
         if (tmp < tmp2) {
@@ -1940,17 +1624,17 @@ void init_with_u(planetspec        *planet,
        * Calculate bern by integrating -pvhudy.
        * Calculate MONT_FINE = bern-kin.
        */
-      bern[grid.jtp] = MONT_FINE(iitp,grid.jtp)+get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
-                                                               var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,grid.jtp,I);
+      bern[grid.jtp] = MONT_FINE(iitp,grid.jtp)+get_kin(var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
+                                                        var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,grid.jtp,I);
       for (J = grid.jtp+1; J <= JHI; J++) {
         bern[J]           = bern[J-1]-pvhudy[J];
-        MONT_FINE(iitp,J) = bern[J]-get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
-                                                   var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
+        MONT_FINE(iitp,J) = bern[J]-get_kin(var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
+                                            var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
       }
       for (J = grid.jtp-1; J >= JLO; J--) {
         bern[J]           = bern[J+1]+pvhudy[J+1];
-        MONT_FINE(iitp,J) = bern[J]-get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
-                                                   var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
+        MONT_FINE(iitp,J) = bern[J]-get_kin(var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
+                                            var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
       }
     }
     else {
@@ -1958,17 +1642,17 @@ void init_with_u(planetspec        *planet,
        * Calculate bern by integrating -pvhudy.
        * Calculate PHI_FINE = bern-kin.
        */
-      bern[grid.jtp] = PHI_FINE(iitp,grid.jtp)+get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
-                                                              var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,grid.jtp,I);
+      bern[grid.jtp] = PHI_FINE(iitp,grid.jtp)+get_kin(var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
+                                                       var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,grid.jtp,I);
       for (J = grid.jtp+1; J <= JHI; J++) {
         bern[J]          = bern[J-1]-pvhudy[J];
-        PHI_FINE(iitp,J) = bern[J]-get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
-                                                  var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
+        PHI_FINE(iitp,J) = bern[J]-get_kin(var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
+                                           var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
       }
       for (J = grid.jtp-1; J >= JLO; J--) {
         bern[J]          = bern[J+1]+pvhudy[J+1];
-        PHI_FINE(iitp,J) = bern[J]-get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
-                                                  var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
+        PHI_FINE(iitp,J) = bern[J]-get_kin(var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,
+                                           var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv)*Nelem3d,kk,J,I);
       }
     }
   }
@@ -2041,7 +1725,7 @@ void init_with_u(planetspec        *planet,
     for (J = JLO; J <= JHI; J++) {
       for (iitp = floor_tp; iitp <= ceiling_tp; iitp++) {
         temperature    = EXNER_FINE(iitp,J)*thetadat[iitp]/planet->cp;
-        P_FINE(iitp,J) = return_press(planet,fpdat[iitp],temperature,thetadat[iitp]);
+        P_FINE(iitp,J) = return_press(fpdat[iitp],temperature,thetadat[iitp]);
       }
     }
   }
@@ -2065,8 +1749,8 @@ void init_with_u(planetspec        *planet,
      */
     for (J = JLO; J <= JHI; J++) {
       for (iitp = floor_tp; iitp <= ceiling_tp; iitp++) {
-        temperature        = alt_return_temp(planet,fpdat[iitp],var.pdat[iitp],mudat[iitp],RHO_FINE(iitp,J));
-        THETA_FINE(iitp,J) = return_theta(planet,fpdat[iitp],var.pdat[iitp],temperature,&theta_ortho,&theta_para);
+        temperature        = alt_return_temp(fpdat[iitp],var.pdat[iitp],mudat[iitp],RHO_FINE(iitp,J));
+        THETA_FINE(iitp,J) = return_theta(fpdat[iitp],var.pdat[iitp],temperature,&theta_ortho,&theta_para);
       }
     }
   }
@@ -2333,13 +2017,13 @@ void init_with_u(planetspec        *planet,
   /*
    * Set H.
    */
-  p  = fvector(0,2*grid.nk+1,dbmsname);
-  hh = fvector(0,2*grid.nk+1,dbmsname);
+  p  = dvector(0,2*grid.nk+1,dbmsname);
+  hh = dvector(0,2*grid.nk+1,dbmsname);
   for (J = JLOPAD; J <= JHIPAD; J++) {
     jj = 2*J+1;
     for (I = ILOPAD; I <= IHIPAD; I++) {
       for (kk = 1; kk <= 2*KHI+1; kk++) {
-        p[kk] = get_p(planet,P2_INDEX,kk,J,I);
+        p[kk] = get_p(P2_INDEX,kk,J,I);
       }
       calc_h(jj,p,hh);
 
@@ -2352,13 +2036,13 @@ void init_with_u(planetspec        *planet,
       H(K,J,I) = SQR(H(K-1,J,I))/H(K-2,J,I);
     }
   }
-  free_fvector(p, 0,2*grid.nk+1,dbmsname);
-  free_fvector(hh,0,2*grid.nk+1,dbmsname);
+  free_dvector(p, 0,2*grid.nk+1,dbmsname);
+  free_dvector(hh,0,2*grid.nk+1,dbmsname);
 
   /*
    * Set P2, HDRY, THETA2, etc.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
+  set_p2_etc(UPDATE_THETA);
 
   /*
    * Set U.
@@ -2383,42 +2067,42 @@ void init_with_u(planetspec        *planet,
   /*
    * Free allocated memory:
    */
-  free_ftriplet(buff_triplet,0,IMAX(var.ntp,grid.nk+1),dbmsname);
+  free_dtriplet(buff_triplet,0,IMAX(var.ntp,grid.nk+1),dbmsname);
 
   if (grid.coord_type == COORD_ISENTROPIC) {
     for (iitp = 0; iitp < var.ntp; iitp++) {
-      free_fvector(exner_fine[iitp],0,JHI-JLO,dbmsname);
-      free_fvector(p_fine[iitp],    0,JHI-JLO,dbmsname);
-      free_fvector(mont_fine[iitp], 0,JHI-JLO,dbmsname);
-      free_fvector(u_fine[iitp],    0,JHI-JLO,dbmsname);
+      free_dvector(exner_fine[iitp],0,JHI-JLO,dbmsname);
+      free_dvector(p_fine[iitp],    0,JHI-JLO,dbmsname);
+      free_dvector(mont_fine[iitp], 0,JHI-JLO,dbmsname);
+      free_dvector(u_fine[iitp],    0,JHI-JLO,dbmsname);
     }
     free(exner_fine);
     free(p_fine);
     free(mont_fine);
 
-    free_fvector(thetadat,0,var.ntp-1,dbmsname);
-    free_fvector(exnerdat,0,var.ntp-1,dbmsname);
+    free_dvector(thetadat,0,var.ntp-1,dbmsname);
+    free_dvector(exnerdat,0,var.ntp-1,dbmsname);
   }
   else {
     for (iitp = 0; iitp < var.ntp; iitp++) {
-      free_fvector(rho_fine[iitp],  0,JHI-JLO,dbmsname);
-      free_fvector(theta_fine[iitp],0,JHI-JLO,dbmsname);
-      free_fvector(phi_fine[iitp],  0,JHI-JLO,dbmsname);
-      free_fvector(u_fine[iitp],    0,JHI-JLO,dbmsname);
+      free_dvector(rho_fine[iitp],  0,JHI-JLO,dbmsname);
+      free_dvector(theta_fine[iitp],0,JHI-JLO,dbmsname);
+      free_dvector(phi_fine[iitp],  0,JHI-JLO,dbmsname);
+      free_dvector(u_fine[iitp],    0,JHI-JLO,dbmsname);
     }
 
     free(rho_fine);
     free(theta_fine);
     free(phi_fine);
 
-    free_fvector(rhodat,0,var.ntp-1,dbmsname);
-    free_fvector(mudat, 0,var.ntp-1,dbmsname);
+    free_dvector(rhodat,0,var.ntp-1,dbmsname);
+    free_dvector(mudat, 0,var.ntp-1,dbmsname);
   }
   free(u_fine);
-  free_fvector(bern,    0,grid.nj+1,dbmsname);
-  free_fvector(pvhudy,  0,grid.nj+1,dbmsname);
-  free_fvector(udy,     0,grid.nj+1,dbmsname);
-  free_fvector(fpdat,   0,var.ntp-1,dbmsname);
+  free_dvector(bern,    0,grid.nj+1,dbmsname);
+  free_dvector(pvhudy,  0,grid.nj+1,dbmsname);
+  free_dvector(udy,     0,grid.nj+1,dbmsname);
+  free_dvector(fpdat,   0,var.ntp-1,dbmsname);
 
   return;
 }
@@ -2438,26 +2122,24 @@ void init_with_u(planetspec        *planet,
 /*====================== init_with_ref() =====================================*/
     
 /* 
- * For the hybrid vertical coordinate, initialize p in the upper region
- * using grid.p_ref[kk], and THETA in the lower region using grid.theta_ref[kk].
- * Use the diagnostic values for P and THETA in the complementary regions.
+ * Initialize P and THETA using grid.p_ref[kk] and grid.theta_ref[kk].
+ * For the hybrid vertical coordinate, use diagnostic values where appropriate.
  *
  * Assumes the surface pressure has already been set.
  */
 
-void init_with_ref(planetspec  *planet,
-                   EPIC_FLOAT **Buff2D)
+void init_with_ref(void)
 {
   int
     K,J,I,
     kk,ki,jj,iq;
-  EPIC_FLOAT
+  double
     pbot,sigma,gsg,
     s,s0,s1,
     p_diag,theta_diag,
     sum,lnp,lnp_d,
    *p,*h;
-  float_triplet
+  double_triplet
     theta_table[grid.nk+1];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2510,13 +2192,13 @@ void init_with_ref(planetspec  *planet,
   /*
    * Set H.
    */
-  p = fvector(0,2*grid.nk+1,dbmsname);
-  h = fvector(0,2*grid.nk+1,dbmsname);
+  p = dvector(0,2*grid.nk+1,dbmsname);
+  h = dvector(0,2*grid.nk+1,dbmsname);
   for (J = JLOPAD; J <= JHIPAD; J++) {
     jj = 2*J+1;
     for (I = ILOPAD; I <= IHIPAD; I++) {
       for (kk = 1; kk <= 2*KHI+1; kk++) {
-        p[kk] = get_p(planet,P2_INDEX,kk,J,I);
+        p[kk] = get_p(P2_INDEX,kk,J,I);
       }
       calc_h(jj,p,h);
 
@@ -2529,8 +2211,8 @@ void init_with_ref(planetspec  *planet,
       H(K,J,I) = SQR(H(K-1,J,I))/H(K-2,J,I);
     }
   }
-  free_fvector(p,0,2*grid.nk+1,dbmsname);
-  free_fvector(h,0,2*grid.nk+1,dbmsname);
+  free_dvector(p,0,2*grid.nk+1,dbmsname);
+  free_dvector(h,0,2*grid.nk+1,dbmsname);
 
   if (grid.coord_type == COORD_HYBRID) {
     for (J = JLOPAD; J <= JHIPAD; J++) {
@@ -2581,7 +2263,7 @@ void init_with_ref(planetspec  *planet,
   /*
    * Set P2, THETA2, etc.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
+  set_p2_etc(UPDATE_THETA);
 
   /*
    * Start with U = 0, V = 0, which requires no action.
@@ -2600,11 +2282,11 @@ void init_with_ref(planetspec  *planet,
  * Global variables used to communicate with fpe_minus_fpe():
  */
 
-void init_fpara_as_fpe(planetspec *planet)
+void init_fpara_as_fpe(void)
 {
   int
     K,J,I;
-  EPIC_FLOAT
+  double
     fpe,fptol;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2619,8 +2301,6 @@ void init_fpara_as_fpe(planetspec *planet)
     fprintf(stderr,"Warning: init_fpara_as_fpe(): var.fpara.on is off \n");
     return;
   }
-
-  FPEMFPE_planet = planet;
 
   fptol = pow(machine_epsilon(),2./3.);
 
@@ -2653,30 +2333,30 @@ void init_fpara_as_fpe(planetspec *planet)
  * equal to mass_density_i/mass_density_dry. The indices "is" and "ip" are the species index
  * (e.g. CH_4_INDEX) and phase index (e.g. VAPOR), respectively.
  *
- * Synchronized with Q is X(is,ip,K,J,I), the mole fraction, equal to
- * number_density/number_density_total.  Notice the different denominators, 'dry' vs. 'total',
- * between Q and X.
+ * The volume mixing ratios, aka mole fractions or number fractions, are calculated and stored
+ * in Q(is,ip,K,J,I) and then converted to mass mixing ratios. The pointer to Q is
+ * var.species[is].phase[ip].q.
  *
- * NOTE: Many textbooks use "q" for "specific humidity", which is density_i/density_total,
+ * NOTE: Some textbooks use "q" for "specific humidity", which is density_i/density_total,
  *       and not identical to the mass mixing ratio.
  *
  * NOTE: Need to calculate required diagnostic variables like T here,
  *       since this function is called before they are set.
  */
 
-void init_species(planetspec        *planet,
-                  init_defaultspec  *def,
-                  int                prompt_mode,
-                  EPIC_FLOAT       **Buff2D)
+void init_species(init_defaultspec  *def,
+                  int                prompt_mode)
 {
   int
     K,J,I,
     is,ip,iq;
-  EPIC_FLOAT
+  double
     factor,
     mu_dry,
     pressure,theta,fpara,
     fpe,fptol;
+  double
+   *x;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -2688,15 +2368,11 @@ void init_species(planetspec        *planet,
   /*
    * Make sure pressure-related diagnostic variables are set.
    */
-  set_p2_etc(planet,DONT_UPDATE_THETA,Buff2D);
+  set_p2_etc(DONT_UPDATE_THETA);
 
   /*
    * Calculate T3.
-   *
-   * Global variable used to communicate with fpe_minus_fpe():
    */
-  FPEMFPE_planet = planet;
-
   fptol = pow(machine_epsilon(),2./3.);
 
   for (J = JLOPAD; J <= JHIPAD; J++) {
@@ -2718,13 +2394,13 @@ void init_species(planetspec        *planet,
           find_root(0.25,1.00,fptol,&fpe,fpe_minus_fpe);
           fpara = fpe;
         }
-        T3(K,J,I) = return_temp(planet,fpara,pressure,theta);
+        T3(K,J,I) = return_temp(fpara,pressure,theta);
       }
     }
   }
 
   /*
-   * Calculate mole fractions, X (aka volume mixing ratios, vmr).
+   * Calculate mole fractions, X (aka volume mixing ratios, vmr). Store in Q.
    */
   for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
     if (var.species[is].on) {
@@ -2733,12 +2409,18 @@ void init_species(planetspec        *planet,
           switch (planet->index) {
             case JUPITER_INDEX:
             case SATURN_INDEX:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,
+                                      &def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
             default:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,
+                                      &def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
           }
         break;
@@ -2746,12 +2428,18 @@ void init_species(planetspec        *planet,
           switch (planet->index) {
             case JUPITER_INDEX:
             case SATURN_INDEX:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,
+                                      &def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
             default:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,
+                                      &def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
           }
         break;
@@ -2760,11 +2448,13 @@ void init_species(planetspec        *planet,
             case JUPITER_INDEX:
             case SATURN_INDEX:
             case URANUS_INDEX:
-              init_vmr_via_obs(planet,is,&def->mole_fraction[is],prompt_mode);
+              init_vmr_via_obs(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],prompt_mode);
             break;
             default:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
           }
         break;
@@ -2772,19 +2462,23 @@ void init_species(planetspec        *planet,
           switch (planet->index) {
             case JUPITER_INDEX:
             case SATURN_INDEX:
-              init_vmr_via_obs(planet,is,NULL,prompt_mode);
+              init_vmr_via_obs(is,var.species[is].phase[VAPOR].q,NULL,prompt_mode);
             break;
             default:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
           }
         break;
         case C_2H_4_INDEX:
           switch (planet->index) {
             default:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
           }
         break;
@@ -2792,19 +2486,23 @@ void init_species(planetspec        *planet,
           switch (planet->index) {
             case JUPITER_INDEX:
             case SATURN_INDEX:
-              init_vmr_via_obs(planet,is,NULL,prompt_mode);
+              init_vmr_via_obs(is,var.species[is].phase[VAPOR].q,NULL,prompt_mode);
             break;
             default:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
           }
         break;
         case PH_3_INDEX:
           switch (planet->index) {
             default:
-              init_vmr_via_deep_value(planet,is,&def->mole_fraction[is],
-                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],prompt_mode);
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],
+                                      &def->mole_fraction_over_solar[is],&def->rh_max[is],
+                                      &def->vmr_slope[is], &def->vmr_pcrit[is],
+                                      prompt_mode);
             break;
           }
         break;
@@ -2821,7 +2519,7 @@ void init_species(planetspec        *planet,
         if (var.species[is].phase[ip].on) {
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
-              X(is,ip,K,J,I) = X(is,ip,K-1,J,I);
+              Q(is,ip,K,J,I) = Q(is,ip,K-1,J,I);
             }
           }
           /* No need to call bc_lateral() here. */
@@ -2831,7 +2529,7 @@ void init_species(planetspec        *planet,
   }
 
   /*
-   * Synchronize mass mixing ratios, Q, to X.
+   * Convert from volume mixing ratio, i.e. number fraction, n_i/n_tot, to mass mixing ratio, Q_i.
    */
   for (K = KLOPAD; K <= KHIPAD; K++) {
     for (J = JLOPAD; J <= JHIPAD; J++) {
@@ -2839,11 +2537,17 @@ void init_species(planetspec        *planet,
         mu_dry = R_GAS/planet->rgas;
         factor  = 1.;
         for (iq = 0; iq < grid.nq; iq++) {
-          factor -= X(grid.is[iq],grid.ip[iq],K,J,I);
+          /*
+           * Here, Q holds the number fraction.
+           */
+          factor -= Q(grid.is[iq],grid.ip[iq],K,J,I);
         }
         factor = 1./(mu_dry*factor);
         for (iq = 0; iq < grid.nq; iq++) {
-          Q(grid.is[iq],grid.ip[iq],K,J,I) = X(grid.is[iq],grid.ip[iq],K,J,I)*var.species[grid.is[iq]].molar_mass*factor;
+          /*
+           * Here, Q is converted into mass mixing ratio.
+           */
+          Q(grid.is[iq],grid.ip[iq],K,J,I) *= var.species[grid.is[iq]].molar_mass*factor;
         }
       }
     }
@@ -2853,7 +2557,7 @@ void init_species(planetspec        *planet,
   /*
    * Update pressure-related diagnostic variables.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
+  set_p2_etc(UPDATE_THETA);
 
   return;
 }
@@ -2863,24 +2567,257 @@ void init_species(planetspec        *planet,
 /*====================== init_vmr_via_deep_value() ===========================*/
 
 /*
- * Assign volume mixing ratio (vmr, aka mole fraction) starting with a deep value,
- * which is assumed to be bounded by the saturation curve and a cold trap effect.
+ * Assign volume mixing ratio, X(K,J,I), (vmr, aka mole fraction) starting
+ * with a deep value, which is assumed to be bounded by the saturation curve
+ * and the cold trap effect.
  */
 
-void init_vmr_via_deep_value(planetspec *planet,
-                             int         is,
-                             EPIC_FLOAT *mole_fraction,
-                             EPIC_FLOAT *mole_fraction_over_solar,
-                             EPIC_FLOAT *rh_max,
+void init_vmr_via_deep_value(int         is,
+                             double     *x,
+                             double     *mole_fraction,
+                             double     *mole_fraction_over_solar,
+                             double     *rh_max,
+                             double *vmr_slope,
+                             double *vmr_pcrit,
                              int         prompt_mode)
 {
   register int
     K,J,I;
-  register EPIC_FLOAT
+  register double
     solar,
     sat_vapor_p,
     x_sat,
     mole_frac0;
+  double
+    supersat,rh_ji,rh_trim,x_ji,mole_frac_k,
+   *rh;
+  char
+    min_element[4],
+    prompt[64];
+  /* 
+   * The following are part of DEBUG_MILESTONE(.) statements: 
+   */
+  int
+    initialize_mode, follow_saturation_curve,
+    idbms=0;
+  static char
+    dbmsname[]="init_vmr_via_deep_value";
+
+    /*
+     * Establish deep-atmosphere mole fractions and store in *mole_fraction.
+     */
+    if (prompt_mode == USE_PROMPTS) {
+      solar = solar_fraction(var.species[is].info[0].name,MOLAR,min_element);
+      fprintf(stdout,"Solar mole fraction of %s is %e \n",var.species[is].info[0].name,solar);
+      fprintf(stdout, "Vapor initialization mode: %d => using cold-trap assumption \n", VMR_COLD_TRAP);
+      fprintf(stdout, "                           %d => using slope \n", VMR_SLOPE);
+      initialize_mode = input_int("", VMR_COLD_TRAP,1);
+
+      if(initialize_mode == VMR_SLOPE) {
+        *vmr_pcrit = input_double("Critical pressure for deep VMR value [hPa]: ", 30000, 1) * 100.;
+        *vmr_slope = input_double("VMR slope (log-folding scale): ", 0.0, 1);
+      }
+      sprintf(prompt,"Input %s mole fraction relative to solar [1.=solar]:\n",var.species[is].info[0].name);
+      *mole_fraction_over_solar = input_double(prompt,*mole_fraction_over_solar,1);
+      *mole_fraction            = *mole_fraction_over_solar*solar;
+      *rh_max                   = input_double("Input maximum initial relative humidity [1.=sat]\n",*rh_max,1);
+    } else {
+      if(fcmp(*vmr_slope, 0) != 0) {
+        initialize_mode = VMR_SLOPE;
+      } else {
+        initialize_mode = VMR_COLD_TRAP;
+      }
+    }
+
+    for (J = JLOPAD; J <= JHIPAD; J++) {
+      for (I = ILOPAD; I <= IHIPAD; I++) {
+        /* 
+         * Start at lowest layer with mole fractions set to specified value. 
+         */
+        mole_frac0 = *mole_fraction;
+
+        for (K = KHI; K >= KLO-1; K--) {
+          /* 
+           * Calculate saturation mole fraction.
+           * Assume the mole fraction is bounded by the saturation curve,
+           * and store it in the mass variable, Q.
+           */
+          if (initialize_mode == VMR_SLOPE) {
+            /* below the deep critical pressure, the deep abundance is constant */
+            if(P3(K, J, I) > *vmr_pcrit) {
+              mole_frac_k = mole_frac0;
+            } else if (follow_saturation_curve == 0) {
+              /* between saturation and the deep value, we follow the slope */
+              mole_frac_k = MAX(mole_frac0 * (1 + log(P3(K, J, I) / (*vmr_pcrit)) * (*vmr_slope)), Q_MIN);
+            } else {
+              mole_frac_k = mole_frac0;
+            }
+          } else {
+            mole_frac_k = mole_frac0;
+          }
+          sat_vapor_p = var.species[is].sat_vapor_p(T3(K,J,I));
+          x_sat       = sat_vapor_p/P3(K,J,I);
+          X(K,J,I)    = MIN(mole_frac0,x_sat*(*rh_max));
+
+          /*
+           * Assume that as we travel upwards, mole fraction stays 
+           * reduced once it has been limited by saturation (cold trap effect).
+           */
+          mole_frac0 = X(K,J,I);
+        }
+      }
+    }
+
+  /* No need to apply bc_lateral() here. */
+
+  return;
+}
+
+/*====================== end of init_vmr_via_deep_value() ====================*/
+
+/*========================== change_species() ================================*/
+
+void change_species(change_defaultspec  *def,
+                    int                  prompt_mode,
+                    int                  reinit_mode)
+{
+  int
+    K,J,I,
+    is,iq;
+  double
+    factor,
+    mu_dry, rho_dry, p_gas,
+    pressure,theta,fpara;
+  /* 
+   * The following are part of DEBUG_MILESTONE(.) statements: 
+   */
+  int
+    idbms=0;
+  static char
+    dbmsname[]="init_species";
+
+  /*
+   * Make sure pressure-related diagnostic variables are set.
+   */
+  set_p2_etc(DONT_UPDATE_THETA);
+
+  /*
+   * Calculate T.
+   */
+  for (J = JLOPAD; J <= JHIPAD; J++) {
+    for (I = ILOPAD; I <= IHIPAD; I++) {
+      for (K = 0; K <= KHI; K++) {
+        pressure = P3(K,J,I);
+        theta    = THETA(K,J,I);
+        if (var.fpara.on) {
+          fpara = FPARA(K,J,I);
+        }
+        else {
+          fpara = 0.25;
+        }
+        T3(K,J,I) = return_temp(fpara,pressure,theta);
+      }
+    }
+  }
+
+
+  /*
+   * Use Q initially to store volume mixing ratios (vmr, aka mole fraction).
+   */
+  if(reinit_mode == INITMODE) {
+    for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+      if (var.species[is].on) {
+        switch (is) {
+          case CH_4_INDEX:
+            if (strcmp(planet->name,"uranus") == 0) {
+              init_vmr_via_obs(CH_4_INDEX,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],prompt_mode);
+            }
+            else {
+              init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],&def->mole_fraction_over_solar[is],
+                                      &def->rh_max[is],&def->vmr_slope[is], &def->vmr_pcrit[is],prompt_mode);
+            }
+          break;
+          case C_2H_2_INDEX:
+            init_vmr_via_obs(is,var.species[is].phase[VAPOR].q,NULL,prompt_mode);
+          break;
+          case C_2H_6_INDEX:
+            init_vmr_via_obs(is,var.species[is].phase[VAPOR].q,NULL,prompt_mode);
+          break;
+          default:
+            init_vmr_via_deep_value(is,var.species[is].phase[VAPOR].q,&def->mole_fraction[is],&def->mole_fraction_over_solar[is],
+                                    &def->rh_max[is],&def->vmr_slope[is], &def->vmr_pcrit[is],prompt_mode);
+          break;
+        }
+      }
+    }
+
+  /*
+   * Convert from volume mixing ratio, vmr, aka mole fraction, which is a per-total quantity, 
+   * to mass mixing ratio, which is a per-dry-air quantity.
+   */
+    for (J = JLOPAD; J <= JHIPAD; J++) {
+      for (I = ILOPAD; I <= IHIPAD; I++) {
+        for (K = KHI; K >= 0; K--) {
+          mu_dry = R_GAS/planet->rgas;
+          factor  = 1.;
+          for (iq = 0; iq < grid.nq; iq++) {
+            factor -= Q(grid.is[iq],grid.ip[iq],K,J,I);
+          }
+          factor = 1./(mu_dry*factor);
+          for (iq = 0; iq < grid.nq; iq++) {
+            Q(grid.is[iq],grid.ip[iq],K,J,I) *= var.species[grid.is[iq]].molar_mass*factor;
+          }
+        }
+      }
+    }
+  } 
+  else if (reinit_mode == CHANGEMODE) {
+    for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+      if (var.species[is].on) {
+        trim_species(is,&def->rh_max[is],prompt_mode);
+      }
+    }
+  } 
+  else {
+    sprintf(Message,"initialization mode not implemented!");
+    epic_error(dbmsname,Message);
+  }
+
+  /*
+   * Update pressure-related diagnostic variables.
+   */
+  set_p2_etc(UPDATE_THETA);
+
+  return;
+
+}
+
+/*====================== end of change_species() =============================*/
+
+/*====================== trim_vapor ==========================================*/
+
+void trim_species(int     is, 
+                  double *rh_max, 
+                  int     prompt_mode)
+{
+  register int
+    K,J,I;
+  register double
+    solar,
+    sat_vapor_p,
+    x_sat,
+    mole_frac0,
+    mole_frac_k;
+  /* RS 01/30/2019 */
+  double
+    supersat, rh_ji, *rh,
+  /* RS 09/16/2019 -- adding a max RH input */
+    rh_trim;
+  /* RS 01/09/2018 debug term */
+  double
+    qij;
+  int
+    initialize_mode, follow_saturation_curve;
   char
     min_element[4],
     prompt[64];
@@ -2892,49 +2829,38 @@ void init_vmr_via_deep_value(planetspec *planet,
   static char
     dbmsname[]="init_vmr_via_deep_value";
 
-  /*
-   * Establish deep-atmosphere mole fractions and store in *mole_fraction.
-   */
-  if (prompt_mode == USE_PROMPTS) {
-    solar = solar_fraction(var.species[is].info[0].name,MOLAR,min_element);
-    fprintf(stdout,"Solar mole fraction of %s is %e \n",var.species[is].info[0].name,solar);
-    sprintf(prompt,"Input %s mole fraction relative to solar [1.=solar]:\n",var.species[is].info[0].name);
-    *mole_fraction_over_solar = input_float(prompt,*mole_fraction_over_solar);
-    *mole_fraction            = *mole_fraction_over_solar*solar;
-    *rh_max                   = input_float("Input maximum initial relative humidity [1.=sat]\n",*rh_max);
-  }
+  /* RS 09/16/2019 ask for the maximum relative humidity */
+  sprintf(prompt, "Input maximum initial relative humidity for %s [1.=sat]\n",var.species[is].info[0].name);
+  *rh_max = input_double(prompt, *rh_max, prompt_mode == USE_PROMPTS ? 1 : 0);
 
-  for (J = JLOPAD; J <= JHIPAD; J++) {
-    for (I = ILOPAD; I <= IHIPAD; I++) {
-      /* 
-       * Start at lowest layer with mole fractions set to specified value. 
-       */
-      mole_frac0 = *mole_fraction;
+  rh = dvector(0,Nelem2d-1,dbmsname);
+  for(K=KHI; K>=0; K--) {
+    relative_humidity(is,rh,K);
+    for(J=JLOPAD; J<=JHIPAD; J++) {
+      for(I=ILOPAD; I<=IHIPAD; I++) {
+        //fprintf(stdout,"hi %d %d %d\n",K,J,I);
 
-      for (K = KHI; K >= 0; K--) {
-        /* 
-         * Calculate saturation mole fraction.
-         * Assume the mole fraction is bounded by the saturation curve,
-         * and store it in the mass variable, Q.
-         */
-        sat_vapor_p       = var.species[is].sat_vapor_p(T3(K,J,I));
-        x_sat             = sat_vapor_p/P3(K,J,I);
-        X(is,VAPOR,K,J,I) = MIN(mole_frac0,x_sat*(*rh_max));
+        rh_ji = RH(J,I);
+        qij   = Q(is, VAPOR, K, J, I);
 
-        /*
-         * Assume that as we travel upwards, mole fraction stays 
-         * reduced once it has been limited by saturation (cold trap effect).
-         */
-        mole_frac0 = X(is,VAPOR,K,J,I);
+          supersat = 0.;
+        if(fcmp(rh_ji,rh_trim) > 0) {
+          // calculate the amount of supersaturation
+          supersat = MAX(qij*(1.-rh_trim/rh_ji),0.);
+          Q(is,VAPOR,K,J,I) = qij-supersat;
+        } else {
+          Q(is,VAPOR,K,J,I) = qij;
+        }
+        // fprintf(stdout, "change %d %d %d %.5e %.3e %.3e\n",K,J,I,supersat,Q(is,VAPOR,K,J,I),qij);
+
       }
-    }
+    } 
   }
-  /* No need to apply bc_lateral() here. */
 
+  /* No need to apply bc_lateral() here. */
   return;
 }
-
-/*====================== end of init_vmr_via_deep_value() ====================*/
+/*====================== end of trim_vapor() ==========================================*/
 
 /*====================== init_vmr_via_obs() ==================================*/
 
@@ -2944,15 +2870,15 @@ void init_vmr_via_deep_value(planetspec *planet,
  * observations for each planet and each species. 
  */
 
-void init_vmr_via_obs(planetspec *planet,
-                      int         is,
-                      EPIC_FLOAT *mole_fraction,
-                      int         prompt_mode)
+void init_vmr_via_obs(int     is,
+                      double *x,
+                      double *mole_fraction,
+                      int     prompt_mode)
 {
   int
     K,J,I,
     k;
-  EPIC_FLOAT
+  double
     p,logp,dp,lat,temp,rh_trad,
     x_tmp,mole_frac0;
   char
@@ -2961,7 +2887,7 @@ void init_vmr_via_obs(planetspec *planet,
   static int
     np,
     initialized = FALSE;
-  static float_triplet
+  static double_triplet
     *methane_table;
   FILE
     *infile;
@@ -2990,7 +2916,7 @@ void init_vmr_via_obs(planetspec *planet,
           fgets(header,N_STR,infile);
 
           /* Allocate memory */
-          methane_table = ftriplet(0,np-1,dbmsname);
+          methane_table = dtriplet(0,np-1,dbmsname);
 
           /* Input methane mole fraction data. */
           for (k = np-1; k >= 0; k--) {
@@ -3021,7 +2947,7 @@ void init_vmr_via_obs(planetspec *planet,
           fgets(header,N_STR,infile);
 
           /* Allocate memory */
-          methane_table = ftriplet(0,np-1,dbmsname);
+          methane_table = dtriplet(0,np-1,dbmsname);
 
           /* Input methane mole fraction data. */
           for (k = np-1; k >= 0; k--) {
@@ -3064,26 +2990,26 @@ void init_vmr_via_obs(planetspec *planet,
             for (J = JLO; J <= JHI; J++) {
               k = -2;
               for (I = ILO; I <= IHI; I++) {
-                logp              = log(P3(K,J,I));
-                k                 = hunt_place_in_table(np,methane_table,logp,&dp,k);
-                X(is,VAPOR,K,J,I) = exp(splint_pchip(logp,methane_table+k,dp));
+                logp     = log(P3(K,J,I));
+                k        = hunt_place_in_table(np,methane_table,logp,&dp,k);
+                X(K,J,I) = exp(splint_pchip(logp,methane_table+k,dp));
               }
             }
           }
           /* Need to call bc_lateral() here. */
-          bc_lateral(var.species[is].phase[VAPOR].x,THREEDIM);
+          bc_lateral(x,THREEDIM);
         break;
         case C_2H_2_INDEX:
         case C_2H_6_INDEX:
           for (K = KLO-1; K <= KHI; K++) {
             for (J = JLO; J <= JHI; J++) {
               for (I = ILO; I <= IHI; I++) {
-                X(is,VAPOR,K,J,I) = CIRS_data(planet,is,P3(K,J,I),grid.lat[2*J+1]);
+                X(K,J,I) = CIRS_data(is,P3(K,J,I),grid.lat[2*J+1]);
               }
             }
           }
           /* Need to call bc_lateral() here. */
-          bc_lateral(var.species[is].phase[VAPOR].x,THREEDIM);
+          bc_lateral(x,THREEDIM);
         break;
         default:
           sprintf(Message,"species %d not yet implemented",is);
@@ -3101,27 +3027,27 @@ void init_vmr_via_obs(planetspec *planet,
             for (J = JLO; J <= JHI; J++) {
               k = -2;
               for (I = ILO; I <= IHI; I++) {
-                logp              = log(P3(K,J,I));
-                k                 = hunt_place_in_table(np,methane_table,logp,&dp,k);
-                X(is,VAPOR,K,J,I) = exp(splint_pchip(logp,methane_table+k,dp));
+                logp     = log(P3(K,J,I));
+                k        = hunt_place_in_table(np,methane_table,logp,&dp,k);
+                X(K,J,I) = exp(splint_pchip(logp,methane_table+k,dp));
               }
             }
           }
           /* Need to call bc_lateral() here. */
-          bc_lateral(var.species[is].phase[VAPOR].x,THREEDIM);
+          bc_lateral(x,THREEDIM);
         break;
         case C_2H_2_INDEX:
         case C_2H_6_INDEX:
           for (K = KLO-1; K <= KHI; K++) {
             for (J = JLO; J <= JHI; J++) {
               for (I = ILO; I <= IHI; I++) {
-                X(is,VAPOR,K,J,I) = CIRS_data(planet,is,P3(K,J,I),grid.lat[2*J+1]);
+                X(K,J,I) = CIRS_data(is,P3(K,J,I),grid.lat[2*J+1]);
               }
             }
           }
           /* Need to call bc_lateral() here. */
 
-          bc_lateral(var.species[is].phase[VAPOR].x,THREEDIM);
+          bc_lateral(x,THREEDIM);
         break;
         default:
           sprintf(Message,"species %d not yet implemented",is);
@@ -3147,7 +3073,7 @@ void init_vmr_via_obs(planetspec *planet,
              * Establish deep-atmosphere mole fractions and store in *mole_fraction.
              */
             sprintf(prompt,"Input %s deep mole fraction:\n",var.species[is].info[0].name);
-            *mole_fraction = input_float(prompt,*mole_fraction);
+            *mole_fraction = input_double(prompt,*mole_fraction,1);
           }
           /*
            * NOTE: We are using grid.aux_fa to record input value of deep mole fraction.
@@ -3165,13 +3091,13 @@ void init_vmr_via_obs(planetspec *planet,
                 if (P3(K,J,I) < 1.e5) {
                   rh_trad *= (1.-SQR(1.-P3(K,J,I)/1.e5));
                 }
-                x_tmp             = rh_trad*var.species[CH_4_INDEX].sat_vapor_p(T3(K,J,I))/P3(K,J,I);
-                X(is,VAPOR,K,J,I) = MIN(x_tmp,mole_frac0);
+                x_tmp    = rh_trad*var.species[CH_4_INDEX].sat_vapor_p(T3(K,J,I))/P3(K,J,I);
+                X(K,J,I) = MIN(x_tmp,mole_frac0);
                 /*
                  * Assume that as we travel upwards, mole fraction stays 
                  * reduced once it has been limited by saturation (cold trap effect).
                  */
-                mole_frac0 = X(is,VAPOR,K,J,I);
+                mole_frac0 = X(K,J,I);
               }
             }
           }
@@ -3205,14 +3131,13 @@ void init_vmr_via_obs(planetspec *planet,
 #define DATA_C_2H_2(k,j) data_C_2H_2[j+(k)*nlat_C_2H_2]
 #define DATA_C_2H_6(k,j) data_C_2H_6[j+(k)*nlat_C_2H_6]
 
-EPIC_FLOAT CIRS_data(planetspec *planet,
-                     int         index,
-                     EPIC_FLOAT  p,
-                     EPIC_FLOAT  lat)
+double CIRS_data(int    index,
+                 double p,
+                 double lat)
 {
   int
     j,k;
-  EPIC_FLOAT
+  double
     logp,frac_logp,frac_lat,
     ans;
   static int
@@ -3220,7 +3145,7 @@ EPIC_FLOAT CIRS_data(planetspec *planet,
     np_C_2H_2,nlat_C_2H_2,
     np_C_2H_6,nlat_C_2H_6,
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *logp_t,     *lat_t,     *data_t,
     *logp_C_2H_2,*lat_C_2H_2,*data_C_2H_2,
     *logp_C_2H_6,*lat_C_2H_6,*data_C_2H_6;
@@ -3239,32 +3164,32 @@ EPIC_FLOAT CIRS_data(planetspec *planet,
          * Determine size of data, allocate memory, and read in data.
          */
         if (var.t2.on || var.t3.on) {
-          read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/T.Jupiter.CIRS",SIZE_DATA,
+          read_meridional_plane(EPIC_PATH"/data/Jupiter/T.Jupiter.CIRS",SIZE_DATA,
                                 &np_t,&nlat_t,NULL,NULL,NULL);
-          logp_t = fvector(0,np_t   -1,dbmsname);
-          lat_t  = fvector(0,nlat_t -1,dbmsname);
-          data_t = fvector(0,np_t*nlat_t  -1,dbmsname);
-          read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/T.Jupiter.CIRS",POST_SIZE_DATA,
+          logp_t = dvector(0,np_t   -1,dbmsname);
+          lat_t  = dvector(0,nlat_t -1,dbmsname);
+          data_t = dvector(0,np_t*nlat_t  -1,dbmsname);
+          read_meridional_plane(EPIC_PATH"/data/Jupiter/T.Jupiter.CIRS",POST_SIZE_DATA,
                                 &np_t,&nlat_t,logp_t,lat_t,data_t);
         }
 
         if (var.species[C_2H_2_INDEX].on) {
-          read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/C_2H_2.Jupiter.CIRS",SIZE_DATA,
+          read_meridional_plane(EPIC_PATH"/data/Jupiter/C_2H_2.Jupiter.CIRS",SIZE_DATA,
                                 &np_C_2H_2,&nlat_C_2H_2,NULL,NULL,NULL);
-          logp_C_2H_2 = fvector(0,np_C_2H_2  -1,dbmsname);
-          lat_C_2H_2  = fvector(0,nlat_C_2H_2-1,dbmsname);
-          data_C_2H_2 = fvector(0,np_C_2H_2*nlat_C_2H_2-1,dbmsname);
-          read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/C_2H_2.Jupiter.CIRS",POST_SIZE_DATA,
+          logp_C_2H_2 = dvector(0,np_C_2H_2  -1,dbmsname);
+          lat_C_2H_2  = dvector(0,nlat_C_2H_2-1,dbmsname);
+          data_C_2H_2 = dvector(0,np_C_2H_2*nlat_C_2H_2-1,dbmsname);
+          read_meridional_plane(EPIC_PATH"/data/Jupiter/C_2H_2.Jupiter.CIRS",POST_SIZE_DATA,
                                 &np_C_2H_2,&nlat_C_2H_2,logp_C_2H_2,lat_C_2H_2,data_C_2H_2);
         }
 
         if (var.species[C_2H_6_INDEX].on) {
-          read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/C_2H_6.Jupiter.CIRS",SIZE_DATA,
+          read_meridional_plane(EPIC_PATH"/data/Jupiter/C_2H_6.Jupiter.CIRS",SIZE_DATA,
                                 &np_C_2H_6,&nlat_C_2H_6,NULL,NULL,NULL);
-          logp_C_2H_6 = fvector(0,np_C_2H_6  -1,dbmsname);
-          lat_C_2H_6  = fvector(0,nlat_C_2H_6-1,dbmsname);
-          data_C_2H_6 = fvector(0,np_C_2H_6*nlat_C_2H_6-1,dbmsname);
-          read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/C_2H_6.Jupiter.CIRS",POST_SIZE_DATA,
+          logp_C_2H_6 = dvector(0,np_C_2H_6  -1,dbmsname);
+          lat_C_2H_6  = dvector(0,nlat_C_2H_6-1,dbmsname);
+          data_C_2H_6 = dvector(0,np_C_2H_6*nlat_C_2H_6-1,dbmsname);
+          read_meridional_plane(EPIC_PATH"/data/Jupiter/C_2H_6.Jupiter.CIRS",POST_SIZE_DATA,
                                 &np_C_2H_6,&nlat_C_2H_6,logp_C_2H_6,lat_C_2H_6,data_C_2H_6);
         }
       break;
@@ -3273,32 +3198,32 @@ EPIC_FLOAT CIRS_data(planetspec *planet,
          * Determine size of data, allocate memory, and read in data.
          */
         if (var.t2.on || var.t3.on) {
-          read_meridional_plane(planet,EPIC_PATH"/data/Saturn/T.Saturn.CIRS",SIZE_DATA,
+          read_meridional_plane(EPIC_PATH"/data/Saturn/T.Saturn.CIRS",SIZE_DATA,
                                 &np_t,&nlat_t,NULL,NULL,NULL);
-          logp_t = fvector(0,np_t   -1,dbmsname);
-          lat_t  = fvector(0,nlat_t -1,dbmsname);
-          data_t = fvector(0,np_t*nlat_t  -1,dbmsname);
-          read_meridional_plane(planet,EPIC_PATH"/data/aturn/T.Saturn.CIRS",POST_SIZE_DATA,
+          logp_t = dvector(0,np_t   -1,dbmsname);
+          lat_t  = dvector(0,nlat_t -1,dbmsname);
+          data_t = dvector(0,np_t*nlat_t  -1,dbmsname);
+          read_meridional_plane(EPIC_PATH"/data/aturn/T.Saturn.CIRS",POST_SIZE_DATA,
                                 &np_t,&nlat_t,logp_t,lat_t,data_t);
         }
 
         if (var.species[C_2H_2_INDEX].on) {
-          read_meridional_plane(planet,EPIC_PATH"/data/Saturn/C_2H_2.Saturn.CIRS",SIZE_DATA,
+          read_meridional_plane(EPIC_PATH"/data/Saturn/C_2H_2.Saturn.CIRS",SIZE_DATA,
                                 &np_C_2H_2,&nlat_C_2H_2,NULL,NULL,NULL);
-          logp_C_2H_2 = fvector(0,np_C_2H_2  -1,dbmsname);
-          lat_C_2H_2  = fvector(0,nlat_C_2H_2-1,dbmsname);
-          data_C_2H_2 = fvector(0,np_C_2H_2*nlat_C_2H_2-1,dbmsname);
-          read_meridional_plane(planet,EPIC_PATH"/data/Saturn/C_2H_2.Saturn.CIRS",POST_SIZE_DATA,
+          logp_C_2H_2 = dvector(0,np_C_2H_2  -1,dbmsname);
+          lat_C_2H_2  = dvector(0,nlat_C_2H_2-1,dbmsname);
+          data_C_2H_2 = dvector(0,np_C_2H_2*nlat_C_2H_2-1,dbmsname);
+          read_meridional_plane(EPIC_PATH"/data/Saturn/C_2H_2.Saturn.CIRS",POST_SIZE_DATA,
                                 &np_C_2H_2,&nlat_C_2H_2,logp_C_2H_2,lat_C_2H_2,data_C_2H_2);
         }
 
         if (var.species[C_2H_6_INDEX].on) {
-          read_meridional_plane(planet,EPIC_PATH"/data/Saturn/C_2H_6.Saturn.CIRS",SIZE_DATA,
+          read_meridional_plane(EPIC_PATH"/data/Saturn/C_2H_6.Saturn.CIRS",SIZE_DATA,
                                 &np_C_2H_6,&nlat_C_2H_6,NULL,NULL,NULL);
-          logp_C_2H_6 = fvector(0,np_C_2H_6  -1,dbmsname);
-          lat_C_2H_6  = fvector(0,nlat_C_2H_6-1,dbmsname);
-          data_C_2H_6 = fvector(0,np_C_2H_6*nlat_C_2H_6-1,dbmsname);
-          read_meridional_plane(planet,EPIC_PATH"/data/Saturn/C_2H_6.Saturn.CIRS",POST_SIZE_DATA,
+          logp_C_2H_6 = dvector(0,np_C_2H_6  -1,dbmsname);
+          lat_C_2H_6  = dvector(0,nlat_C_2H_6-1,dbmsname);
+          data_C_2H_6 = dvector(0,np_C_2H_6*nlat_C_2H_6-1,dbmsname);
+          read_meridional_plane(EPIC_PATH"/data/Saturn/C_2H_6.Saturn.CIRS",POST_SIZE_DATA,
                                 &np_C_2H_6,&nlat_C_2H_6,logp_C_2H_6,lat_C_2H_6,data_C_2H_6);
         }
       break;
@@ -3450,7 +3375,7 @@ EPIC_FLOAT CIRS_data(planetspec *planet,
 /*
  * Global declarations for mu_p().
  */
-static float_triplet
+static double_triplet
   *mu_p_table;
 static int
    n_mu_p;
@@ -3460,7 +3385,7 @@ static int
  * Used to establish an approximate function relating molar mass to pressure
  * to improve init_with_u()'s gradient balance for models with condensables.
  */
-void setup_mu_p(planetspec *planet)
+void setup_mu_p(void)
 {
   int
     K,kk,ii;
@@ -3477,23 +3402,23 @@ void setup_mu_p(planetspec *planet)
   /*
    * Allocate memory.
    */
-  mu_p_table = ftriplet(0,n_mu_p-1,dbmsname);
+  mu_p_table = dtriplet(0,n_mu_p-1,dbmsname);
 
   K  = 0;
   kk = 2*K+1;
   ii = 0;
   mu_p_table[ii].x = P3(K,JLO,ILO);
-  mu_p_table[ii].y = avg_molar_mass(planet,kk,JLO,ILO);
+  mu_p_table[ii].y = avg_molar_mass(kk,JLO,ILO);
   for (K = 1; K <= KHI; K++) {
     kk = 2*K;
     ii++;
     mu_p_table[ii].x = P2(K,JLO,ILO);
-    mu_p_table[ii].y = avg_molar_mass(planet,kk,JLO,ILO);
+    mu_p_table[ii].y = avg_molar_mass(kk,JLO,ILO);
 
     kk++;
     ii++;
     mu_p_table[ii].x = P3(K,JLO,ILO);
-    mu_p_table[ii].y = avg_molar_mass(planet,kk,JLO,ILO);
+    mu_p_table[ii].y = avg_molar_mass(kk,JLO,ILO);
   }
   spline_pchip(n_mu_p,mu_p_table);
 
@@ -3511,11 +3436,11 @@ void setup_mu_p(planetspec *planet)
  * Requires initial call to setup_mu_p().
  */
 
-EPIC_FLOAT mu_p(EPIC_FLOAT pressure)
+double mu_p(double pressure)
 {
   static int
     i = -2;
-  EPIC_FLOAT
+  double
     mu,p,dp;
 
   p  = LIMIT_RANGE(mu_p_table[0].x,pressure,mu_p_table[n_mu_p-1].x);
@@ -3536,10 +3461,10 @@ EPIC_FLOAT mu_p(EPIC_FLOAT pressure)
 #define T_DATA(k,j)    t_data[   j+(k)*nlat]
 #define T_DATA_Y2(k,j) t_data_y2[j+(k)*nlat]
 
-EPIC_FLOAT t_yp(EPIC_FLOAT        p, 
-                EPIC_FLOAT        latr, 
-                int               mode,
-                init_defaultspec *def)
+double t_yp(double            p, 
+            double            latr, 
+            int               mode,
+            init_defaultspec *def)
 {
   char
     string[N_STR];
@@ -3549,18 +3474,18 @@ EPIC_FLOAT t_yp(EPIC_FLOAT        p,
     initialized=FALSE,
     nlat,
     npress;
-  EPIC_FLOAT 
+  double 
     z,temp,lat_d,
     log_p,p_d,
     a4 = 2.;
-  static EPIC_FLOAT
+  static double
     *lat,
     *press,
     *t_data,
     *t_data_y2,
     *t_k,
     *t_k_y2;
-  static float_triplet
+  static double_triplet
     *buff_triplet;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -3585,21 +3510,16 @@ EPIC_FLOAT t_yp(EPIC_FLOAT        p,
     fscanf(infile,"%d %d",&nlat,&npress);
     fscanf(infile,"%s",header);
     /* Allocate memory: */
-    lat          = fvector( 0,nlat-1,             dbmsname);
-    press        = fvector( 0,npress-1,           dbmsname);
-    t_k          = fvector( 0,npress-1,           dbmsname);
-    t_k_y2       = fvector( 0,npress-1,           dbmsname);
-    t_data       = fvector( 0,nlat*npress-1,      dbmsname);
-    t_data_y2    = fvector( 0,nlat*npress-1,      dbmsname);
-    buff_triplet = ftriplet(0,IMAX(nlat,npress)-1,dbmsname);
+    lat          = dvector( 0,nlat-1,             dbmsname);
+    press        = dvector( 0,npress-1,           dbmsname);
+    t_k          = dvector( 0,npress-1,           dbmsname);
+    t_k_y2       = dvector( 0,npress-1,           dbmsname);
+    t_data       = dvector( 0,nlat*npress-1,      dbmsname);
+    t_data_y2    = dvector( 0,nlat*npress-1,      dbmsname);
+    buff_triplet = dtriplet(0,IMAX(nlat,npress)-1,dbmsname);
 
     for (k = 0; k < npress; k++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(infile,"%lf",press+k);
-#else
-      fscanf(infile,"%f",press+k);
-#endif
 
       /* convert press to mks */
       press[k] *= 100.;
@@ -3608,23 +3528,12 @@ EPIC_FLOAT t_yp(EPIC_FLOAT        p,
     }
     fscanf(infile,"%s",header);
     for (j = 0; j < nlat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(infile,"%lf",lat+j);
-#else
-      fscanf(infile,"%f",lat+j);
-#endif
 
       /* convert lat to radians */
       lat[j] *= DEG;
       for (k = 0; k < npress; k++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(infile,"%lf",&(T_DATA(k,j)));
-#else
-        fscanf(infile,"%f",&(T_DATA(k,j)));
-#endif
-
       }
     }
     fclose(infile);
@@ -3636,7 +3545,7 @@ EPIC_FLOAT t_yp(EPIC_FLOAT        p,
 
     for (k = 0; k < npress; k++) {
       /*
-       * Pack float_triplet buffer.
+       * Pack double_triplet buffer.
        */
       for (j = 0; j < nlat; j++) {
         buff_triplet[j].y = T_DATA(k,j);
@@ -3694,7 +3603,7 @@ EPIC_FLOAT t_yp(EPIC_FLOAT        p,
     /* Make column at latr */
     for (k = 0; k < npress; k++) {
       /*
-       * Pack float_triplet buffer segment.
+       * Pack double_triplet buffer segment.
        */
       buff_triplet[j  ].y = T_DATA(   k,j  );
       buff_triplet[j+1].y = T_DATA(   k,j+1);
@@ -3704,7 +3613,7 @@ EPIC_FLOAT t_yp(EPIC_FLOAT        p,
       t_k[k] = splint_pchip(latr,buff_triplet+j,lat_d);
     }
     /*
-     * Pack float_triplet buffer.
+     * Pack double_triplet buffer.
      */
     for (k = 0; k < npress; k++) {
       buff_triplet[k].x = press[k];
@@ -3748,9 +3657,9 @@ EPIC_FLOAT t_yp(EPIC_FLOAT        p,
 #define FP_DATA(k,j)    fp_data[   j+(k)*nlat]
 #define FP_DATA_Y2(k,j) fp_data_y2[j+(k)*nlat]
 
-EPIC_FLOAT fp_yp(EPIC_FLOAT p, 
-                 EPIC_FLOAT latr, 
-                 int        mode)
+double fp_yp(double p, 
+             double latr, 
+             int    mode)
 {
   char
     string[N_STR];
@@ -3760,20 +3669,20 @@ EPIC_FLOAT fp_yp(EPIC_FLOAT p,
     initialized=FALSE,
     nlat,
     npress;
-  EPIC_FLOAT 
+  double 
     z,fp,lat_d,
     log_p,p_d,
     a1 =  0.5,
     a2 =  0.1,
     a3 = -0.05;
-  static EPIC_FLOAT
+  static double
     *lat,
     *press,
     *fp_data,
     *fp_data_y2,
     *fp_k,
     *fp_k_y2;
-  static float_triplet
+  static double_triplet
     *buff_triplet;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -3796,21 +3705,16 @@ EPIC_FLOAT fp_yp(EPIC_FLOAT p,
     /* 
      * Allocate memory 
      */
-    lat          = fvector( 0,nlat-1,             dbmsname);
-    press        = fvector( 0,npress-1,           dbmsname);
-    fp_k         = fvector( 0,npress-1,           dbmsname);
-    fp_k_y2      = fvector( 0,npress-1,           dbmsname);
-    fp_data      = fvector( 0,nlat*npress-1,      dbmsname);
-    fp_data_y2   = fvector( 0,nlat*npress-1,      dbmsname);
-    buff_triplet = ftriplet(0,IMAX(nlat,npress)-1,dbmsname);
+    lat          = dvector( 0,nlat-1,             dbmsname);
+    press        = dvector( 0,npress-1,           dbmsname);
+    fp_k         = dvector( 0,npress-1,           dbmsname);
+    fp_k_y2      = dvector( 0,npress-1,           dbmsname);
+    fp_data      = dvector( 0,nlat*npress-1,      dbmsname);
+    fp_data_y2   = dvector( 0,nlat*npress-1,      dbmsname);
+    buff_triplet = dtriplet(0,IMAX(nlat,npress)-1,dbmsname);
 
     for (k = 0; k < npress; k++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(infile,"%lf",press+k);
-#else
-      fscanf(infile,"%f",press+k);
-#endif
 
       /* convert press to mks */
       press[k] *= 100.;
@@ -3819,29 +3723,18 @@ EPIC_FLOAT fp_yp(EPIC_FLOAT p,
     }
     fscanf(infile,"%s",header);
     for (j = 0; j < nlat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(infile,"%lf",lat+j);
-#else
-      fscanf(infile,"%f",lat+j);
-#endif
 
       /* convert lat to radians */
       lat[j] *= DEG;
       for (k = 0; k < npress; k++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(infile,"%lf",&(FP_DATA(k,j)));
-#else
-        fscanf(infile,"%f",&(FP_DATA(k,j)));
-#endif
-
       }
     }
     fclose(infile);
     /* Compute spline information for each row: */
     /*
-     * Pack float_triplet buffer. 
+     * Pack double_triplet buffer. 
      */
     for (j = 0; j < nlat; j++) {
       buff_triplet[j].x = lat[j];
@@ -3882,7 +3775,7 @@ EPIC_FLOAT fp_yp(EPIC_FLOAT p,
     /* Make column at latr */
     for (k = 0; k < npress; k++) {
       /*
-       * Pack float_triplet buffer segment.
+       * Pack double_triplet buffer segment.
        */
       buff_triplet[j  ].y = FP_DATA(   k,j  );
       buff_triplet[j+1].y = FP_DATA(   k,j+1);
@@ -3892,7 +3785,7 @@ EPIC_FLOAT fp_yp(EPIC_FLOAT p,
       fp_k[k] = splint_pchip(latr,buff_triplet+j,lat_d);
     }
     /*
-     * Pack float_triplet buffer.
+     * Pack double_triplet buffer.
      */
     for (k = 0; k < npress; k++) {
       buff_triplet[k].x = press[k];
@@ -3929,9 +3822,8 @@ EPIC_FLOAT fp_yp(EPIC_FLOAT p,
  * just return grid.pbot;
  */
 
-EPIC_FLOAT p_phi(planetspec *planet,
-                 int         J,
-                 EPIC_FLOAT  phi)
+double p_phi(int    J,
+             double phi)
 {
   int
     i,
@@ -3942,7 +3834,7 @@ EPIC_FLOAT p_phi(planetspec *planet,
   char
     header[N_STR],
     data_file[FILE_STR];
-  EPIC_FLOAT
+  double
     p,
     temperature,
     tmp,
@@ -3950,13 +3842,13 @@ EPIC_FLOAT p_phi(planetspec *planet,
     rttop,
     gravity,ge,gp,
     spin_factor,sinlat2,coslat2;
-  static EPIC_FLOAT
+  static double
     pbot0,
     *pdat,
     *tdat,
     *zdat,
     *neglogpdat;
-  static float_triplet
+  static double_triplet
     *buff_triplet;
   FILE
     *infile;
@@ -4006,20 +3898,15 @@ EPIC_FLOAT p_phi(planetspec *planet,
       /*
        * Allocate memory.
        */
-      pdat         = fvector( 0,ndat-1,dbmsname);
-      zdat         = fvector( 0,ndat-1,dbmsname);
-      neglogpdat   = fvector( 0,ndat-1,dbmsname);
-      buff_triplet = ftriplet(0,ndat-1,dbmsname);
+      pdat         = dvector( 0,ndat-1,dbmsname);
+      zdat         = dvector( 0,ndat-1,dbmsname);
+      neglogpdat   = dvector( 0,ndat-1,dbmsname);
+      buff_triplet = dtriplet(0,ndat-1,dbmsname);
       /*
        * Input data.
        */
       for (i = 0; i < ndat; i++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(infile," %lf %lf %lf %lf",zdat+i,&temperature,pdat+i,&tmp);
-#else
-        fscanf(infile," %f %f %f %f",zdat+i,&temperature,pdat+i,&tmp);
-#endif
 
         /* Convert km to m. */
         zdat[i] *= 1000.;
@@ -4055,20 +3942,15 @@ EPIC_FLOAT p_phi(planetspec *planet,
       /*
        * Allocate memory.
        */
-      pdat         = fvector( 0,ndat-1,dbmsname);
-      zdat         = fvector( 0,ndat-1,dbmsname);
-      neglogpdat   = fvector( 0,ndat-1,dbmsname);
-      buff_triplet = ftriplet(0,ndat-1,dbmsname);
+      pdat         = dvector( 0,ndat-1,dbmsname);
+      zdat         = dvector( 0,ndat-1,dbmsname);
+      neglogpdat   = dvector( 0,ndat-1,dbmsname);
+      buff_triplet = dtriplet(0,ndat-1,dbmsname);
       /*
        * Input data.
        */
       for (i = 0; i < ndat; i++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(infile," %lf %lf %lf %lf",zdat+i,&temperature,pdat+i,&tmp);
-#else
-        fscanf(infile," %f %f %f %f",zdat+i,&temperature,pdat+i,&tmp);
-#endif
 
         /* Convert km to m. */
         zdat[i] *= 1000.;
@@ -4109,20 +3991,15 @@ EPIC_FLOAT p_phi(planetspec *planet,
       /*
        * Allocate memory.
        */
-      pdat         = fvector( 0,ndat-1,dbmsname);
-      zdat         = fvector( 0,ndat-1,dbmsname);
-      neglogpdat   = fvector( 0,ndat-1,dbmsname);
-      buff_triplet = ftriplet(0,ndat-1,dbmsname);
+      pdat         = dvector( 0,ndat-1,dbmsname);
+      zdat         = dvector( 0,ndat-1,dbmsname);
+      neglogpdat   = dvector( 0,ndat-1,dbmsname);
+      buff_triplet = dtriplet(0,ndat-1,dbmsname);
       /*
        * Input data.
        */
       for (i = ndat-1; i >= 0; i--) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(infile," %lf %lf %*lf %*lf",zdat+i,pdat+i);
-#else
-        fscanf(infile," %f %f %*f %*f",zdat+i,pdat+i);
-#endif
 
         /* Interpolate on -log(p). */
         neglogpdat[i] = -log(pdat[i]);
@@ -4152,20 +4029,15 @@ EPIC_FLOAT p_phi(planetspec *planet,
       /*
        * Allocate memory.
        */
-      pdat         = fvector( 0,ndat-1,dbmsname);
-      neglogpdat   = fvector( 0,ndat-1,dbmsname);
-      zdat         = fvector( 0,ndat-1,dbmsname);
-      buff_triplet = ftriplet(0,ndat-1,dbmsname);
+      pdat         = dvector( 0,ndat-1,dbmsname);
+      neglogpdat   = dvector( 0,ndat-1,dbmsname);
+      zdat         = dvector( 0,ndat-1,dbmsname);
+      buff_triplet = dtriplet(0,ndat-1,dbmsname);
       /*
        * Input data.
        */
       for (i = 0; i < ndat; i++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
         fscanf(infile," %lf %lf %lf %lf",zdat+i,&tmp,pdat+i,&tmp);
-#else
-        fscanf(infile," %f %f %f %f",zdat+i,&tmp,pdat+i,&tmp);
-#endif
 
         /* Convert km to m. */
         zdat[i] *= 1000.;
@@ -4204,19 +4076,7 @@ EPIC_FLOAT p_phi(planetspec *planet,
   coslat2    *= coslat2;
   gravity     = (planet->re*ge*coslat2+planet->rp*gp*sinlat2)/sqrt(planet->re*planet->re*coslat2+planet->rp*planet->rp*sinlat2);
 
-  if (strcmp(planet->name,"Earth") == 0) {
-    /*
-     * Currently, PHI_SURFACE(J,I) = 0. everywhere.
-     */
-    if (phi == 0.) {
-      p = pbot0;
-    }
-    else {
-      sprintf(Message,"phi=%f; case phi != 0. not yet implemented for Earth\n",phi);
-      epic_error(dbmsname,Message);
-    }
-  }
-  else if (strcmp(planet->name,"Held_Suarez") == 0) {
+  if (strcmp(planet->name,"Held_Suarez") == 0) {
     /*
      * PHI_SURFACE(J,I) = 0. everywhere.
      */
@@ -4234,7 +4094,9 @@ EPIC_FLOAT p_phi(planetspec *planet,
       epic_error(dbmsname,Message);
     }
     else if (phi >= gravity*zdat[ndat-1]) {
-      /* Assume a constant scale height above data table. */
+      /* 
+       * Assume a constant scale height above data table.
+       */
       rttop = grid.g[2*grid.nk+1][2*J+1]*(zdat[ndat-1]-zdat[ndat-2])/(neglogpdat[ndat-1]-neglogpdat[ndat-2]);
       p     = pdat[ndat-1]*exp(-(phi-grid.g[2*grid.nk+1][2*J+1]*zdat[ndat-1])/rttop);
     }
@@ -4279,8 +4141,7 @@ EPIC_FLOAT p_phi(planetspec *planet,
 #define FBUFF3D(k,j,i)         fbuffer[i+openmars_grid->ni*(j+openmars_grid->nj*(k))]
 #define EPIC_K_OPENMARS_j(K,j) epic_k_openmars_j[j+openmars_grid->nj*(K-KLOPAD)]
 
-void openmars_var_read(planetspec        *planet,
-                       openmars_gridspec *openmars_grid,
+void openmars_var_read(openmars_gridspec *openmars_grid,
                        char              *openmars_infile,
                        int                portion,
                        int                input_itime)
@@ -4457,7 +4318,7 @@ void openmars_var_read(planetspec        *planet,
     }
 
     for (i = 0; i < openmars_grid->ni; i++) {
-       openmars_grid->lon[i] = (EPIC_FLOAT)fbuffer[i];
+       openmars_grid->lon[i] = (double)fbuffer[i];
     }
 
     free(fbuffer);
@@ -4495,7 +4356,7 @@ void openmars_var_read(planetspec        *planet,
      *       so the ordering is changed to the EPIC convention here.
      */
     for (j = 0; j < openmars_grid->nj; j++) {
-       openmars_grid->lat[j] = (EPIC_FLOAT)fbuffer[openmars_grid->nj-1-j];
+       openmars_grid->lat[j] = (double)fbuffer[openmars_grid->nj-1-j];
     }
 
     free(fbuffer);
@@ -4529,7 +4390,7 @@ void openmars_var_read(planetspec        *planet,
      *       so the ordering is changed to the EPIC convention upon input.
      */
     for (k = 0; k < openmars_grid->nk; k++) {
-      openmars_grid->sigma[k] = (EPIC_FLOAT)fbuffer[openmars_grid->nk-1-k];
+      openmars_grid->sigma[k] = (double)fbuffer[openmars_grid->nk-1-k];
     }
 
     free(fbuffer);
@@ -4564,7 +4425,7 @@ void openmars_var_read(planetspec        *planet,
       epic_error(dbmsname,Message);
     }
     for (itime = 0; itime < openmars_grid->ntime; itime++) {
-       openmars_grid->time[itime] = (EPIC_FLOAT)fbuffer[itime];
+       openmars_grid->time[itime] = (double)fbuffer[itime];
     }
     free(fbuffer);
 
@@ -4595,7 +4456,7 @@ void openmars_var_read(planetspec        *planet,
      *       which we implement here (Ls matches precisely in the MACDA and OpenMARS data sets).
      */
     for (itime = 0; itime < openmars_grid->ntime; itime++) {
-      openmars_grid->Ls[itime] = (EPIC_FLOAT)fbuffer[itime]-0.12;
+      openmars_grid->Ls[itime] = (double)fbuffer[itime]-0.12;
       openmars_grid->Ls[itime] = (openmars_grid->Ls[itime] < 0.) ? openmars_grid->Ls[itime]+360. : openmars_grid->Ls[itime];
     }
 
@@ -4642,7 +4503,7 @@ void openmars_var_read(planetspec        *planet,
     int
       count,
       excluded_count;
-    EPIC_FLOAT
+    double
       p,tmp,x,x_d,
      *epic_k_openmars_j,
      *openmars_phi_surface,
@@ -4650,7 +4511,7 @@ void openmars_var_read(planetspec        *planet,
     size_t
       nc_start2d[3],nc_start3d[4],
       nc_count2d[3],nc_count3d[4];
-    float_triplet
+    double_triplet
       *k_triplet,
       *j_triplet,
       *i_triplet,
@@ -4696,7 +4557,7 @@ void openmars_var_read(planetspec        *planet,
 
     for (j = 0; j < openmars_grid->nj; j++) {
       for (i = 0; i < openmars_grid->ni; i++) {
-        OPENMARS_PS(j,i) = (EPIC_FLOAT)FBUFF2D(openmars_grid->nj-1-j,i);
+        OPENMARS_PS(j,i) = (double)FBUFF2D(openmars_grid->nj-1-j,i);
       }
     }
 
@@ -4718,7 +4579,7 @@ void openmars_var_read(planetspec        *planet,
 
     for (j = 0; j < openmars_grid->nj; j++) {
       for (i = 0; i < openmars_grid->ni; i++) {
-        OPENMARS_TSURF(j,i) = (EPIC_FLOAT)FBUFF2D(openmars_grid->nj-1-j,i);
+        OPENMARS_TSURF(j,i) = (double)FBUFF2D(openmars_grid->nj-1-j,i);
       }
     }
 
@@ -4758,7 +4619,7 @@ void openmars_var_read(planetspec        *planet,
     for (k = 0; k < openmars_grid->nk; k++) {
       for (j = 0; j < openmars_grid->nj; j++) {
         for (i = 0; i < openmars_grid->ni; i++) {
-          OPENMARS_TEMP(k,j,i) = (EPIC_FLOAT)FBUFF3D(openmars_grid->nk-1-k,openmars_grid->nj-1-j,i);
+          OPENMARS_TEMP(k,j,i) = (double)FBUFF3D(openmars_grid->nk-1-k,openmars_grid->nj-1-j,i);
         }
       }
     }
@@ -4782,7 +4643,7 @@ void openmars_var_read(planetspec        *planet,
     for (k = 0; k < openmars_grid->nk; k++) {
       for (j = 0; j < openmars_grid->nj; j++) {
         for (i = 0; i < openmars_grid->ni; i++) {
-          OPENMARS_U(k,j,i) = (EPIC_FLOAT)FBUFF3D(openmars_grid->nk-1-k,openmars_grid->nj-1-j,i);
+          OPENMARS_U(k,j,i) = (double)FBUFF3D(openmars_grid->nk-1-k,openmars_grid->nj-1-j,i);
         }
       }
     }
@@ -4806,7 +4667,7 @@ void openmars_var_read(planetspec        *planet,
     for (k = 0; k < openmars_grid->nk; k++) {
       for (j = 0; j < openmars_grid->nj; j++) {
         for (i = 0; i < openmars_grid->ni; i++) {
-          OPENMARS_V(k,j,i) = (EPIC_FLOAT)FBUFF3D(openmars_grid->nk-1-k,openmars_grid->nj-1-j,i);
+          OPENMARS_V(k,j,i) = (double)FBUFF3D(openmars_grid->nk-1-k,openmars_grid->nj-1-j,i);
         }
       }
     }
@@ -4833,13 +4694,13 @@ void openmars_var_read(planetspec        *planet,
      *------------------------------------------------------*/
 
     /* Allocate memory */
-    k_triplet            = ftriplet(0,openmars_grid->nk-1,               dbmsname);
-    j_triplet            = ftriplet(0,openmars_grid->nj+1,               dbmsname);
-    i_triplet            = ftriplet(0,openmars_grid->ni,                 dbmsname);
-    epic_j_triplet       = ftriplet(0,grid.nj,                           dbmsname);
-    epic_k_openmars_j    = fvector( 0,(KHI-KLOPAD+1)*openmars_grid->nj-1,dbmsname);
-    openmars_phi_surface = fvector( 0,openmars_grid->nj-1,               dbmsname);
-    openmars_phi         = fvector( 0,openmars_grid->nk-1,               dbmsname);
+    k_triplet            = dtriplet(0,openmars_grid->nk-1,               dbmsname);
+    j_triplet            = dtriplet(0,openmars_grid->nj+1,               dbmsname);
+    i_triplet            = dtriplet(0,openmars_grid->ni,                 dbmsname);
+    epic_j_triplet       = dtriplet(0,grid.nj,                           dbmsname);
+    epic_k_openmars_j    = dvector( 0,(KHI-KLOPAD+1)*openmars_grid->nj-1,dbmsname);
+    openmars_phi_surface = dvector( 0,openmars_grid->nj-1,               dbmsname);
+    openmars_phi         = dvector( 0,openmars_grid->nk-1,               dbmsname);
 
     /*--------------------------------------------*
      * Zonal wind, U                              *
@@ -5313,13 +5174,13 @@ void openmars_var_read(planetspec        *planet,
     bc_lateral(var.phi3.value,THREEDIM);
 
     /* Free allocated memory */
-    free_ftriplet(k_triplet,          0,openmars_grid->nk-1,               dbmsname);
-    free_ftriplet(j_triplet,          0,openmars_grid->nj-1,               dbmsname);
-    free_ftriplet(i_triplet,          0,openmars_grid->ni,                 dbmsname);
-    free_ftriplet(epic_j_triplet,     0,grid.nj,                           dbmsname);
-    free_fvector(epic_k_openmars_j,   0,(KHI-KLOPAD+1)*openmars_grid->nj-1,dbmsname);
-    free_fvector(openmars_phi_surface,0,openmars_grid->nj-1,               dbmsname);
-    free_fvector(openmars_phi,        0,openmars_grid->nk-1,               dbmsname);
+    free_dtriplet(k_triplet,          0,openmars_grid->nk-1,               dbmsname);
+    free_dtriplet(j_triplet,          0,openmars_grid->nj-1,               dbmsname);
+    free_dtriplet(i_triplet,          0,openmars_grid->ni,                 dbmsname);
+    free_dtriplet(epic_j_triplet,     0,grid.nj,                           dbmsname);
+    free_dvector(epic_k_openmars_j,   0,(KHI-KLOPAD+1)*openmars_grid->nj-1,dbmsname);
+    free_dvector(openmars_phi_surface,0,openmars_grid->nj-1,               dbmsname);
+    free_dvector(openmars_phi,        0,openmars_grid->nk-1,               dbmsname);
 
   } /* end portion == VAR_DATA */
 
@@ -5334,8 +5195,7 @@ void openmars_var_read(planetspec        *planet,
 
 /*======================= openmars_make_arrays() ============================*/
 
-void openmars_make_arrays(planetspec        *planet,
-                          openmars_gridspec *openmars_grid)
+void openmars_make_arrays(openmars_gridspec *openmars_grid)
 {
   int
     nelem2d,nelem3d;
@@ -5351,18 +5211,18 @@ void openmars_make_arrays(planetspec        *planet,
   nelem2d = openmars_grid->nj*openmars_grid->ni;
   nelem3d = nelem2d*openmars_grid->nk;
 
-  openmars_grid->lon       = fvector(0,openmars_grid->ni-1,   dbmsname);
-  openmars_grid->lat       = fvector(0,openmars_grid->nj-1,   dbmsname);
-  openmars_grid->sigma     = fvector(0,openmars_grid->nk-1,   dbmsname);
-  openmars_grid->time      = fvector(0,openmars_grid->ntime-1,dbmsname);
-  openmars_grid->Ls        = fvector(0,openmars_grid->ntime-1,dbmsname);
+  openmars_grid->lon       = dvector(0,openmars_grid->ni-1,   dbmsname);
+  openmars_grid->lat       = dvector(0,openmars_grid->nj-1,   dbmsname);
+  openmars_grid->sigma     = dvector(0,openmars_grid->nk-1,   dbmsname);
+  openmars_grid->time      = dvector(0,openmars_grid->ntime-1,dbmsname);
+  openmars_grid->Ls        = dvector(0,openmars_grid->ntime-1,dbmsname);
   openmars_grid->MY        = ivector(0,openmars_grid->ntime-1,dbmsname);
-  openmars_grid->ps        = fvector(0,nelem2d-1,             dbmsname);
-  openmars_grid->tsurf     = fvector(0,nelem2d-1,             dbmsname);
-  openmars_grid->temp      = fvector(0,nelem3d-1,             dbmsname);
-  openmars_grid->u         = fvector(0,nelem3d-1,             dbmsname);
-  openmars_grid->v         = fvector(0,nelem3d-1,             dbmsname);
-  openmars_grid->theta     = fvector(0,nelem3d-1,             dbmsname);
+  openmars_grid->ps        = dvector(0,nelem2d-1,             dbmsname);
+  openmars_grid->tsurf     = dvector(0,nelem2d-1,             dbmsname);
+  openmars_grid->temp      = dvector(0,nelem3d-1,             dbmsname);
+  openmars_grid->u         = dvector(0,nelem3d-1,             dbmsname);
+  openmars_grid->v         = dvector(0,nelem3d-1,             dbmsname);
+  openmars_grid->theta     = dvector(0,nelem3d-1,             dbmsname);
 
   return;
 }
@@ -5371,8 +5231,7 @@ void openmars_make_arrays(planetspec        *planet,
 
 /*======================= openmars_free_arrays() ============================*/
 
-void openmars_free_arrays(planetspec        *planet,
-                          openmars_gridspec *openmars_grid)
+void openmars_free_arrays(openmars_gridspec *openmars_grid)
 {
   int
     nelem2d,nelem3d;
@@ -5387,18 +5246,18 @@ void openmars_free_arrays(planetspec        *planet,
   nelem2d = openmars_grid->ni*openmars_grid->nj;
   nelem3d = nelem2d*openmars_grid->nk;
 
-  free_fvector(openmars_grid->lon,        0,openmars_grid->ni-1,   dbmsname);
-  free_fvector(openmars_grid->lat,        0,openmars_grid->nj-1,   dbmsname);
-  free_fvector(openmars_grid->sigma,      0,openmars_grid->nk-1,   dbmsname);
-  free_fvector(openmars_grid->time,       0,openmars_grid->ntime-1,dbmsname);
-  free_fvector(openmars_grid->Ls,         0,openmars_grid->ntime-1,dbmsname);
+  free_dvector(openmars_grid->lon,        0,openmars_grid->ni-1,   dbmsname);
+  free_dvector(openmars_grid->lat,        0,openmars_grid->nj-1,   dbmsname);
+  free_dvector(openmars_grid->sigma,      0,openmars_grid->nk-1,   dbmsname);
+  free_dvector(openmars_grid->time,       0,openmars_grid->ntime-1,dbmsname);
+  free_dvector(openmars_grid->Ls,         0,openmars_grid->ntime-1,dbmsname);
   free_ivector(openmars_grid->MY,         0,openmars_grid->ntime-1,dbmsname);
-  free_fvector(openmars_grid->ps,         0,nelem2d-1,             dbmsname);
-  free_fvector(openmars_grid->tsurf,      0,nelem2d-1,             dbmsname);
-  free_fvector(openmars_grid->temp,       0,nelem3d-1,             dbmsname);
-  free_fvector(openmars_grid->u,          0,nelem3d-1,             dbmsname);
-  free_fvector(openmars_grid->v,          0,nelem3d-1,             dbmsname);
-  free_fvector(openmars_grid->theta,      0,nelem3d-1,             dbmsname);
+  free_dvector(openmars_grid->ps,         0,nelem2d-1,             dbmsname);
+  free_dvector(openmars_grid->tsurf,      0,nelem2d-1,             dbmsname);
+  free_dvector(openmars_grid->temp,       0,nelem3d-1,             dbmsname);
+  free_dvector(openmars_grid->u,          0,nelem3d-1,             dbmsname);
+  free_dvector(openmars_grid->v,          0,nelem3d-1,             dbmsname);
+  free_dvector(openmars_grid->theta,      0,nelem3d-1,             dbmsname);
 
   return;
 }
@@ -5413,7 +5272,7 @@ void openmars_free_arrays(planetspec        *planet,
  * The input parameters are "hard wired" and need to be adjusted for each new application.
  */
 
-void openmars_epic_nc(planetspec *planet)
+void openmars_epic_nc(void)
 {
   pid_t
     pid;
@@ -5556,12 +5415,10 @@ void openmars_epic_nc(planetspec *planet)
  * Input OpenMARS data into EPIC, compute diagnostic fields on isentropic surfaces,
  * and output results.
  */
-void openmars_conversion(planetspec        *planet,
-                         openmars_gridspec *openmars_grid,
+void openmars_conversion(openmars_gridspec *openmars_grid,
                          char              *openmars_infile,
                          char              *openmars_outfile_qb,
-                         char              *openmars_outfile_uvpt,
-                         EPIC_FLOAT       **Buff2D)
+                         char              *openmars_outfile_uvpt)
 {
   int
     jj,kk,i,
@@ -5593,7 +5450,7 @@ void openmars_conversion(planetspec        *planet,
     MY_info,
     pv_info,bsf_info,NH2_info,kin_info,
     u_info,ug_info,v_info,p_info,t_info,phi_info,ma_info;
-  EPIC_FLOAT
+  double
    *p,
    *h;
 
@@ -6077,8 +5934,8 @@ void openmars_conversion(planetspec        *planet,
 
 
   /* Allocate memory */
-  p      = fvector(0,2*grid.nk+1,dbmsname);
-  h      = fvector(0,2*grid.nk+1,dbmsname);
+  p      = dvector(0,2*grid.nk+1,dbmsname);
+  h      = dvector(0,2*grid.nk+1,dbmsname);
   buffer = (double *)calloc(grid.ni,sizeof(double));
 
   for (openmars_itime = 0; openmars_itime < openmars_grid->ntime; openmars_itime++) {
@@ -6089,7 +5946,7 @@ void openmars_conversion(planetspec        *planet,
     /*
      * Input OpenMARS data for timeframe openmars_itime, and interpolate into EPIC variables.
      */
-    openmars_var_read(planet,openmars_grid,openmars_infile,VAR_DATA,openmars_itime);
+    openmars_var_read(openmars_grid,openmars_infile,VAR_DATA,openmars_itime);
 
     /*
      * Write time.
@@ -6115,7 +5972,7 @@ void openmars_conversion(planetspec        *planet,
       jj = 2*J+1;
       for (I = ILO; I <= IHI; I++) {
         for (kk = 1; kk <= 2*KHI+1; kk++) {
-          p[kk] = get_p(planet,P2_INDEX,kk,J,I);
+          p[kk] = get_p(P2_INDEX,kk,J,I);
         }
         calc_h(jj,p,h);
 
@@ -6133,9 +5990,9 @@ void openmars_conversion(planetspec        *planet,
     /*
      * PHI3(KHI,J,I) is set above by openmars_var_read(VAR_DATA).
      */
-    set_p2_etc(planet,UPDATE_THETA,Buff2D);
-    store_pgrad_vars(planet,Buff2D,SYNC_DIAGS_ONLY,PASSING_PHI3NK);
-    store_diag(planet);
+    set_p2_etc(UPDATE_THETA);
+    store_pgrad_vars(SYNC_DIAGS_ONLY,PASSING_PHI3NK);
+    store_diag();
 
     nc_count[NETCDF_T_INDEX] = 1;
     nc_count[NETCDF_K_INDEX] = 1; 
@@ -6176,8 +6033,8 @@ void openmars_conversion(planetspec        *planet,
          */
         for (I = ILO; I <= IHI; I++) {
           buffer[I-ILO] = MONT2(K,J,I)
-                         +get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                         var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
+                         +get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                                  var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
             buffer[I-ILO] = NAN;
@@ -6190,7 +6047,7 @@ void openmars_conversion(planetspec        *planet,
          * and the pressure scale height, H = RT/g.
          */
         for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = get_brunt2(planet,kk,J,I)
+          buffer[I-ILO] = get_brunt2(kk,J,I)
                          *SQR(planet->rgas*T2(K,J,I)/g);
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
@@ -6203,8 +6060,8 @@ void openmars_conversion(planetspec        *planet,
          * Write kinetic energy per mass (kin), .5*(u*u+v*v).
          */
         for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                         var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
+          buffer[I-ILO] = get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                                  var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
             buffer[I-ILO] = NAN;
@@ -6325,10 +6182,10 @@ void openmars_conversion(planetspec        *planet,
          * Write Mach number, Ma.
          */
         for (I = ILO; I <= IHI; I++) {
-          c2factor = return_cp(planet,0.,0.,T2(K,J,I));
+          c2factor = return_cp(0.,0.,T2(K,J,I));
           c2factor = planet->rgas*c2factor/(c2factor-planet->rgas);
-          buffer[I-ILO] = sqrt(2.*get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                                 var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I)
+          buffer[I-ILO] = sqrt(2.*get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                                          var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I)
                                /(T2(K,J,I)*c2factor));
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
@@ -6351,8 +6208,8 @@ void openmars_conversion(planetspec        *planet,
    * The conversion is complete, so clean up (write default values,
    * free allocated memory, etc.) and exit.
    */
-  free_fvector(p,0,2*grid.nk+1,dbmsname);
-  free_fvector(h,0,2*grid.nk+1,dbmsname);
+  free_dvector(p,0,2*grid.nk+1,dbmsname);
+  free_dvector(h,0,2*grid.nk+1,dbmsname);
   free(buffer);
 }
 
@@ -6372,8 +6229,7 @@ void openmars_conversion(planetspec        *planet,
 #define FBUFF3D(k,j,i)      fbuffer[i+emars_grid->ni*(j+emars_grid->nj*(k))]
 #define EPIC_K_EMARS_j(K,j) epic_k_emars_j[j+emars_grid->nj*(K-KLOPAD)]
 
-void emars_var_read(planetspec     *planet,
-                    emars_gridspec *emars_grid,
+void emars_var_read(emars_gridspec *emars_grid,
                     char           *emars_infile,
                     int             portion,
                     int             input_itime)
@@ -6614,7 +6470,7 @@ void emars_var_read(planetspec     *planet,
      * NOTE: Unlike OpenMARS, the EMARS latitudes are stored in the same order as the EPIC convention.
      */
     for (j = 0; j < emars_grid->nj; j++) {
-       emars_grid->lat[j] = (EPIC_FLOAT)dbuffer[j];
+       emars_grid->lat[j] = (double)dbuffer[j];
     }
 
     free(dbuffer);
@@ -6652,7 +6508,7 @@ void emars_var_read(planetspec     *planet,
      *       in the same top-down order (the planet's surface is last) as the EPIC convention.
      */
     for (k = 0; k < emars_grid->nk+1; k++) {
-      emars_grid->ak[k] = (EPIC_FLOAT)fbuffer[k];
+      emars_grid->ak[k] = (double)fbuffer[k];
     }
 
     nc_err = nc_inq_varid(nc_id,"bk",&nc_varid);
@@ -6668,7 +6524,7 @@ void emars_var_read(planetspec     *planet,
     }
 
     for (k = 0; k < emars_grid->nk+1; k++) {
-      emars_grid->bk[k] = (EPIC_FLOAT)fbuffer[k];
+      emars_grid->bk[k] = (double)fbuffer[k];
     }
 
     free(fbuffer);
@@ -6712,7 +6568,7 @@ void emars_var_read(planetspec     *planet,
       epic_error(dbmsname,Message);
     }
     for (itime = 0; itime < emars_grid->ntime; itime++) {
-      emars_grid->time[itime] = (EPIC_FLOAT)dbuffer[itime*2];
+      emars_grid->time[itime] = (double)dbuffer[itime*2];
     }
 
     nc_err = nc_inq_varid(nc_id,"mars_hour",&nc_varid);
@@ -6726,7 +6582,7 @@ void emars_var_read(planetspec     *planet,
       epic_error(dbmsname,Message);
     }
     for (itime = 0; itime < emars_grid->ntime; itime++) {
-       emars_grid->time[itime] += (EPIC_FLOAT)(dbuffer[itime*2]/24.);
+       emars_grid->time[itime] += (double)(dbuffer[itime*2]/24.);
     }
 
     free(dbuffer);
@@ -6761,7 +6617,7 @@ void emars_var_read(planetspec     *planet,
      *       respectively. Hence, we do not do a correction on the EMARS Ls values.
      */
     for (itime = 0; itime < emars_grid->ntime; itime++) {
-      emars_grid->Ls[itime] = (EPIC_FLOAT)dbuffer[itime*2];
+      emars_grid->Ls[itime] = (double)dbuffer[itime*2];
     }
 
     season_string(emars_grid->Ls[0                  ],start_season);
@@ -6858,10 +6714,10 @@ void emars_var_read(planetspec     *planet,
          */
         ii = 0;
         for (i = i_seam; i < emars_grid->ni; i++) {
-          EMARS_PHI_SURFACE(j,ii++) = (EPIC_FLOAT)DBUFF2D(j,i);
+          EMARS_PHI_SURFACE(j,ii++) = (double)DBUFF2D(j,i);
         }
         for (i = 0; i < i_seam; i++) {
-          EMARS_PHI_SURFACE(j,ii++) = (EPIC_FLOAT)DBUFF2D(j,i);
+          EMARS_PHI_SURFACE(j,ii++) = (double)DBUFF2D(j,i);
         }
       }
 
@@ -6873,7 +6729,7 @@ void emars_var_read(planetspec     *planet,
     int
       count,
       excluded_count;
-    EPIC_FLOAT
+    double
       p1,p2,p3,
       tmp,x,x_d,
      *epic_k_emars_j,
@@ -6881,7 +6737,7 @@ void emars_var_read(planetspec     *planet,
     size_t
       nc_start2d[3],nc_start3d[4],
       nc_count2d[3],nc_count3d[4];
-    float_triplet
+    double_triplet
       *k_triplet,
       *j_triplet,
       *i_triplet,
@@ -6909,8 +6765,8 @@ void emars_var_read(planetspec     *planet,
 
     /*
      * NOTE: The EMARS and EPIC 2D and 3D array layouts are the same, but the data types
-     *       are typically different, i.e. input floats vs. internal doubles (EPIC_FLOAT is usually
-     *       specified to be double). Thus, we use point-by-point assignment instead of memcpy().
+     *       are typically different, i.e. input floats vs. internal doubles. 
+     *       Thus, we use point-by-point assignment instead of memcpy().
      */
 
     fbuffer = calloc(nelem2d,sizeof(float));
@@ -6937,10 +6793,10 @@ void emars_var_read(planetspec     *planet,
        */
       ii = 0;
       for (i = i_seam; i < emars_grid->ni; i++) {
-        EMARS_PS(j,ii++) = (EPIC_FLOAT)FBUFF2D(j,i);
+        EMARS_PS(j,ii++) = (double)FBUFF2D(j,i);
       }
       for (i = 0; i < i_seam; i++) {
-        EMARS_PS(j,ii++) = (EPIC_FLOAT)FBUFF2D(j,i);
+        EMARS_PS(j,ii++) = (double)FBUFF2D(j,i);
       }
     }
 
@@ -6969,10 +6825,10 @@ void emars_var_read(planetspec     *planet,
        */
       ii = 0;
       for (i = i_seam; i < emars_grid->ni; i++) {
-        EMARS_TSURF(j,ii++) = (EPIC_FLOAT)FBUFF2D(j,i);
+        EMARS_TSURF(j,ii++) = (double)FBUFF2D(j,i);
       }
       for (i = 0; i < i_seam; i++) {
-        EMARS_TSURF(j,ii++) = (EPIC_FLOAT)FBUFF2D(j,i);
+        EMARS_TSURF(j,ii++) = (double)FBUFF2D(j,i);
       }
     }
 
@@ -7019,10 +6875,10 @@ void emars_var_read(planetspec     *planet,
          */
         ii = 0;
         for (i = i_seam; i < emars_grid->ni; i++) {
-          EMARS_TEMP(k,j,ii++) = (EPIC_FLOAT)FBUFF3D(k,j,i);
+          EMARS_TEMP(k,j,ii++) = (double)FBUFF3D(k,j,i);
         }
         for (i = 0; i < i_seam; i++) {
-          EMARS_TEMP(k,j,ii++) = (EPIC_FLOAT)FBUFF3D(k,j,i);
+          EMARS_TEMP(k,j,ii++) = (double)FBUFF3D(k,j,i);
         }
       }
     }
@@ -7050,10 +6906,10 @@ void emars_var_read(planetspec     *planet,
          */
         ii = 0;
         for (i = i_seam; i < emars_grid->ni; i++) {
-          EMARS_U(k,j,ii++) = (EPIC_FLOAT)FBUFF3D(k,j,i);
+          EMARS_U(k,j,ii++) = (double)FBUFF3D(k,j,i);
         }
         for (i = 0; i < i_seam; i++) {
-          EMARS_U(k,j,ii++) = (EPIC_FLOAT)FBUFF3D(k,j,i);
+          EMARS_U(k,j,ii++) = (double)FBUFF3D(k,j,i);
         }
       }
     }
@@ -7081,10 +6937,10 @@ void emars_var_read(planetspec     *planet,
          */
         ii = 0;
         for (i = i_seam; i < emars_grid->ni; i++) {
-          EMARS_V(k,j,ii++) = (EPIC_FLOAT)FBUFF3D(k,j,i);
+          EMARS_V(k,j,ii++) = (double)FBUFF3D(k,j,i);
         }
         for (i = 0; i < i_seam; i++) {
-          EMARS_V(k,j,ii++) = (EPIC_FLOAT)FBUFF3D(k,j,i);
+          EMARS_V(k,j,ii++) = (double)FBUFF3D(k,j,i);
         }
       }
     }
@@ -7118,12 +6974,12 @@ void emars_var_read(planetspec     *planet,
      *---------------------------------------------------*/
 
     /* Allocate memory */
-    k_triplet         = ftriplet(0,emars_grid->nk-1,               dbmsname);
-    j_triplet         = ftriplet(0,emars_grid->nj+1,               dbmsname);
-    i_triplet         = ftriplet(0,emars_grid->ni,                 dbmsname);
-    epic_j_triplet    = ftriplet(0,grid.nj,                        dbmsname);
-    epic_k_emars_j    = fvector( 0,(KHI-KLOPAD+1)*emars_grid->nj-1,dbmsname);
-    emars_phi         = fvector( 0,emars_grid->nk,                 dbmsname);  /* on interfaces, so gets an extra position */
+    k_triplet         = dtriplet(0,emars_grid->nk-1,               dbmsname);
+    j_triplet         = dtriplet(0,emars_grid->nj+1,               dbmsname);
+    i_triplet         = dtriplet(0,emars_grid->ni,                 dbmsname);
+    epic_j_triplet    = dtriplet(0,grid.nj,                        dbmsname);
+    epic_k_emars_j    = dvector( 0,(KHI-KLOPAD+1)*emars_grid->nj-1,dbmsname);
+    emars_phi         = dvector( 0,emars_grid->nk,                 dbmsname);  /* on interfaces, so gets an extra position */
 
     /*--------------------------------------------*
      * Zonal wind, U                              *
@@ -7590,12 +7446,12 @@ void emars_var_read(planetspec     *planet,
     bc_lateral(var.phi3.value,THREEDIM);
 
     /* Free allocated memory */
-    free_ftriplet(k_triplet,     0,emars_grid->nk-1,               dbmsname);
-    free_ftriplet(j_triplet,     0,emars_grid->nj-1,               dbmsname);
-    free_ftriplet(i_triplet,     0,emars_grid->ni,                 dbmsname);
-    free_ftriplet(epic_j_triplet,0,grid.nj,                        dbmsname);
-    free_fvector(epic_k_emars_j, 0,(KHI-KLOPAD+1)*emars_grid->nj-1,dbmsname);
-    free_fvector(emars_phi,      0,emars_grid->nk,                 dbmsname);
+    free_dtriplet(k_triplet,     0,emars_grid->nk-1,               dbmsname);
+    free_dtriplet(j_triplet,     0,emars_grid->nj-1,               dbmsname);
+    free_dtriplet(i_triplet,     0,emars_grid->ni,                 dbmsname);
+    free_dtriplet(epic_j_triplet,0,grid.nj,                        dbmsname);
+    free_dvector(epic_k_emars_j, 0,(KHI-KLOPAD+1)*emars_grid->nj-1,dbmsname);
+    free_dvector(emars_phi,      0,emars_grid->nk,                 dbmsname);
 
   } /* end portion == VAR_DATA */
 
@@ -7611,8 +7467,7 @@ void emars_var_read(planetspec     *planet,
 
 /*======================= emars_make_arrays() ===============================*/
 
-void emars_make_arrays(planetspec     *planet,
-                       emars_gridspec *emars_grid)
+void emars_make_arrays(emars_gridspec *emars_grid)
 {
   int
     nelem2d,nelem3d;
@@ -7628,21 +7483,21 @@ void emars_make_arrays(planetspec     *planet,
   nelem2d = emars_grid->nj*emars_grid->ni;
   nelem3d = nelem2d*emars_grid->nk;
 
-  emars_grid->lon         = fvector(0,emars_grid->ni-1,   dbmsname);
-  emars_grid->lat         = fvector(0,emars_grid->nj-1,   dbmsname);
-  emars_grid->ak          = fvector(0,emars_grid->nk,     dbmsname);
-  emars_grid->bk          = fvector(0,emars_grid->nk,     dbmsname);
-  emars_grid->time        = fvector(0,emars_grid->ntime-1,dbmsname);
-  emars_grid->Ls          = fvector(0,emars_grid->ntime-1,dbmsname);
+  emars_grid->lon         = dvector(0,emars_grid->ni-1,   dbmsname);
+  emars_grid->lat         = dvector(0,emars_grid->nj-1,   dbmsname);
+  emars_grid->ak          = dvector(0,emars_grid->nk,     dbmsname);
+  emars_grid->bk          = dvector(0,emars_grid->nk,     dbmsname);
+  emars_grid->time        = dvector(0,emars_grid->ntime-1,dbmsname);
+  emars_grid->Ls          = dvector(0,emars_grid->ntime-1,dbmsname);
   emars_grid->MY          = ivector(0,emars_grid->ntime-1,dbmsname);
-  emars_grid->ps          = fvector(0,nelem2d-1,          dbmsname);
-  emars_grid->tsurf       = fvector(0,nelem2d-1,          dbmsname);
-  emars_grid->phi_surface = fvector(0,nelem2d-1,          dbmsname);
-  emars_grid->temp        = fvector(0,nelem3d-1,          dbmsname);
-  emars_grid->p           = fvector(0,nelem3d-1,          dbmsname);
-  emars_grid->u           = fvector(0,nelem3d-1,          dbmsname);
-  emars_grid->v           = fvector(0,nelem3d-1,          dbmsname);
-  emars_grid->theta       = fvector(0,nelem3d-1,          dbmsname);
+  emars_grid->ps          = dvector(0,nelem2d-1,          dbmsname);
+  emars_grid->tsurf       = dvector(0,nelem2d-1,          dbmsname);
+  emars_grid->phi_surface = dvector(0,nelem2d-1,          dbmsname);
+  emars_grid->temp        = dvector(0,nelem3d-1,          dbmsname);
+  emars_grid->p           = dvector(0,nelem3d-1,          dbmsname);
+  emars_grid->u           = dvector(0,nelem3d-1,          dbmsname);
+  emars_grid->v           = dvector(0,nelem3d-1,          dbmsname);
+  emars_grid->theta       = dvector(0,nelem3d-1,          dbmsname);
 
   return;
 }
@@ -7651,8 +7506,7 @@ void emars_make_arrays(planetspec     *planet,
 
 /*======================= emars_free_arrays() ===============================*/
 
-void emars_free_arrays(planetspec     *planet,
-                       emars_gridspec *emars_grid)
+void emars_free_arrays(emars_gridspec *emars_grid)
 {
   int
     nelem2d,nelem3d;
@@ -7667,20 +7521,20 @@ void emars_free_arrays(planetspec     *planet,
   nelem2d = emars_grid->ni*emars_grid->nj;
   nelem3d = nelem2d*emars_grid->nk;
 
-  free_fvector(emars_grid->lon,        0,emars_grid->ni-1,   dbmsname);
-  free_fvector(emars_grid->lat,        0,emars_grid->nj-1,   dbmsname);
-  free_fvector(emars_grid->ak,         0,emars_grid->nk,     dbmsname);
-  free_fvector(emars_grid->bk,         0,emars_grid->nk,     dbmsname);
-  free_fvector(emars_grid->time,       0,emars_grid->ntime-1,dbmsname);
-  free_fvector(emars_grid->Ls,         0,emars_grid->ntime-1,dbmsname);
+  free_dvector(emars_grid->lon,        0,emars_grid->ni-1,   dbmsname);
+  free_dvector(emars_grid->lat,        0,emars_grid->nj-1,   dbmsname);
+  free_dvector(emars_grid->ak,         0,emars_grid->nk,     dbmsname);
+  free_dvector(emars_grid->bk,         0,emars_grid->nk,     dbmsname);
+  free_dvector(emars_grid->time,       0,emars_grid->ntime-1,dbmsname);
+  free_dvector(emars_grid->Ls,         0,emars_grid->ntime-1,dbmsname);
   free_ivector(emars_grid->MY,         0,emars_grid->ntime-1,dbmsname);
-  free_fvector(emars_grid->ps,         0,nelem2d-1,          dbmsname);
-  free_fvector(emars_grid->tsurf,      0,nelem2d-1,          dbmsname);
-  free_fvector(emars_grid->phi_surface,0,nelem2d-1,          dbmsname);
-  free_fvector(emars_grid->temp,       0,nelem3d-1,          dbmsname);
-  free_fvector(emars_grid->u,          0,nelem3d-1,          dbmsname);
-  free_fvector(emars_grid->v,          0,nelem3d-1,          dbmsname);
-  free_fvector(emars_grid->theta,      0,nelem3d-1,          dbmsname);
+  free_dvector(emars_grid->ps,         0,nelem2d-1,          dbmsname);
+  free_dvector(emars_grid->tsurf,      0,nelem2d-1,          dbmsname);
+  free_dvector(emars_grid->phi_surface,0,nelem2d-1,          dbmsname);
+  free_dvector(emars_grid->temp,       0,nelem3d-1,          dbmsname);
+  free_dvector(emars_grid->u,          0,nelem3d-1,          dbmsname);
+  free_dvector(emars_grid->v,          0,nelem3d-1,          dbmsname);
+  free_dvector(emars_grid->theta,      0,nelem3d-1,          dbmsname);
 
   return;
 }
@@ -7695,7 +7549,7 @@ void emars_free_arrays(planetspec     *planet,
  * The input parameters are "hard wired" and need to be adjusted for each new application.
  */
 
-void emars_epic_nc(planetspec *planet)
+void emars_epic_nc(void)
 {
   pid_t
     pid;
@@ -7838,12 +7692,10 @@ void emars_epic_nc(planetspec *planet)
  * Input EMARS data into EPIC, compute diagnostic fields on isentropic surfaces,
  * and output results.
  */
-void emars_conversion(planetspec     *planet,
-                      emars_gridspec *emars_grid,
+void emars_conversion(emars_gridspec *emars_grid,
                       char           *emars_infile,
                       char           *emars_outfile_qb,
-                      char           *emars_outfile_uvpt,
-                      EPIC_FLOAT    **Buff2D)
+                      char           *emars_outfile_uvpt)
 {
   int
     jj,kk,i,
@@ -7875,7 +7727,7 @@ void emars_conversion(planetspec     *planet,
     MY_info,
     pv_info,bsf_info,NH2_info,kin_info,
     u_info,v_info,ug_info,p_info,t_info,phi_info,ma_info;
-  EPIC_FLOAT
+  double
    *p,
    *h;
 
@@ -8356,8 +8208,8 @@ void emars_conversion(planetspec     *planet,
   fprintf(stdout,"Computing variables on theta surfaces for EMARS QB and UVPT files...  0%%");
 
   /* Allocate memory */
-  p      = fvector(0,2*grid.nk+1,dbmsname);
-  h      = fvector(0,2*grid.nk+1,dbmsname);
+  p      = dvector(0,2*grid.nk+1,dbmsname);
+  h      = dvector(0,2*grid.nk+1,dbmsname);
   buffer = (double *)calloc(grid.ni,sizeof(double));
 
   for (emars_itime = 0; emars_itime < emars_grid->ntime; emars_itime++) {
@@ -8368,7 +8220,7 @@ void emars_conversion(planetspec     *planet,
     /*
      * Input EMARS data for timeframe emars_itime, and interpolate into EPIC variables.
      */
-    emars_var_read(planet,emars_grid,emars_infile,VAR_DATA,emars_itime);
+    emars_var_read(emars_grid,emars_infile,VAR_DATA,emars_itime);
 
     /*
      * Write time.
@@ -8394,7 +8246,7 @@ void emars_conversion(planetspec     *planet,
       jj = 2*J+1;
       for (I = ILO; I <= IHI; I++) {
         for (kk = 1; kk <= 2*KHI+1; kk++) {
-          p[kk] = get_p(planet,P2_INDEX,kk,J,I);
+          p[kk] = get_p(P2_INDEX,kk,J,I);
         }
         calc_h(jj,p,h);
 
@@ -8412,9 +8264,9 @@ void emars_conversion(planetspec     *planet,
     /*
      * PHI3(KHI,J,I) is set above by emars_var_read(VAR_DATA).
      */
-    set_p2_etc(planet,UPDATE_THETA,Buff2D);
-    store_pgrad_vars(planet,Buff2D,SYNC_DIAGS_ONLY,PASSING_PHI3NK);
-    store_diag(planet);
+    set_p2_etc(UPDATE_THETA);
+    store_pgrad_vars(SYNC_DIAGS_ONLY,PASSING_PHI3NK);
+    store_diag();
 
     nc_count[NETCDF_T_INDEX] = 1;
     nc_count[NETCDF_K_INDEX] = 1; 
@@ -8455,8 +8307,8 @@ void emars_conversion(planetspec     *planet,
          */
         for (I = ILO; I <= IHI; I++) {
           buffer[I-ILO] = MONT2(K,J,I)
-                         +get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                         var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
+                         +get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                                  var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
             buffer[I-ILO] = NAN;
@@ -8469,7 +8321,7 @@ void emars_conversion(planetspec     *planet,
          * and the pressure scale height, H = RT/g.
          */
         for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = get_brunt2(planet,kk,J,I)
+          buffer[I-ILO] = get_brunt2(kk,J,I)
                          *SQR(planet->rgas*T2(K,J,I)/g);
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
@@ -8482,8 +8334,8 @@ void emars_conversion(planetspec     *planet,
          * Write kinetic energy per mass (kin), .5*(u*u+v*v).
          */
         for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                         var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
+          buffer[I-ILO] = get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                                  var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
             buffer[I-ILO] = NAN;
@@ -8603,10 +8455,10 @@ void emars_conversion(planetspec     *planet,
          * Write Mach number, Ma.
          */
         for (I = ILO; I <= IHI; I++) {
-          c2factor = return_cp(planet,0.,0.,T2(K,J,I));
+          c2factor = return_cp(0.,0.,T2(K,J,I));
           c2factor = planet->rgas*c2factor/(c2factor-planet->rgas);
-          buffer[I-ILO] = sqrt(2.*get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                                 var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I)
+          buffer[I-ILO] = sqrt(2.*get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                                          var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I)
                                /(T2(K,J,I)*c2factor));
           if (grid.sigmatheta[2*K+1] < THETA(K,J,I)) {
             /* Flag underground value with NAN */
@@ -8629,1555 +8481,11 @@ void emars_conversion(planetspec     *planet,
    * The conversion is complete, so clean up (write default values,
    * free allocated memory, etc.) and exit.
    */
-  free_fvector(p,0,2*grid.nk+1,dbmsname);
-  free_fvector(h,0,2*grid.nk+1,dbmsname);
+  free_dvector(p,0,2*grid.nk+1,dbmsname);
+  free_dvector(h,0,2*grid.nk+1,dbmsname);
   free(buffer);
 }
 
 /*======================= end of emars_conversion() ==========================*/
-
-/*======================= weizmann_var_read() ================================*/
-
-/*
- * Read in Weizmann Institute (Jupiter) data.
- * portion = SIZE_DATA:       read in grid dimensions
- * portion = POST_SIZE_DATA:  read in constant parameters
- * portion = VAR_DATA:        read in variables
- */
-
-#define DBUFF3D(k,j,i)         dbuffer[k+weizmann_grid->nk*(j+weizmann_grid->nj*(i))]
-#define EPIC_K_WEIZMANN_j(K,j) epic_k_weizmann_j[j+weizmann_grid->nj*(K-KLOPAD)]
-
-void weizmann_var_read(planetspec        *planet,
-                       weizmann_gridspec *weizmann_grid,
-                       char              *weizmann_infile,
-                       int                portion,
-                       int                itime)
-{
-  int
-    K,J,I,
-    kk,k,j,i,
-    is,
-    nelem2d,nelem3d;
-  static char
-    **gattname=NULL,
-    **varname =NULL;
-  static int
-    ngatts    =0,
-    num_progs =0;
-  int
-    nc_err,nc_id,
-    nc_dimid,nc_varid;
-  double
-    *dbuffer;
-  size_t
-    dimlen;
-  nc_type
-    the_nc_type;     /* NOTE: Used in i/o macros. */
-
-  /* 
-   * The following are part of DEBUG_MILESTONE(.) statements: 
-   */
-  int
-    idbms=0;
-  static char
-    dbmsname[]="weizmann_var_read";
-
-  nc_err = lookup_netcdf(weizmann_infile,&nc_id,&ngatts,&gattname,&num_progs,&varname);
-  if (nc_err != NC_NOERR) {
-    sprintf(Message,"%s: \"%s\"",nc_strerror(nc_err),weizmann_infile);
-    epic_error(dbmsname,Message);
-  }
-
-  /*
-   * Store netcdf file history for later use.
-   */
-  /*
-  READC(weizmann_grid->infile_history,history,128);
-  */
-  sprintf(weizmann_grid->infile_history,"[No input-file history]");
-
-  if (portion == SIZE_DATA) {
-    fprintf(stdout,"Reading SIZE_DATA from %s \n",weizmann_infile);
-  }
-  else if (portion == POST_SIZE_DATA) {
-    fprintf(stdout,"Reading POST_SIZE_DATA from %s \n",weizmann_infile);
-  }
-  else if (portion == VAR_DATA) {
-    ;
-  }
-  else {
-    sprintf(Message,"unrecognized portion = %d",portion);
-    epic_error(dbmsname,Message);
-  }
-  fflush(stderr);
-
-  /*
-   * Read in size of model and set parameters needed by weizmann_make_arrays().
-   */
-  if (portion == SIZE_DATA) {
-    /* 
-     * Number of longitude points
-     */
-    weizmann_grid->ni = 1;
-
-    /* 
-     * Number of latitude points
-     */
-    nc_err = nc_inq_dimid(nc_id,"Lat",&nc_dimid);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s: \"%s\"",nc_strerror(nc_err),weizmann_infile);
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_inq_dimlen(nc_id,nc_dimid,&dimlen);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s: \"%s\"",nc_strerror(nc_err),weizmann_infile);
-      epic_error(dbmsname,Message);
-    }
-    weizmann_grid->nj = (int)dimlen;
-
-    /* 
-     * Number of pressure levels.
-     */
-    nc_err = nc_inq_dimid(nc_id,"P",&nc_dimid);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s: \"%s\"",nc_strerror(nc_err),weizmann_infile);
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_inq_dimlen(nc_id,nc_dimid,&dimlen);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s: \"%s\"",nc_strerror(nc_err),weizmann_infile);
-      epic_error(dbmsname,Message);
-    }
-    weizmann_grid->nk = (int)dimlen;
-
-    /* 
-     * Number of times.
-     */
-    weizmann_grid->ntime = 1;
-  }
-  else if (portion == POST_SIZE_DATA) {
-    /*
-     * NOTE: POST_SIZE_DATA is interpreted here to mean constant parameters,
-     *       including the constant 1D dimension arrays, Lat, P, etc.
-     */
-
-    /*-------------------------*
-     * Read 1D lon array [deg] *
-     *-------------------------*/
-
-    i = 0;
-    weizmann_grid->lon[i] = (EPIC_FLOAT)0.;
-
-    grid.ni = weizmann_grid->ni;
-
-    /*-------------------------*
-     * Read 1D Lat array [deg] *
-     *-------------------------*/
-
-    dbuffer = calloc(weizmann_grid->nj,sizeof(double));
-    if (!dbuffer) {
-      sprintf(Message,"calloc error allocating dbuffer");
-      epic_error(dbmsname,Message);
-    }
-    nc_err = nc_inq_varid(nc_id,"Lat",&nc_varid);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_get_var_double(nc_id,nc_varid,dbuffer);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    /*
-     * NOTE: Weizmann latitudes are stored in the same index order as the EPIC convention.
-     */
-    for (j = 0; j < weizmann_grid->nj; j++) {
-       weizmann_grid->lat[j] = (EPIC_FLOAT)dbuffer[j];
-    }
-
-    free(dbuffer);
-
-    grid.nj = NINT(180./(weizmann_grid->lat[1]-weizmann_grid->lat[0])-1.-sqrt(2.));
-
-    /*---------------------------*
-     * Read 1D pressure array, P *
-     *---------------------------*/
-
-    dbuffer = calloc(weizmann_grid->nk,sizeof(double));
-    if (!dbuffer) {
-      sprintf(Message,"calloc error allocating dbuffer");
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_inq_varid(nc_id,"P",&nc_varid);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_get_var_double(nc_id,nc_varid,dbuffer);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    /*
-     * NOTE: Weizmann P are stored in the same index order as the EPIC convention.
-     * The units are converted from [bar] to [Pa].
-     */
-    for (k = 0; k < weizmann_grid->nk; k++) {
-      weizmann_grid->p[k] = (EPIC_FLOAT)dbuffer[k]*1.e+5;
-    }
-
-    free(dbuffer);
-
-    /*
-     * We hardwire grid.nk.
-     */
-    grid.nk = 8;
-
-    /*---------------------*
-     * Read 1D time array  *
-     *---------------------*/
-
-    weizmann_grid->time[0] = 0.;
-  }
-  else if (portion == VAR_DATA) {
-    int
-      count,
-      excluded_count;
-    EPIC_FLOAT
-      p,tmp,x,x_d,
-      phi0,mont0,
-      fgibb,fpe,uoup,
-     *u1d,
-     *mont1d,
-     *epic_k_weizmann_j;
-    size_t
-      nc_start3d[2],
-      nc_count3d[2];
-    float_triplet
-      *k_triplet,
-      *j_triplet,
-      *i_triplet,
-      *epic_j_triplet;
-    FILE
-      *excluded_file;
-
-    /*
-     * "3d" is used for the meridional-plane data
-     */
-    nelem3d       = weizmann_grid->nj*weizmann_grid->nk;
-    nc_start3d[0] = 0;
-    nc_start3d[1] = 0;
-    nc_count3d[0] = weizmann_grid->nj;
-    nc_count3d[1] = weizmann_grid->nk;
-
-    /*------------------*
-     * Read T array [K] *
-     *------------------*/
-
-    dbuffer = calloc(nelem3d,sizeof(double));
-    if (!dbuffer) {
-      sprintf(Message,"calloc error allocating dbuffer");
-      epic_error(dbmsname,Message);
-    }
-    nc_err = nc_inq_varid(nc_id,"T",&nc_varid);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_get_vara_double(nc_id,nc_varid,nc_start3d,nc_count3d,dbuffer);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    for (k = 0; k < weizmann_grid->nk; k++) {
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        for (i = 0; i < weizmann_grid->ni; i++) {
-          WEIZMANN_TEMP(k,j,i) = (EPIC_FLOAT)DBUFF3D(k,j,i);
-        }
-      }
-    }
-
-    /*--------------------*
-     * Read U array [m/s] *
-     *--------------------*/
-
-    nc_err = nc_inq_varid(nc_id,"U",&nc_varid);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_get_vara_double(nc_id,nc_varid,nc_start3d,nc_count3d,dbuffer);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    for (k = 0; k < weizmann_grid->nk; k++) {
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        for (i = 0; i < weizmann_grid->ni; i++) {
-          WEIZMANN_U(k,j,i) = (EPIC_FLOAT)DBUFF3D(k,j,i);
-        }
-      }
-    }
-
-    /*--------------------*
-     * Read V array [m/s] *
-     *--------------------*/
-
-    for (k = 0; k < weizmann_grid->nk; k++) {
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        for (i = 0; i < weizmann_grid->ni; i++) {
-          WEIZMANN_V(k,j,i) = 0.;
-        }
-      }
-    }
-
-    /*-------------------------*
-     * Read Rho array [kg/m^3] *
-     *-------------------------*/
-
-    nc_err = nc_inq_varid(nc_id,"Rho",&nc_varid);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    nc_err = nc_get_vara_double(nc_id,nc_varid,nc_start3d,nc_count3d,dbuffer);
-    if (nc_err != NC_NOERR) {
-      sprintf(Message,"%s",nc_strerror(nc_err));
-      epic_error(dbmsname,Message);
-    }
-
-    for (k = 0; k < weizmann_grid->nk; k++) {
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        for (i = 0; i < weizmann_grid->ni; i++) {
-          WEIZMANN_RHO(k,j,i) = (EPIC_FLOAT)DBUFF3D(k,j,i);
-        }
-      }
-    }
-
-    /*---------------------------------------------------------*
-     * Compute theta array, 3D potential temperature field [K] *
-     *                                                         *
-     *---------------------------------------------------------*/
-
-    for (k = 0; k < weizmann_grid->nk; k++) {
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        for (i = 0; i < weizmann_grid->ni; i++) {
-          WEIZMANN_THETA(k,j,i) = WEIZMANN_TEMP(k,j,i)*pow(planet->p0/weizmann_grid->p[k],planet->kappa);
-        }
-      }
-    }
-
-    /*------------------------------------------------------*
-     * Interpolate Weizmann data onto EPIC staggered grids. *
-     *------------------------------------------------------*/
-
-    /* Allocate memory */
-    k_triplet         = ftriplet(0,weizmann_grid->nk-1,                  dbmsname);
-    j_triplet         = ftriplet(0,weizmann_grid->nj-1,                  dbmsname);
-    i_triplet         = ftriplet(0,weizmann_grid->ni,                    dbmsname);
-    epic_j_triplet    = ftriplet(0,grid.nj,                              dbmsname);
-    epic_k_weizmann_j = fvector( 0,(KHIPAD-KLOPAD+1)*weizmann_grid->nj-1,dbmsname);
-
-    /*---------------------------------------------------------------------*
-     * Potential temperature, THETA.                                       *
-     * Using isentropic coordinates, so THETA takes the coordinate values. *
-     *---------------------------------------------------------------------*/
-
-    for (K = KLOPAD; K <= KHIPAD; K++) {
-      tmp = grid.sigmatheta[2*K+1];
-      for (J = JLOPAD; J <= JHIPAD; J++) {
-        for (I = ILOPAD; I <= IHIPAD; I++) {
-          THETA(K,J,I) = tmp;
-        }
-      }
-    }
-    /* No need to apply bc_lateral() here */
-
-    /*--------------------------------------------*
-     * Zonal wind, U                              *
-     * Longitude can be done by direct insertion. * 
-     *--------------------------------------------*/
-
-    excluded_file = fopen("excluded_thetas.dat","w");
-    if (!excluded_file) {
-      sprintf(Message,"file %s not found","excluded_thetas.dat");
-      epic_error(dbmsname,Message);
-    }
-    fprintf(excluded_file," Points in column excluded because of lack of monotonicity of theta.\n");
-    fprintf(excluded_file,"  Lon    Lat  Excluded thetas [K]\n");
-
-    for (I = ILO; I <= IHI; I++) {
-      i = I-1;
-      /*
-       * First, interpolate onto EPIC theta surfaces, keeping Weizmann latitudes.
-       */
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        k              = weizmann_grid->nk-1;
-        k_triplet[0].x = WEIZMANN_THETA(k,j,i);
-        k_triplet[0].y = WEIZMANN_U(k,j,i);
-        count          = 1;
-        excluded_count = 0;
-        for (k = weizmann_grid->nk-2; k >= 0; k--) {
-          /*
-           * Following Du, Dowling and Bradley (2015, JAMES), we exclude from
-           * the source interpolation table points where theta is not larger
-           * than the value on the level below.
-           */
-          if (WEIZMANN_THETA(k,j,i) > k_triplet[count-1].x) {
-            k_triplet[count].x = WEIZMANN_THETA(k,j,i);
-            k_triplet[count].y = WEIZMANN_U(k,j,i);
-            count++;
-          }
-          else {
-            /*
-             * Keep track of number of excluded points caused by non-monotonicity of theta.
-             */
-            excluded_count++;
-            if (excluded_count == 1) {
-              fprintf(excluded_file," %6.1f %5.1f  %5.1f",weizmann_grid->lon[i],weizmann_grid->lat[j],WEIZMANN_THETA(k,j,i));
-            }
-            else {
-              fprintf(excluded_file," %5.1f",WEIZMANN_THETA(k,j,i));
-            }
-          }
-        }
-
-        if (excluded_count > 0) {
-          fprintf(excluded_file,"\n");
-        }
-
-        spline_pchip(count,k_triplet);
-
-        k = -2;
-        for (K = KLO; K <= KHIPAD; K++) {
-          x                      = grid.sigmatheta[2*K];
-          k                      = hunt_place_in_table(count,k_triplet,x,&x_d,k);
-          EPIC_K_WEIZMANN_j(K,j) = splint_pchip(x,k_triplet+k,x_d);
-        }
-      }
-
-      /*
-       * Next, interpolate onto EPIC latitudes.
-       *
-       * NOTE: Pole values are included in the Weizmann latitude range.
-       */
-      for (K = KLO; K <= KHIPAD; K++) {
-        for (j = 0; j < weizmann_grid->nj; j++) {
-          j_triplet[j].x = weizmann_grid->lat[j];
-          j_triplet[j].y = EPIC_K_WEIZMANN_j(K,j);
-        }
-        spline_pchip(weizmann_grid->nj,j_triplet);
-        j = -2;
-        for (J = JLO; J <= JHI; J++) {
-          x                   = grid.lat[2*J+1];
-          j                   = hunt_place_in_table(weizmann_grid->nj,j_triplet,x,&x_d,j);
-          U(grid.it_uv,K,J,I) = splint_pchip(x,j_triplet+j,x_d);
-        }
-      }
-    }
-    /* Need to call bc_lateral() here */
-    bc_lateral(var.u.value+grid.it_uv*Nelem3d,THREEDIM);
-
-    fclose(excluded_file);
-
-    /*-------------------------------------------------------------------*
-     * Meridonal wind, V                                                 *
-     * Longitude needs to be staggered, but start with direct insertion. *
-     *-------------------------------------------------------------------*/
-
-    for (I = ILO; I <= IHI; I++) {
-      i = I-1;
-      /*
-       * First, interpolate onto EPIC theta surfaces, keeping Weizmann latitudes.
-       */
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        k              = weizmann_grid->nk-1;
-        k_triplet[0].x = WEIZMANN_THETA(k,j,i);
-        k_triplet[0].y = WEIZMANN_V(k,j,i);
-        count          = 1;
-        for (k = weizmann_grid->nk-2; k >= 0; k--) {
-          /*
-           * Following Du, Dowling and Bradley (2015, JAMES), we exclude from
-           * the source interpolation table points where theta is not larger
-           * than the value on the level below.
-           */
-          if (WEIZMANN_THETA(k,j,i) > k_triplet[count-1].x) {
-            k_triplet[count].x = WEIZMANN_THETA(k,j,i);
-            k_triplet[count].y = WEIZMANN_V(k,j,i);
-            count++;
-          }
-        }
-        spline_pchip(count,k_triplet);
-        k = -2;
-        for (K = KLO; K <= KHIPAD; K++) {
-          x                      = grid.sigmatheta[2*K];
-          k                      = hunt_place_in_table(count,k_triplet,x,&x_d,k);
-          EPIC_K_WEIZMANN_j(K,j) = splint_pchip(x,k_triplet+k,x_d);
-        }
-      }
-
-      /*
-       * Next, interpolate onto EPIC latitudes.
-       * We include V = 0 pole points.
-       */
-      for (K = KLO; K <= KHIPAD; K++) {
-        for (j = 0; j < weizmann_grid->nj; j++) {
-          j_triplet[j].x = weizmann_grid->lat[j];
-          j_triplet[j].y = EPIC_K_WEIZMANN_j(K,j);
-        }
-        spline_pchip(weizmann_grid->nj,j_triplet);
-        j = -2;
-        for (J = JFIRST; J <= JHI; J++) {
-          x                   = grid.lat[2*J];
-          j                   = hunt_place_in_table(weizmann_grid->nj,j_triplet,x,&x_d,j);
-          V(grid.it_uv,K,J,I) = splint_pchip(x,j_triplet+j,x_d);
-        }
-      }
-    }
-
-    /*
-     * Finally, interpolate onto staggered longitude grid.
-     */
-    for (K = KLO; K <= KHIPAD; K++) {
-      for (J = JFIRST; J <= JHI; J++) {
-        for (i = 0; i < weizmann_grid->ni; i++) {
-          I              = i+1;
-          i_triplet[i].x = weizmann_grid->lon[i];
-          i_triplet[i].y = V(grid.it_uv,K,J,I);
-        }
-        if (weizmann_grid->ni > 1) {
-          i_triplet[i].x = weizmann_grid->lon[i-1]+weizmann_grid->lon[1]-weizmann_grid->lon[0];
-        }
-        else {
-          /* There is no longitude dimension, so just put in a unit increment. */
-          i_triplet[i].x = weizmann_grid->lon[i-1]+1.;
-        }
-        i_triplet[i].y = i_triplet[0].y;
-        periodic_spline_pchip(weizmann_grid->ni+1,i_triplet);
-        i = -2;
-        for (I = ILO; I <= IHI; I++) {
-          x                   = grid.lon[2*I+1];
-          i                   = hunt_place_in_table(weizmann_grid->ni+1,i_triplet,x,&x_d,i);
-          V(grid.it_uv,K,J,I) = splint_pchip(x,i_triplet+i,x_d);
-        }
-      }
-    }
-    /* Need to call bc_lateral() here */
-    bc_lateral(var.v.value+grid.it_uv*Nelem3d,THREEDIM);
-
-    /*-------------------------------------------------------------------*
-     * Pressure on the layer interfaces, P3.                             *
-     * Longitude needs to be staggered, but start with direct insertion. *
-     *-------------------------------------------------------------------*/
-
-    for (I = ILO; I <= IHI; I++) {
-      i = I-1;
-      /*
-       * First, interpolate onto EPIC theta surfaces, keeping Weizmann latitudes.
-       */
-      for (j = 0; j < weizmann_grid->nj; j++) {
-        k              = weizmann_grid->nk-1;
-        k_triplet[0].x = WEIZMANN_THETA(k,j,i);
-        k_triplet[0].y = weizmann_grid->p[k];
-        count          = 1;
-        for (k = weizmann_grid->nk-2; k >= 0; k--) {
-          /*
-           * Following Du, Dowling and Bradley (2015, JAMES), we exclude from
-           * the source interpolation table points where theta is not larger
-           * than the value on the level below.
-           */
-          if (WEIZMANN_THETA(k,j,i) > k_triplet[count-1].x) {
-            k_triplet[count].x = WEIZMANN_THETA(k,j,i);
-            k_triplet[count].y = weizmann_grid->p[k];
-            count++;
-          }
-        }
-        spline_pchip(count,k_triplet);
-        k = -2;
-        for (K = KLOPAD; K <= KHI; K++) {
-          x                      = grid.sigmatheta[2*K+1];
-          k                      = hunt_place_in_table(count,k_triplet,x,&x_d,k);
-          EPIC_K_WEIZMANN_j(K,j) = splint_pchip(x,k_triplet+k,x_d);
-        }
-      }
-
-      /*
-       * Next, interpolate onto EPIC latitudes.
-       */
-      for (K = KLOPAD; K <= KHI; K++) {
-        for (j = 0; j < weizmann_grid->nj; j++) {
-          j_triplet[j].x = weizmann_grid->lat[j];
-          j_triplet[j].y = EPIC_K_WEIZMANN_j(K,j);
-        }
-        spline_pchip(weizmann_grid->nj,j_triplet);
-        j = -2;
-        for (J = JLO; J <= JHI; J++) {
-          x         = grid.lat[2*J+1];
-          j         = hunt_place_in_table(weizmann_grid->nj,j_triplet,x,&x_d,j);
-          P3(K,J,I) = splint_pchip(x,j_triplet+j,x_d);
-        }
-      }
-    }
-
-    /*
-     * Finally, interpolate onto staggered longitude grid.
-     */
-    for (K = KLOPAD; K <= KHI; K++) {
-      for (J = JLO; J <= JHI; J++) {
-        for (i = 0; i < weizmann_grid->ni; i++) {
-          I              = i+1;
-          i_triplet[i].x = weizmann_grid->lon[i];
-          i_triplet[i].y = P3(K,J,I);
-        }
-        if (weizmann_grid->ni > 1) {
-          i_triplet[i].x = weizmann_grid->lon[i-1]+weizmann_grid->lon[1]-weizmann_grid->lon[0];
-        }
-        else {
-          /* There is no longitude dimension, so just put in a unit increment. */
-          i_triplet[i].x = weizmann_grid->lon[i-1]+1.;
-        }
-        i_triplet[i].y = i_triplet[0].y;
-        periodic_spline_pchip(weizmann_grid->ni+1,i_triplet);
-        i = -2;
-        for (I = ILO; I <= IHI; I++) {
-          x         = grid.lon[2*I+1];
-          i         = hunt_place_in_table(weizmann_grid->ni+1,i_triplet,x,&x_d,i);
-          P3(K,J,I) = splint_pchip(x,i_triplet+i,x_d);
-        }
-      }
-    }
-    /* Need to call bc_lateral() here */ 
-    bc_lateral(var.p3.value,THREEDIM);
-
-    /*--------------------------------------------------------------------*
-     * Geopotential at the bottom of the model, PHI3(KHI,J,I). This is    *
-     * the geopotential on the bottom isentropic surface, grid.thetabot.  *
-     * Integrate the gradient-balance equation assuming zonal symmetry.   *
-     *--------------------------------------------------------------------*/
-
-    /* Allocate memory */
-    u1d    = fvector(0,JADIM-1,dbmsname);
-    mont1d = fvector(0,JADIM-1,dbmsname);
-
-    for (J = JLOPAD; J <= JHIPAD; J++) {
-      /*
-       * Calculate zonal averages.
-       */
-      U1D(J) = 0.;
-      for (I = ILO; I <= IHI; I++) {
-        U1D(J) += U(grid.it_uv,KHI+1,J,I);
-      }
-      U1D(J) /= grid.ni;
-    }
-
-    K      = KHI;
-    phi0   = 0.;
-    mont0 = phi0+planet->cp*grid.t_ref[2*K+1];
-
-    mont_from_u(planet,2*KHI+1,u1d,mont1d,grid.jtp,mont0);
-
-    for (J = JLO; J <= JHI; J++) {
-      for (I = ILO; I <= IHI; I++) {
-        T3(K,J,I)   = THETA(K,J,I)*pow(P3(K,J,I)/planet->p0,planet->kappa);
-        PHI3(K,J,I) = MONT1D(J)-planet->cp*T3(K,J,I);
-      }
-    }
-    /* Need to call bc_lateral() here */
-    bc_lateral(var.phi3.value+(K-Kshift)*Nelem2d,TWODIM);
-
-    /* Free allocated memory */
-    free_ftriplet(k_triplet,       0,weizmann_grid->nk-1,            dbmsname);
-    free_ftriplet(j_triplet,       0,weizmann_grid->nj-1,            dbmsname);
-    free_ftriplet(i_triplet,       0,weizmann_grid->ni,              dbmsname);
-    free_ftriplet(epic_j_triplet,  0,grid.nj,                        dbmsname);
-    free_fvector(epic_k_weizmann_j,0,(KHIPAD-KLOPAD+1)*weizmann_grid->nj-1,dbmsname);
-    free_fvector(u1d,              0,JADIM-1,dbmsname);
-    free_fvector(mont1d,           0,JADIM-1,dbmsname);
-  } /* end portion == VAR_DATA */
-
-  return;
-}
-
-#undef DBUFF3D
-#undef EPIC_K_WEIZMANN_j
-
-/*======================= end of weizmann_var_read() =========================*/
-
-/*======================= weizmann_make_arrays() =============================*/
-
-void weizmann_make_arrays(planetspec        *planet,
-                          weizmann_gridspec *weizmann_grid)
-{
-  int
-    nelem2d,nelem3d;
-
-  /* 
-   * The following are part of DEBUG_MILESTONE(.) statements: 
-   */
-  int
-    idbms=0;
-  static char
-    dbmsname[]="weizmann_make_arrays";
-
-  nelem2d = weizmann_grid->nj*weizmann_grid->ni;
-  nelem3d = nelem2d*weizmann_grid->nk;
-
-  weizmann_grid->lon       = fvector(0,weizmann_grid->ni-1,   dbmsname);
-  weizmann_grid->lat       = fvector(0,weizmann_grid->nj-1,   dbmsname);
-  weizmann_grid->p         = fvector(0,weizmann_grid->nk-1,   dbmsname);
-  weizmann_grid->time      = fvector(0,weizmann_grid->ntime-1,dbmsname);
-  weizmann_grid->temp      = fvector(0,nelem3d-1,             dbmsname);
-  weizmann_grid->u         = fvector(0,nelem3d-1,             dbmsname);
-  weizmann_grid->v         = fvector(0,nelem3d-1,             dbmsname);
-  weizmann_grid->theta     = fvector(0,nelem3d-1,             dbmsname);
-  weizmann_grid->rho       = fvector(0,nelem3d-1,             dbmsname);
-
-  return;
-}
-
-/*======================= end of weizmann_make_arrays() =====================*/
-
-/*======================= weizmann_free_arrays() ============================*/
-
-void weizmann_free_arrays(planetspec        *planet,
-                          weizmann_gridspec *weizmann_grid)
-{
-  int
-    nelem2d,nelem3d;
-  /* 
-   * The following are part of DEBUG_MILESTONE(.) statements: 
-   */
-  int
-    idbms=0;
-  static char
-    dbmsname[]="weizmann_free_arrays";
-
-  nelem2d = weizmann_grid->ni*weizmann_grid->nj;
-  nelem3d = nelem2d*weizmann_grid->nk;
-
-  free_fvector(weizmann_grid->lon,  0,weizmann_grid->ni-1,   dbmsname);
-  free_fvector(weizmann_grid->lat,  0,weizmann_grid->nj-1,   dbmsname);
-  free_fvector(weizmann_grid->p,    0,weizmann_grid->nk-1,   dbmsname);
-  free_fvector(weizmann_grid->time, 0,weizmann_grid->ntime-1,dbmsname);
-  free_fvector(weizmann_grid->temp, 0,nelem3d-1,             dbmsname);
-  free_fvector(weizmann_grid->u,    0,nelem3d-1,             dbmsname);
-  free_fvector(weizmann_grid->v,    0,nelem3d-1,             dbmsname);
-  free_fvector(weizmann_grid->theta,0,nelem3d-1,             dbmsname);
-  free_fvector(weizmann_grid->rho,  0,nelem3d-1,             dbmsname);
-
-  return;
-}
-
-/*======================= end of weizmann_free_arrays() ======================*/
-
-/*======================= weizmann_epic_nc() =================================*/
-
-/*
- * Bootstrap weizmann_epic.nc by running initial.
- */
-
-void weizmann_epic_nc(planetspec *planet)
-{
-  pid_t
-    pid;
-  int
-    commpipe[2],
-    ierr,status,
-    saved_stdout;
-  /* 
-   * The following are part of DEBUG_MILESTONE(.) statements: 
-   */
-  int
-    idbms=0;
-  static char
-    dbmsname[]="weizmann_epic_nc";
-
-  /*
-   * The code for executing initial from change is adapted from examples at following websites:
-   *    https://www.gidforums.com/t-3369.html
-   *    https://www.cs.rutgers.edu/~pxk/416/notes/c-tutorials/forkexec.html
-   *    http://www.unix.com/programming/173811-c-execl-pipes.html
-   *    http://stackoverflow.com/questions/11042218/c-restore-stdout-to-terminal
-   *
-   * Set up a communications pipeline between the parent and child processes, 
-   * which here are change and initial, respectively.
-   */
-  ierr = pipe(commpipe);
-  if (ierr) {
-    perror("pipe");
-    sprintf(Message,"error calling pipe()");
-    epic_error(dbmsname,Message);
-  }
-
-  /*
-   * Run initial by forking a child process.
-   */
-  switch (pid = fork()) {
-    case -1:
-      sprintf(Message,"error calling fork()");
-      epic_error(dbmsname,Message);
-    break;
-    case 0:
-      /*
-       * The child process.
-       * Connect its stdin to the pipe, then specify the process to be initial.
-       */
-      dup2(commpipe[0],STDIN_FILENO);  /* set stdin                           */
-      close(commpipe[1]);              /* close unused end of pipe            */
-      /*
-       * Specify the child to be initial.
-       */
-      ierr = execl(EPIC_PATH"/bin/initial",EPIC_PATH"/bin/initial",NULL);
-      if (ierr) {
-        perror("execl");
-        sprintf(Message,"error calling execl()");
-        epic_error(dbmsname,Message);
-      }
-    break;
-    default:
-      /*
-       * The parent process, which is change.
-       */
-      saved_stdout = dup(STDOUT_FILENO);
-      dup2(commpipe[1],STDOUT_FILENO);       /* set stdout                         */
-      close(commpipe[0]);                    /* close unused end of pipe           */
-      setvbuf(stdout,(char *)NULL,_IOLBF,0); /* set line-buffered output on stdout */
-      /*
-       * Send inputs to initial.
-       *
-       * NOTE: These are not 'smart' and hence will need to be updated if the
-       *       inputs to initial are modified.
-       */
-      printf("Jupiter\n");
-      printf("%d\n",COORD_ISENTROPIC);
-      printf("0\n");                     /*default starting date and time          */
-      printf("1\n");                     /* initial-wind scaling factor            */
-      printf("1.0\n");                   /* Vertical wind profile factor           */
-      printf("0\n");                     /* radiation scheme off                   */
-      printf("0\n");                     /* turbulence scheme off                  */
-      printf("-1\n");                    /* sponge off                             */
-      printf("%d\n",SPACING_LOGP);       /* layer spacing even in log p            */
-      printf("100.\n");                  /* pressure at model top [hPa]            */
-      printf("1600.\n");                 /* pressure at the model bottom [hPa]     */
-      printf("%d\n",grid.nk);            /* number of vertical layers              */
-      printf("globe\n");                 /* geometry                               */
-      printf("-90\n");                   /* latbot                                 */
-      printf("90\n");                    /* lattop                                 */
-      printf("-180\n");                  /* lonbot                                 */
-      printf("180\n");                   /* lontop                                 */
-      printf("none\n");                  /* optional prognostic variables          */
-      printf("%d\n",grid.nj);            /* number of latitude gridpoints          */
-      printf("%d\n",grid.ni);            /* number of longitude gridpoints         */
-      printf("\n");                      /* timestep, use default                  */
-      printf("0.");                      /* lat. to apply sounding, use 0deg       */
-      printf("0.\n");                    /* divergence damping                     */
-      printf("0\n");                     /* hyperviscosity                         */
-      printf("none\n");                  /* extract variables set in initial       */
-      printf("\n");                      /* This extra return prevents hanging.    */
-
-      wait(&status);                     /* wait for initial to end                */
-
-      /*
-       * Restore stdout for change.
-       */
-      dup2(saved_stdout,STDOUT_FILENO);
-      close(saved_stdout);
-      close(commpipe[1]);
-    break;
-  }
-     
-  system("mv ./epic.nc weizmann_epic.nc");
-}
-
-/*======================= end of weizmann_epic_nc() ==========================*/
-
-/*======================= weizmann_conversion() ==============================*/
-
-/*
- * Input Weizmann Institute data into EPIC, compute diagnostic fields on isentropic surfaces,
- * and output results.
- */
-
-void weizmann_conversion(planetspec        *planet,
-                         weizmann_gridspec *weizmann_grid,
-                         char              *weizmann_infile,
-                         char              *weizmann_outfile_qb,
-                         char              *weizmann_outfile_uvpt,
-                         EPIC_FLOAT       **Buff2D)
-{
-  int
-    kk,jj,i,
-    K,J,I,
-    weizmann_itime,
-    nc_err,
-    nc_id_qb,
-    nc_id_uvpt,
-    dimid[4],
-    coorid[4];
-  double
-    g,
-    c2factor,
-   *buffer;
-  register double
-    tmp;
-  EPIC_FLOAT
-   *p,
-   *h;
-  time_t
-    now;
-  struct tm
-   *today;
-  size_t
-    nc_index[1],
-    nc_start[4], 
-    nc_count[4],
-    message_len;
-  char
-    date[16];
-  id_information
-    pv_info,bsf_info,NH2_info,kin_info,
-    u_info,ug_info,v_info,p_info,t_info,phi_info;
-
-  /* 
-   * The following are part of DEBUG_MILESTONE(.) statements: 
-   */
-  int
-    idbms=0;
-  static char
-    dbmsname[]="weizmann_conversion";
-
-  /*
-   * Generate current-date string.
-   */
-  time(&now);
-  today = localtime(&now);
-  strftime(date,12,"%Y-%m-%d",today);
-
-  /*
-   * Create weizmann output .nc files.
-   */
-  sprintf(weizmann_outfile_qb,"./QB_weizmann.nc");
-  nc_err = nc_create(weizmann_outfile_qb,NC_CLOBBER,&nc_id_qb);
-  if (nc_err != NC_NOERR) {
-    sprintf(Message,"%s: \"%s\"",nc_strerror(nc_err),weizmann_outfile_qb);
-    epic_error(dbmsname,Message);
-  }
-
-  sprintf(weizmann_outfile_uvpt,  "./UVPT_weizmann.nc");
-  nc_err = nc_create(weizmann_outfile_uvpt,NC_CLOBBER,&nc_id_uvpt);
-  if (nc_err != NC_NOERR) {
-    sprintf(Message,"%s: \"%s\"",nc_strerror(nc_err),weizmann_outfile_uvpt);
-    epic_error(dbmsname,Message);
-  }
-
-  /*
-   * Write global attributes to weizmann outfiles.
-   */
-
-  /* QB */
-  sprintf(Message,"CF-1.4");
-  nc_put_att_text(nc_id_qb,NC_GLOBAL,"Conventions",strlen(Message)+1,Message);
-  sprintf(Message,"EPIC Model calculations of Q vs. B on Theta Surfaces; input data are Weizmann Institute U and T and Pressure Levels");
-  nc_put_att_text(nc_id_qb,NC_GLOBAL,"title",strlen(Message)+1,Message);
-  sprintf(Message,"%s; \n"
-                  "%s: Q, B and NH on isentropic surfaces uses the EPIC GCM v%4.2f",
-                  weizmann_grid->infile_history,date,grid.epic_version);
-  nc_put_att_text(nc_id_qb,NC_GLOBAL,"history",strlen(Message)+1,Message);
-  sprintf(Message,"Weizmann Institute: Eli Galanti (eli.galanti@weizmann@ac.il), Yohai Kaspi (yohai.kaspi@weizmann.ac.il), "
-                  "EPIC: Timothy E. Dowling (dowling@louiville.edu)");
-  nc_put_att_text(nc_id_qb,NC_GLOBAL,"contact",strlen(Message)+1,Message);
-  sprintf(Message,"This file contains potential vorticity, Q, Bernoulli Streamfunction, B, "
-                  "and the product of buoyancy frequency times pressure scale height, NH, on potential-temperature surfaces, "
-                  "theta, for the atmosphere of Jupiter.");
-  nc_put_att_text(nc_id_qb,NC_GLOBAL,"comment",strlen(Message)+1,Message);
-
-  /* UVPT */
-  sprintf(Message,"CF-1.4");
-  nc_put_att_text(nc_id_uvpt,NC_GLOBAL,"Conventions",strlen(Message)+1,Message);
-  sprintf(Message,"EPIC Model re-gridding of U, V, P, and T on Theta Surfaces; input data are Weizmann Institute U and T on Pressure Levels");
-  nc_put_att_text(nc_id_uvpt,NC_GLOBAL,"title",strlen(Message)+1,Message);
-  sprintf(Message,"%s; \n"
-                  "%s: U, V, P and T on isentropic surfaces uses the EPIC GCM v%4.2f",
-                  weizmann_grid->infile_history,date,grid.epic_version);
-  nc_put_att_text(nc_id_uvpt,NC_GLOBAL,"history",strlen(Message)+1,Message);
-  sprintf(Message,"Weizmann Institute:  Eli Galanti (eli.galanti@weizmann@ac.il), Yohai Kaspi (yohai.kaspi@weizmann.ac.il), "
-                  "EPIC: Timothy E. Dowling (dowling@louiville.edu)");
-  nc_put_att_text(nc_id_uvpt,NC_GLOBAL,"contact",strlen(Message)+1,Message);
-  sprintf(Message,"This file contains zonal and meridional winds, u and v, pressure, p, "
-                  "temperature, T, and geopotential, phi, on potential-temperature surfaces, "
-                  "theta, for the atmosphere of Jupiter.");
-  nc_put_att_text(nc_id_uvpt,NC_GLOBAL,"comment",strlen(Message)+1,Message);
-
-  /*
-   * Define coordinates and variables.
-   */
-
-  /*
-   * lon (I direction)
-   */
-
-  /* QB */
-  nc_def_dim(nc_id_qb,"lon",grid.ni,&dimid[NETCDF_I_INDEX]);
-  nc_def_var(nc_id_qb,"lon",NC_DOUBLE,1,&dimid[NETCDF_I_INDEX],&coorid[NETCDF_I_INDEX]);
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_I_INDEX],"standard_name",strlen("longitude")+1,"longitude");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_I_INDEX],"long_name",strlen("Longitude")+1,"Longitude");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_I_INDEX],"units",strlen("degrees_east")+1,"degrees_east");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_I_INDEX],"axis",strlen("X")+1,"X");
-
-  /* UVPT */
-  nc_def_dim(nc_id_uvpt,"lon",grid.ni,&dimid[NETCDF_I_INDEX]);
-  nc_def_var(nc_id_uvpt,"lon",NC_DOUBLE,1,&dimid[NETCDF_I_INDEX],&coorid[NETCDF_I_INDEX]);
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_I_INDEX],"standard_name",strlen("longitude")+1,"longitude");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_I_INDEX],"long_name",strlen("Longitude")+1,"Longitude");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_I_INDEX],"units",strlen("degrees_east")+1,"degrees_east");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_I_INDEX],"axis",strlen("X")+1,"X");
-
-  /*
-   * lat (J direction)
-   */
-
-  /* QB */
-  nc_def_dim(nc_id_qb,"lat",grid.nj+1,&dimid[NETCDF_J_INDEX]);
-  nc_def_var(nc_id_qb,"lat",NC_DOUBLE,1,&dimid[NETCDF_J_INDEX],&coorid[NETCDF_J_INDEX]);
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_J_INDEX],"standard_name",strlen("latitude")+1,"latitude");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_J_INDEX],"long_name",strlen("Latitude")+1,"Latitude");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_J_INDEX],"units",strlen("degrees_north")+1,"degrees_north");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_J_INDEX],"axis",strlen("Y")+1,"Y");
-
-  /* UVPT */
-  nc_def_dim(nc_id_uvpt,"lat",grid.nj+1,&dimid[NETCDF_J_INDEX]);
-  nc_def_var(nc_id_uvpt,"lat",NC_DOUBLE,1,&dimid[NETCDF_J_INDEX],&coorid[NETCDF_J_INDEX]);
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_J_INDEX],"standard_name",strlen("latitude")+1,"latitude");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_J_INDEX],"long_name",strlen("Latitude")+1,"Latitude");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_J_INDEX],"units",strlen("degrees_north")+1,"degrees_north");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_J_INDEX],"axis",strlen("Y")+1,"Y");
-
-  /*
-   * theta (K direction)
-   */
-
-  /* QB */
-  nc_def_dim(nc_id_qb,"theta",grid.nk,&dimid[NETCDF_K_INDEX]);
-  nc_def_var(nc_id_qb,"theta",NC_DOUBLE,1,&dimid[NETCDF_K_INDEX],&coorid[NETCDF_K_INDEX]);
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_K_INDEX],"standard_name",strlen("air_potential_temperature")+1,"air_potential_temperature");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_K_INDEX],"long_name",strlen("Potential temperature")+1,"Potential temperature");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_K_INDEX],"units",strlen("K")+1,"K");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_K_INDEX],"axis",strlen("Z")+1,"Z");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_K_INDEX],"positive",strlen("up")+1,"up");
-
-  /* UVPT */
-  nc_def_dim(nc_id_uvpt,"theta",grid.nk,&dimid[NETCDF_K_INDEX]);
-  nc_def_var(nc_id_uvpt,"theta",NC_DOUBLE,1,&dimid[NETCDF_K_INDEX],&coorid[NETCDF_K_INDEX]);
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_K_INDEX],"standard_name",strlen("air_potential_temperature")+1,"air_potential_temperature");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_K_INDEX],"long_name",strlen("Potential temperature")+1,"Potential temperature");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_K_INDEX],"units",strlen("K")+1,"K");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_K_INDEX],"axis",strlen("Z")+1,"Z");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_K_INDEX],"positive",strlen("up")+1,"up");
-
-  /*
-   * time
-   */
-
-  /* QB */
-  nc_def_dim(nc_id_qb,"time",NC_UNLIMITED,&dimid[NETCDF_T_INDEX]);
-  nc_def_var(nc_id_qb,"time",NC_DOUBLE,1,&dimid[NETCDF_T_INDEX],&coorid[NETCDF_T_INDEX]);
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_T_INDEX],"standard_name",strlen("time")+1,"time");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_T_INDEX],"long_name",strlen("elapsed time")+1,"elapsed time");
-  message_len = strftime(Message,N_STR,"days since %Y-%m-%d %H:%M:%S 0",gmtime(&var.start_time));
-  nc_err = nc_put_att_text(nc_id_qb,coorid[NETCDF_T_INDEX],"units",message_len+1,Message);
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_T_INDEX],"axis",strlen("T")+1,"T");
-  nc_put_att_text(nc_id_qb,coorid[NETCDF_T_INDEX],"calendar",strlen("julian")+1,"julian");
-
-  /* UVPT */
-  nc_def_dim(nc_id_uvpt,"time",NC_UNLIMITED,&dimid[NETCDF_T_INDEX]);
-  nc_def_var(nc_id_uvpt,"time",NC_DOUBLE,1,&dimid[NETCDF_T_INDEX],&coorid[NETCDF_T_INDEX]);
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_T_INDEX],"standard_name",strlen("time")+1,"time");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_T_INDEX],"long_name",strlen("Time")+1,"Time");
-  message_len = strftime(Message,N_STR,"days since %Y-%m-%d %H:%M:%S 0",gmtime(&var.start_time));
-  nc_err = nc_put_att_text(nc_id_uvpt,coorid[NETCDF_T_INDEX],"units",message_len+1,Message);
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_T_INDEX],"axis",strlen("T")+1,"T");
-  nc_put_att_text(nc_id_uvpt,coorid[NETCDF_T_INDEX],"calendar",strlen("julian")+1,"julian");
-
-  /*
-   * QB specific fields
-   */
-
-  /*
-   * Potential vorticity (PV)
-   *
-   * NOTE: For isentropic coordinates, and for the isentropic region of hybrid coordinates,
-   *       this PV is Ertel's isentropic potential vorticity. For isobaric coordinates, it is
-   *       proportional to absolute vorticity on pressure levels, because h is constant.
-   */
-  pv_info.name = (char *)malloc(strlen("pv")+1);
-  sprintf(pv_info.name,"%s","pv");
-  pv_info.standard_name = (char *)malloc(strlen("potential_vorticity")+1);
-  sprintf(pv_info.standard_name,"%s","potential_vorticity");
-  pv_info.long_name = (char *)malloc(strlen("potential vorticity")+1);
-  sprintf(pv_info.long_name,"%s","potential vorticity");
-  pv_info.units = (char *)malloc(strlen("K m2 kg-1 s-1")+1);
-  sprintf(pv_info.units,"%s","K m2 kg-1 s-1");
-  for (i = 0; i < 4; i++) {
-    pv_info.dimid[ i] = dimid[ i];
-    pv_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_qb,pv_info.name,NC_DOUBLE,4,pv_info.dimid,&pv_info.id);
-  nc_put_att_text(nc_id_qb,pv_info.id,"standard_name",strlen(pv_info.standard_name)+1,pv_info.standard_name);
-  nc_put_att_text(nc_id_qb,pv_info.id,"long_name",strlen(pv_info.long_name)+1,pv_info.long_name);
-  nc_put_att_text(nc_id_qb,pv_info.id,"units",strlen(pv_info.units)+1,pv_info.units);
-
-  /*
-   * Bernoulli streamfunction
-   */
-  bsf_info.name = (char *)malloc(strlen("bsf")+1);
-  sprintf(bsf_info.name,"%s","bsf");
-  bsf_info.standard_name = (char *)malloc(strlen("specific_dry_energy_of_air")+1);
-  sprintf(bsf_info.standard_name,"%s","specific_dry_energy_of_air");
-  bsf_info.long_name = (char *)malloc(strlen("Bernoulli streamfunction")+1);
-  sprintf(bsf_info.long_name,"%s","Bernoulli streamfunction");
-  bsf_info.units = (char *)malloc(strlen("m2 s-2")+1);
-  sprintf(bsf_info.units,"%s","m2 s-2");
-  for (i = 0; i < 4; i++) {
-    bsf_info.dimid[ i] = dimid[ i];
-    bsf_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_qb,bsf_info.name,NC_DOUBLE,4,bsf_info.dimid,&bsf_info.id);
-  nc_put_att_text(nc_id_qb,bsf_info.id,"standard_name",strlen(bsf_info.standard_name)+1,bsf_info.standard_name);
-  nc_put_att_text(nc_id_qb,bsf_info.id,"long_name",strlen(bsf_info.long_name)+1,bsf_info.long_name);
-  nc_put_att_text(nc_id_qb,bsf_info.id,"units",strlen(bsf_info.units)+1,bsf_info.units);
-
-  /*
-   * NH2
-   */
-  NH2_info.name = (char *)malloc(strlen("NHsquared")+1);
-  sprintf(NH2_info.name,"%s","NHsquared");
-  NH2_info.long_name = (char *)malloc(strlen("(NH)^2")+1);
-  sprintf(NH2_info.long_name,"%s","(NH)^2");
-  NH2_info.units = (char *)malloc(strlen("m2 s-2")+1);
-  sprintf(NH2_info.units,"%s","m2 s-2");
-  for (i = 0; i < 4; i++) {
-    NH2_info.dimid[ i] = dimid[ i];
-    NH2_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_qb,NH2_info.name,NC_DOUBLE,4,NH2_info.dimid,&NH2_info.id);
-  nc_put_att_text(nc_id_qb,NH2_info.id,"long_name",strlen(NH2_info.long_name)+1,NH2_info.long_name);
-  nc_put_att_text(nc_id_qb,NH2_info.id,"units",strlen(NH2_info.units)+1,NH2_info.units);
-  nc_put_att_text(nc_id_qb,NH2_info.id,"comment",strlen(
-    "square of product of Brunt-Vailsala frequency, N, and pressure scale height, H")+1,
-    "square of product of Brunt-Vailsala frequency, N, and pressure scale height, H");
-
-  /*
-   * Kinetic energy
-   */
-  kin_info.name = (char *)malloc(strlen("kin")+1);
-  sprintf(kin_info.name,"%s","kin");
-  kin_info.standard_name = (char *)malloc(strlen("specific_kinetic_energy_of_air")+1);
-  sprintf(kin_info.standard_name,"%s","specific_kinetic_energy_of_air");
-  kin_info.long_name = (char *)malloc(strlen("Kinetic energy")+1);
-  sprintf(kin_info.long_name,"%s","Kinetic energy");
-  kin_info.units = (char *)malloc(strlen("m2 s-2")+1);
-  sprintf(kin_info.units,"%s","m2 s-2");
-  for (i = 0; i < 4; i++) {
-    kin_info.dimid[ i] = dimid[ i];
-    kin_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_qb,kin_info.name,NC_DOUBLE,4,kin_info.dimid,&kin_info.id);
-  nc_put_att_text(nc_id_qb,kin_info.id,"long_name",strlen(kin_info.long_name)+1,kin_info.long_name);
-  nc_put_att_text(nc_id_qb,kin_info.id,"units",strlen(kin_info.units)+1,kin_info.units);
-  nc_put_att_text(nc_id_qb,kin_info.id,"comment",strlen(
-    "The horizontal kinetic energy per mass, .5*(u*u+v*v)")+1,
-    "The horizontal kinetic energy per mass, .5*(u*u+v*v)");
-
-  /*
-   * UVPT specific fields
-   */
-
-  /*
-   * Zonal wind
-   */
-  u_info.name = (char *)malloc(strlen("u")+1);
-  sprintf(u_info.name,"%s","u");
-  u_info.standard_name = (char *)malloc(strlen("eastward_wind")+1);
-  sprintf(u_info.standard_name,"%s","eastward_wind");
-  u_info.long_name = (char *)malloc(strlen("Zonal wind")+1);
-  sprintf(u_info.long_name,"%s","Zonal wind");
-  u_info.units = (char *)malloc(strlen("m s-1")+1);
-  sprintf(u_info.units,"%s","m s-1");
-  for (i = 0; i < 4; i++) {
-    u_info.dimid[ i] = dimid[ i];
-    u_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_uvpt,u_info.name,NC_DOUBLE,4,u_info.dimid,&u_info.id);
-  nc_put_att_text(nc_id_uvpt,u_info.id,"standard_name",strlen(u_info.standard_name)+1,u_info.standard_name);
-  nc_put_att_text(nc_id_uvpt,u_info.id,"long_name",strlen(u_info.long_name)+1,u_info.long_name);
-  nc_put_att_text(nc_id_uvpt,u_info.id,"units",strlen(u_info.units)+1,u_info.units);
-
-//   /*
-//    * Geostrophic zonal wind (assuming variable-f geostrophy)
-//    */
-//   ug_info.name = (char *)malloc(strlen("ug")+1);
-//   sprintf(ug_info.name,"%s","ug");
-//   ug_info.standard_name = (char *)malloc(strlen("geostrophic_eastward_wind")+1);
-//   sprintf(ug_info.standard_name,"%s","geostrophic_eastward_wind");
-//   ug_info.long_name = (char *)malloc(strlen("Geostrophic zonal wind")+1);
-//   sprintf(ug_info.long_name,"%s","Geostrophic zonal wind");
-//   ug_info.units = (char *)malloc(strlen("m s-1")+1);
-//   sprintf(ug_info.units,"%s","m s-1");
-//   for (i = 0; i < 4; i++) {
-//     ug_info.dimid[ i] = dimid[ i];
-//     ug_info.coorid[i] = coorid[i];
-//   }
-// 
-//   nc_def_var(nc_id_uvpt,ug_info.name,NC_DOUBLE,4,ug_info.dimid,&ug_info.id);
-//   nc_put_att_text(nc_id_uvpt,ug_info.id,"standard_name",strlen(ug_info.standard_name)+1,ug_info.standard_name);
-//   nc_put_att_text(nc_id_uvpt,ug_info.id,"long_name",strlen(ug_info.long_name)+1,ug_info.long_name);
-//   nc_put_att_text(nc_id_uvpt,ug_info.id,"units",strlen(ug_info.units)+1,ug_info.units);
-
-  /*
-   * Meridional wind
-   */
-  v_info.name = (char *)malloc(strlen("v")+1);
-  sprintf(v_info.name,"%s","v");
-  v_info.standard_name = (char *)malloc(strlen("northward_wind")+1);
-  sprintf(v_info.standard_name,"%s","northward_wind");
-  v_info.long_name = (char *)malloc(strlen("Meridional wind")+1);
-  sprintf(v_info.long_name,"%s","Meridional wind");
-  v_info.units = (char *)malloc(strlen("m s-1")+1);
-  sprintf(v_info.units,"%s","m s-1");
-  for (i = 0; i < 4; i++) {
-    v_info.dimid[ i] = dimid[ i];
-    v_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_uvpt,v_info.name,NC_DOUBLE,4,v_info.dimid,&v_info.id);
-  nc_put_att_text(nc_id_uvpt,v_info.id,"standard_name",strlen(v_info.standard_name)+1,v_info.standard_name);
-  nc_put_att_text(nc_id_uvpt,v_info.id,"long_name",strlen(v_info.long_name)+1,v_info.long_name);
-  nc_put_att_text(nc_id_uvpt,v_info.id,"units",strlen(v_info.units)+1,v_info.units);
-
-  /*
-   * Pressure
-   */
-  p_info.name = (char *)malloc(strlen("p")+1);
-  sprintf(p_info.name,"%s","p");
-  p_info.standard_name = (char *)malloc(strlen("air_pressure")+1);
-  sprintf(p_info.standard_name,"%s","air_pressure");
-  p_info.long_name = (char *)malloc(strlen("Pressure")+1);
-  sprintf(p_info.long_name,"%s","Pressure");
-  p_info.units = (char *)malloc(strlen("Pa")+1);
-  sprintf(p_info.units,"%s","Pa");
-  for (i = 0; i < 4; i++) {
-    p_info.dimid[ i] = dimid[ i];
-    p_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_uvpt,p_info.name,NC_DOUBLE,4,p_info.dimid,&p_info.id);
-  nc_put_att_text(nc_id_uvpt,p_info.id,"standard_name",strlen(p_info.standard_name)+1,p_info.standard_name);
-  nc_put_att_text(nc_id_uvpt,p_info.id,"long_name",strlen(p_info.long_name)+1,p_info.long_name);
-  nc_put_att_text(nc_id_uvpt,p_info.id,"units",strlen(p_info.units)+1,p_info.units);
-
-  /*
-   * Temperature
-   */
-  t_info.name = (char *)malloc(strlen("T")+1);
-  sprintf(t_info.name,"%s","T");
-  t_info.standard_name = (char *)malloc(strlen("air_temperature")+1);
-  sprintf(t_info.standard_name,"%s","air_temperature");
-  t_info.long_name = (char *)malloc(strlen("Temperature")+1);
-  sprintf(t_info.long_name,"%s","Temperature");
-  t_info.units = (char *)malloc(strlen("K")+1);
-  sprintf(t_info.units,"%s","K");
-  for (i = 0; i < 4; i++) {
-    t_info.dimid[ i] = dimid[ i];
-    t_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_uvpt,t_info.name,NC_DOUBLE,4,t_info.dimid,&t_info.id);
-  nc_put_att_text(nc_id_uvpt,t_info.id,"standard_name",strlen(t_info.standard_name)+1,t_info.standard_name);
-  nc_put_att_text(nc_id_uvpt,t_info.id,"long_name",strlen(t_info.long_name)+1,t_info.long_name);
-  nc_put_att_text(nc_id_uvpt,t_info.id,"units",strlen(t_info.units)+1,t_info.units);
-
-  /*
-   * Geopotential
-   */
-  phi_info.name = (char *)malloc(strlen("phi")+1);
-  sprintf(phi_info.name,"%s","phi");
-  phi_info.standard_name = (char *)malloc(strlen("geopotential")+1);
-  sprintf(phi_info.standard_name,"%s","geopotential");
-  phi_info.long_name = (char *)malloc(strlen("Geopotential")+1);
-  sprintf(phi_info.long_name,"%s","Geopotential");
-  phi_info.units = (char *)malloc(strlen("m2 s-2")+1);
-  sprintf(phi_info.units,"%s","m2 s-2");
-  for (i = 0; i < 4; i++) {
-    phi_info.dimid[ i] = dimid[ i];
-    phi_info.coorid[i] = coorid[i];
-  }
-
-  nc_def_var(nc_id_uvpt,phi_info.name,NC_DOUBLE,4,phi_info.dimid,&phi_info.id);
-  nc_put_att_text(nc_id_uvpt,phi_info.id,"standard_name",strlen(phi_info.standard_name)+1,phi_info.standard_name);
-  nc_put_att_text(nc_id_uvpt,phi_info.id,"long_name",strlen(phi_info.long_name)+1,phi_info.long_name);
-  nc_put_att_text(nc_id_uvpt,phi_info.id,"units",strlen(phi_info.units)+1,phi_info.units);
-
-  /*---------------------------*
-   * Leave netcdf define mode: *
-   *---------------------------*/
-  nc_enddef(nc_id_qb);
-  nc_enddef(nc_id_uvpt);
-
-  /*
-   * Assign values to X, Y and Z coordinates.
-   */
-  /* lon */
-  for (I = ILO; I <= IHI; I++) {
-    nc_index[0] = I-ILO;
-    nc_put_var1_double(nc_id_qb,  coorid[NETCDF_I_INDEX],nc_index,&(grid.lon[2*I+1]));
-    nc_put_var1_double(nc_id_uvpt,coorid[NETCDF_I_INDEX],nc_index,&(grid.lon[2*I+1]));
-  }
-
-  /* lat */
-  for (J = JLO; J <= JHI; J++) {
-    nc_index[0] = J-JLO;
-    nc_put_var1_double(nc_id_qb,  coorid[NETCDF_J_INDEX],nc_index,&(grid.lat[2*J+1]));
-    nc_put_var1_double(nc_id_uvpt,coorid[NETCDF_J_INDEX],nc_index,&(grid.lat[2*J+1]));
-  }
-
-  /* theta */
-  for (K = KHI; K >= KLO; K--) {
-    nc_index[0] = KHI-K;
-    nc_put_var1_double(nc_id_qb,  coorid[NETCDF_K_INDEX],nc_index,&(grid.sigmatheta[2*K]));
-    nc_put_var1_double(nc_id_uvpt,coorid[NETCDF_K_INDEX],nc_index,&(grid.sigmatheta[2*K]));
-  }
-
-  fprintf(stdout,"Computing Q, B and (NH)^2 on theta surfaces...  0%%");
-
-  /* Allocate memory */
-  p      = fvector(0,2*grid.nk+1,dbmsname);
-  h      = fvector(0,2*grid.nk+1,dbmsname);
-  buffer = (double *)calloc(grid.ni,sizeof(double));
-
-  for (weizmann_itime = 0; weizmann_itime < weizmann_grid->ntime; weizmann_itime++) {
-    /* Show progress */
-    fprintf(stdout,"\b\b\b\b%3d%%",(int)(100.*(double)(weizmann_itime+1)/weizmann_grid->ntime));
-    fflush(stdout);
-
-    /*
-     * Input Weizmann data for timeframe weizmann_itime, and interpolate into EPIC variables.
-     */
-    weizmann_var_read(planet,weizmann_grid,weizmann_infile,VAR_DATA,weizmann_itime);
-
-    /*
-     * Write time.
-     */
-
-    /* QB */
-    nc_index[0] = weizmann_itime;
-    nc_put_var1_double(nc_id_qb,coorid[NETCDF_T_INDEX],nc_index,&weizmann_grid->time[weizmann_itime]);
-
-    /* UVPT */
-    nc_index[0] = weizmann_itime;
-    nc_put_var1_double(nc_id_uvpt,coorid[NETCDF_T_INDEX],nc_index,&weizmann_grid->time[weizmann_itime]);
-
-    /*
-     * Compute Q and B on theta surfaces by running the normal EPIC model
-     * diagnostic-variable calculations.
-     */
-    for (J = JLO; J <= JHI; J++) {
-      jj = 2*J+1;
-      for (I = ILO; I <= IHI; I++) {
-        for (kk = 1; kk <= 2*KHI+1; kk++) {
-          p[kk] = get_p(planet,P2_INDEX,kk,J,I);
-        }
-        calc_h(jj,p,h);
-
-        for (K = KLO; K <= KHI; K++) {
-          H(K,J,I) = h[2*K];
-        }
-        K = 0;
-        H(K,J,I) = SQR(H(K+1,J,I))/H(K+2,J,I);
-        K = KHI+1;
-        H(K,J,I) = SQR(H(K-1,J,I))/H(K-2,J,I);
-      }
-    }
-    bc_lateral(var.h.value,THREEDIM);
-
-    /*
-     * PHI3(KHI,J,I) is set above by weizmann_var_read(VAR_DATA).
-     */
-    set_p2_etc(planet,UPDATE_THETA,Buff2D);
-    store_pgrad_vars(planet,Buff2D,SYNC_DIAGS_ONLY,PASSING_PHI3NK);
-    store_diag(planet);
-
-    nc_count[NETCDF_T_INDEX] = 1;
-    nc_count[NETCDF_K_INDEX] = 1; 
-    nc_count[NETCDF_J_INDEX] = 1;
-    nc_count[NETCDF_I_INDEX] = grid.ni;
-
-    nc_start[NETCDF_T_INDEX] = weizmann_itime;
-    nc_start[NETCDF_I_INDEX] = 0;
-
-    for (K = KHI; K >= KLO; K--) {
-      kk                       = 2*K;
-      nc_start[NETCDF_K_INDEX] = KHI-K;
-      for (J = JLO; J <= JHI; J++) {
-        jj = 2*J;
-
-        g  = GRAVITY2(K,J);
-
-        nc_start[NETCDF_J_INDEX] = J-JLO;
-
-        /*--------------------*
-         * QB specific fields *
-         *--------------------*/
-
-        /*
-         * Write potential vorticity (pv, aka Q).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = .25*(PV2(K,J,I)+PV2(K,J,I+1)+PV2(K,J+1,I)+PV2(K,J+1,I+1));
-        }
-        nc_put_vara_double(nc_id_qb,pv_info.id,nc_start,nc_count,buffer);
-
-        /*
-         * Write Bernoulli streamfunction (bsf).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = MONT2(K,J,I)
-                         +get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                         var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
-        }
-        nc_put_vara_double(nc_id_qb,bsf_info.id,nc_start,nc_count,buffer);
-
-        /*
-         * Write (NH)^2, the square of the product of the buoyancy (Brunt-Vaisala) frequency, N, 
-         * and the pressure scale height, H = RT/g.
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = get_brunt2(planet,kk,J,I)
-                         *SQR(planet->rgas*T2(K,J,I)/g);
-        }
-        nc_put_vara_double(nc_id_qb,NH2_info.id,nc_start,nc_count,buffer);
-
-        /*
-         * Write kinetic energy per mass (kin), .5*(u*u+v*v).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                         var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
-        }
-        nc_put_vara_double(nc_id_qb,kin_info.id,nc_start,nc_count,buffer);
-
-        /*----------------------*
-         * UVPT specific fields *
-         *----------------------*/
-
-        /*
-         * Write zonal wind (u).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = .5*(U(grid.it_uv,K,J,I)+U(grid.it_uv,K,J,I+1));
-        }
-        nc_put_vara_double(nc_id_uvpt,u_info.id,nc_start,nc_count,buffer);
-
-//         /*
-//          * Calculate and write geostrophic zonal wind (ug).
-//          */
-//         if (J == JLO) {
-//           /*
-//            * Southern edge: take forward step.
-//            */
-//           tmp = -grid.n[kk][jj+1]/grid.f[jj+1];
-//           for (I = ILO; I <= IHI; I++) {
-//             buffer[I-ILO] = tmp*(MONT2(K,J+1,I)-MONT2(K,J,I));
-//           }
-//         }
-//         else if (J == JHI) {
-//           /*
-//            * Northern edge: take backward step.
-//            */
-//           tmp = -grid.n[kk][jj+1]/grid.f[jj+1];
-//           for (I = ILO; I <= IHI; I++) {
-//             buffer[I-ILO] = tmp*(MONT2(K,J,I)-MONT2(K,J-1,I));
-//           }
-//         }
-//         else {
-//           /*
-//            * Interior point: take long step to center back onto h-grid.
-//            */
-//           tmp = -.5*grid.n[kk][jj+1]/grid.f[jj+1];
-//           for (I = ILO; I <= IHI; I++) {
-//             buffer[I-ILO] = tmp*(MONT2(K,J+1,I)-MONT2(K,J-1,I));
-//           }
-//         }
-//         nc_put_vara_double(nc_id_uvpt,ug_info.id,nc_start,nc_count,buffer);
-
-        /*
-         * Write meridional wind (v).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = .5*(V(grid.it_uv,K,J,I)+V(grid.it_uv,K,J+1,I));
-        }
-        nc_put_vara_double(nc_id_uvpt,v_info.id,nc_start,nc_count,buffer);
-
-        /*
-         * Write pressure (p).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = P2(K,J,I);
-        }
-        nc_put_vara_double(nc_id_uvpt,p_info.id,nc_start,nc_count,buffer);
-
-        /*
-         * Write temperature (T).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = T2(K,J,I);
-        }
-        nc_put_vara_double(nc_id_uvpt,t_info.id,nc_start,nc_count,buffer);
-
-        /*
-         * Write geopotential (phi).
-         */
-        for (I = ILO; I <= IHI; I++) {
-          buffer[I-ILO] = PHI2(K,J,I);
-        }
-        nc_put_vara_double(nc_id_uvpt,phi_info.id,nc_start,nc_count,buffer);
-
-      } /* J loop */
-    } /* K loop */
-  } /* weizmann_itime loop */
-
-  /* Free allocated memory */
-  free_fvector(p,0,2*grid.nk+1,dbmsname);
-  free_fvector(h,0,2*grid.nk+1,dbmsname);
-  free(buffer);
-
-  nc_close(nc_id_qb);
-  nc_close(nc_id_uvpt);
-
-  fprintf(stdout,"\b\b\b\b100%%\n");
-  fflush(stdout);
-  fprintf(stdout,"Output written to %s\n",weizmann_outfile_qb);
-
-}
-
-/*======================= end of weizmann_conversion() =======================*/
 
 /* * * * * * * * * * * * end of epic_funcs_init.c * * * * * * * * * * * * * * */

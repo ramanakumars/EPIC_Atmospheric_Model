@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2023 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 2013-2023 Timothy Dowling                         *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -77,12 +78,12 @@
 /*
  * Variables with scope of epic_subgrid.c.
  */
-EPIC_FLOAT
+double
   *d_wall;
 
 /*=============== max_nu_nondim() =================================*/
 
-EPIC_FLOAT max_nu_nondim(int order)
+double max_nu_nondim(int order)
 {
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -161,7 +162,7 @@ void set_max_nu(double *max_nu_horizontal)
 
   dt = (double)(grid.dt);
 
-  dz0 = FLOAT_MAX;
+  dz0 = DBL_MAX;
   for (K = KLO; K <= KHI; K++) {
     kk = 2*K;
     /*
@@ -220,14 +221,14 @@ void set_max_nu(double *max_nu_horizontal)
  *        amplitude becomes negative. Values greater than 2.*(1./2)^order are numerically unstable.
  */
 
-void set_hyperviscosity(void)
+void set_hyperviscosity(boolean modify)
 {
   char
     header[N_STR];
   register int
     ii;
   double  
-    max_nu_horizontal[MAX_NU_ORDER+1];  /* NOTE: declared as double, not EPIC_FLOAT */
+    max_nu_horizontal[MAX_NU_ORDER+1];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -239,7 +240,7 @@ void set_hyperviscosity(void)
   set_max_nu(max_nu_horizontal);
 
   sprintf(Message,"Divergence damping coeff, fraction of max\n");
-  grid.nudiv_nondim = input_float(Message,grid.nudiv_nondim);
+  grid.nudiv_nondim = input_double(Message,grid.nudiv_nondim,modify);
 
   sprintf(header,"Hyperviscosity order [4");
   for (ii = 6; ii <= MAX_NU_ORDER; ii+=2) {
@@ -247,12 +248,12 @@ void set_hyperviscosity(void)
     strcat(header,Message);
   }
   strcat(header,"; 0 => off]\n");
-  grid.nu_order = input_int(header,grid.nu_order);
+  grid.nu_order = input_int(header,grid.nu_order,modify);
 
   if (grid.nu_order >= 4) {
     sprintf(Message,"nu%d, fraction of full strength\n",grid.nu_order);
     grid.nu_nondim = (grid.nu_nondim <= 0.) ?  0.5 : grid.nu_nondim;
-    grid.nu_nondim = input_float(Message,grid.nu_nondim);
+    grid.nu_nondim = input_double(Message,grid.nu_nondim,modify);
     grid.nu_hyper  = (double)grid.nu_nondim*max_nu_horizontal[grid.nu_order];
   }
   else {
@@ -267,17 +268,17 @@ void set_hyperviscosity(void)
 /*============== end of set_hyperviscosity() ======================*/
 
 /*============== scalar_hyperviscosity() ==========================*/
-
+ 
 /*
- * Apply hyperviscosity to layer K of a scalar field on the h-grid.
- */
-
-void scalar_hyperviscosity(int          nu_order,
-                           double       nu_hyper,
-                           EPIC_FLOAT **Buff2D,
-                           int          kstart,
-                           int          kend,
-                           EPIC_FLOAT  *h)
+* Apply hyperviscosity to layer K of a scalar field on the h-grid.
+*/
+ 
+void scalar_hyperviscosity(int      nu_order,
+                           double   nu_hyper,
+                           double **Buff2D,
+                           int      kstart,
+                           int      kend,
+                           double  *h)
 {
   int
     K,J,I,kk,
@@ -285,8 +286,9 @@ void scalar_hyperviscosity(int          nu_order,
     sign;
   register double
     tmp,rln,
+    visc_coef,
     taper;
-  EPIC_FLOAT
+  double
     *hh,
     *lphh,
     *diff_coef,
@@ -298,35 +300,35 @@ void scalar_hyperviscosity(int          nu_order,
     max_nu_horizontal[MAX_NU_ORDER+1];
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *m0;
-  /* 
-   * The following are part of DEBUG_MILESTONE(.) statements: 
+  /*
+   * The following are part of DEBUG_MILESTONE(.) statements:
    */
   int
     idbms=0;
   static char
     dbmsname[]="scalar_hyperviscosity";
-
+ 
   if (!initialized) {
     set_max_nu(max_nu_horizontal);
-
+ 
     /* Allocate memory */
-    m0 = fvector(0,grid.nk,dbmsname);
+    m0 = dvector(0,grid.nk,dbmsname);
     for (K = KLO; K <= KHI; K++) {
       rln   = grid.re[K]/sqrt(1.+SQR(grid.rp[K]/grid.re[K]*tan(LAT0*DEG)));
       m0[K] = 1./(rln*grid.dln*DEG);
     }
-
+ 
     initialized = TRUE;
   }
-
+ 
   hh        = Buff2D[0];
   lphh      = Buff2D[1];
   diff_coef = Buff2D[2];
   buff1     = Buff2D[3];
   buff2     = Buff2D[4];
-
+ 
   if (nu_order < 4) {
     return;
   }
@@ -338,42 +340,39 @@ void scalar_hyperviscosity(int          nu_order,
     sprintf(Message,"nu_hyper=%e < 0.",nu_hyper);
     epic_error(dbmsname,Message);
   }
-
+ 
   /*
    * Factor the hyperviscosity coefficient to
    * help prevent floating point overflow/underflow.
    */
-  tmp = pow(nu_hyper,2./nu_order);
-
+  visc_coef = pow(nu_hyper,2./nu_order);
+  for (J = JLOPAD; J <= JHIPAD; J++) {
+    for (I = ILOPAD; I <= IHIPAD; I++) {
+      DIFF_COEF(J,I) = visc_coef;
+    }
+  }
+  /* No need to call bc_lateral() here */
+ 
   for (K = kstart; K <= kend; K++) {
     kk = 2*K;
-
-    for (itmp = 2; itmp <= grid.nu_order; itmp+=2) {
-      for (J = JLOPAD; J <= JHIPAD; J++) {
-        for (I = ILOPAD; I <= IHIPAD; I++) {
-          DIFF_COEF(J,I) = tmp;
-        }
-      }
-      /* No need to call bc_lateral() here */
-    }
-
+ 
     /* Point A(J,I) to input variable's K-layer */
     a = h+(K-Kshift)*Nelem2d;
-
+ 
     /* Copy A(J,I) into LPHH(J,I)  */
-    memcpy(lphh,a,Nelem2d*sizeof(EPIC_FLOAT));
-
+    memcpy(lphh,a,Nelem2d*sizeof(double));
+ 
     sign = -1;
     for (itmp = 2; itmp <= nu_order; itmp+=2) {
       sign *= -1;
       ptmp  = hh;
       hh    = lphh;
       lphh  = ptmp;
-
+ 
       laplacian_h(kk,hh,diff_coef,lphh,buff1,buff2);
     }
-
-    /* 
+ 
+    /*
      * Apply hyperviscosity. Use a forward (Euler) step.
      */
     for (J = JLO; J <= JHI; J++) {
@@ -381,8 +380,8 @@ void scalar_hyperviscosity(int          nu_order,
        * Taper viscosity coefficient to prevent numerical instability
        */
       taper = MIN(1.,(max_nu_horizontal[nu_order]/nu_hyper)*pow(m0[K]/grid.m[kk][2*J+1],nu_order));
-
-      tmp   = DT*(EPIC_FLOAT)sign*taper;
+ 
+      tmp   = DT*(double)sign*taper;
       for (I = ILO; I <= IHI; I++) {
         A(J,I) += tmp*LPHH(J,I);
       }
@@ -390,20 +389,19 @@ void scalar_hyperviscosity(int          nu_order,
     /* Need to apply bc_lateral() here. */
     bc_lateral(a,TWODIM);
   }
-
+ 
   return;
 }
-
+ 
 /*============== end of scalar_hyperviscosity() ===================*/
 
 /*============== scalar_horizontal_subgrid() ======================*/
 
-void scalar_horizontal_subgrid(planetspec  *planet,
-                               EPIC_FLOAT **Buff2D)
+void scalar_horizontal_subgrid(double **Buff2D)
 {
   register int
     iq,
-    kstart,kend;
+    kstart;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
    */
@@ -413,7 +411,7 @@ void scalar_horizontal_subgrid(planetspec  *planet,
     dbmsname[]="scalar_horizontal_subgrid";
 
   if (strcmp(grid.turbulence_scheme,"on") == 0) {
-    scalar_horizontal_diffusion(planet,Buff2D);
+    scalar_horizontal_diffusion(Buff2D);
   }
   else if (strcmp(grid.turbulence_scheme,"on_vertical_only") == 0 ||
            strcmp(grid.turbulence_scheme,"off")              == 0)  {
@@ -431,7 +429,6 @@ void scalar_horizontal_subgrid(planetspec  *planet,
   *   kstart = KLO;
   */
   kstart = KLO;
-  kend   = KHI;
 
   /*-----------------------*
    * Apply hyperviscosity. *
@@ -440,12 +437,11 @@ void scalar_horizontal_subgrid(planetspec  *planet,
   /*
    * The iq loop is set up to reference only the species/phase fields that have been turned on.
    */
-  if (grid.cloud_microphysics != OFF && grid.cloud_microphysics != STEADY) {
+  if (grid.cloud_microphysics != OFF) {
     for (iq = 0; iq < grid.nq; iq++) {
-      scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,kend,var.species[grid.is[iq]].phase[grid.ip[iq]].q);
-      restore_mass(planet,grid.is[iq],grid.ip[iq]);
+      scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,KHI-1,var.species[grid.is[iq]].phase[grid.ip[iq]].q);
+      restore_mass(grid.is[iq],grid.ip[iq]);
     }
-    sync_x_to_q(planet);
   }
 
   if (var.h.on) {
@@ -458,7 +454,7 @@ void scalar_horizontal_subgrid(planetspec  *planet,
         /*
          * Apply hyperviscosity to H.
          */
-        scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,kend,var.h.value);
+        scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,KHI,var.h.value);
         /* NOTE: restore_mass() is called in set_p2_etc() below */
       break;
       default:
@@ -471,7 +467,7 @@ void scalar_horizontal_subgrid(planetspec  *planet,
   /*
    * Update P2, etc.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
+  set_p2_etc(UPDATE_THETA);
 
   if (var.theta.on) {
     switch(grid.coord_type) {
@@ -480,7 +476,7 @@ void scalar_horizontal_subgrid(planetspec  *planet,
       break;
       case COORD_ISOBARIC:
       case COORD_HYBRID:
-        scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,kend,var.theta.value);
+        scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,KHI-1,var.theta.value);
       break;
       default:
         sprintf(Message,"grid.coord_type=%d not yet implemented",grid.coord_type);
@@ -490,12 +486,12 @@ void scalar_horizontal_subgrid(planetspec  *planet,
   }
 
   if (var.nu_turb.on) {
-    scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,kend,var.nu_turb.value);
-    restore_mass(planet,NU_TURB_INDEX,NO_PHASE);
+    scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,KHI,var.nu_turb.value);
+    restore_mass(NU_TURB_INDEX,NO_PHASE);
   }
 
   if (var.fpara.on) {
-    scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,kend,var.fpara.value);
+    scalar_hyperviscosity(grid.nu_order,grid.nu_hyper,Buff2D,kstart,KHI-1,var.fpara.value);
   }
 
   return;
@@ -505,27 +501,26 @@ void scalar_horizontal_subgrid(planetspec  *planet,
 
 /*============== scalar_horizontal_diffusion ======================*/
 
-void scalar_horizontal_diffusion(planetspec  *planet,
-                                 EPIC_FLOAT **Buff2D)
+void scalar_horizontal_diffusion(double **Buff2D)
 {
   register int
     K,J,I,kk,
     iq,is,ip;
-  register EPIC_FLOAT
+  register double
     dt,
     rln,
     taper,
     tmp;
-  const EPIC_FLOAT
+  const double
     sigma_inv = 3./2.;
-  EPIC_FLOAT
+  double
     *hh,
     *diff_coef,
     *laph,
     *a;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *m0;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -537,7 +532,7 @@ void scalar_horizontal_diffusion(planetspec  *planet,
 
   if (!initialized) {
     /* Allocate memory */
-    m0 = fvector(0,grid.nk,dbmsname);
+    m0 = dvector(0,grid.nk,dbmsname);
     for (K = KLO; K <= KHI; K++) {
       rln   = grid.re[K]/sqrt(1.+SQR(grid.rp[K]/grid.re[K]*tan(LAT0*DEG)));
       m0[K] = 1./(rln*grid.dln*DEG);
@@ -550,7 +545,7 @@ void scalar_horizontal_diffusion(planetspec  *planet,
   laph      = Buff2D[1];
   diff_coef = Buff2D[2];
 
-  dt = (EPIC_FLOAT)grid.dt;
+  dt = (double)grid.dt;
 
   /*
    * Apply diffusion to THETA.
@@ -565,16 +560,16 @@ void scalar_horizontal_diffusion(planetspec  *planet,
     break;
     case COORD_ISOBARIC:
     case COORD_HYBRID:
-      for (K = KLO; K <= KHI; K++) {
+      for (K = KLO; K < KHI; K++) {
         kk = 2*K+1;
 
         /* Copy DIFFUSION_COEF_THETA(K,J,I) into DIFF_COEF(J,I)  */
         a = var.diffusion_coef_theta.value+(K-Kshift)*Nelem2d;
-        memcpy(diff_coef,a,Nelem2d*sizeof(EPIC_FLOAT));
+        memcpy(diff_coef,a,Nelem2d*sizeof(double));
 
         /* Copy THETA(K,J,I) into HH(J,I)  */
         a = var.theta.value+(K-Kshift)*Nelem2d;
-        memcpy(hh,a,Nelem2d*sizeof(EPIC_FLOAT));
+        memcpy(hh,a,Nelem2d*sizeof(double));
 
         laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
 
@@ -608,16 +603,16 @@ void scalar_horizontal_diffusion(planetspec  *planet,
   /*
    * Apply diffusion to mixing ratios, Q, which are carried on the interfaces.
    */
-  if (grid.cloud_microphysics != OFF && grid.cloud_microphysics != STEADY) {
+  if (grid.cloud_microphysics != OFF) {
     for (iq = 0; iq < grid.nq; iq++) {
       is = grid.is[iq];
       ip = grid.ip[iq];
-      for (K = KLO; K <= KHI; K++) {
+      for (K = KLO; K < KHI; K++) {
         kk = 2*K+1;
 
         /* Copy DIFFUSION_COEF_MASS(K,J,I) into DIFF_COEF(J,I)  */
         a = var.diffusion_coef_mass.value+(K-Kshift)*Nelem2d;
-        memcpy(diff_coef,a,Nelem2d*sizeof(EPIC_FLOAT));
+        memcpy(diff_coef,a,Nelem2d*sizeof(double));
 
         if (grid.ip[iq] == VAPOR) {
           /*
@@ -625,7 +620,7 @@ void scalar_horizontal_diffusion(planetspec  *planet,
            */
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
-              DIFF_COEF(J,I) += mass_diffusivity(planet,is,T3(K,J,I),P3(K,J,I));
+              DIFF_COEF(J,I) += mass_diffusivity(is,T3(K,J,I),P3(K,J,I));
             }
           }
         }
@@ -633,7 +628,7 @@ void scalar_horizontal_diffusion(planetspec  *planet,
 
         /* Copy Q(is,ip,K,J,I) into HH(J,I)  */
         a = var.species[grid.is[iq]].phase[grid.ip[iq]].q+(K-Kshift)*Nelem2d;
-        memcpy(hh,a,Nelem2d*sizeof(EPIC_FLOAT));
+        memcpy(hh,a,Nelem2d*sizeof(double));
       
         laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
 
@@ -657,15 +652,14 @@ void scalar_horizontal_diffusion(planetspec  *planet,
       /*
        * Clean up any negative mass introduced by diffusion truncation error.
        */
-      restore_mass(planet,is,ip);
+      restore_mass(is,ip);
     }
-    sync_x_to_q(planet);
   }
 
   /*
    * Update pressures, etc.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
+  set_p2_etc(UPDATE_THETA);
 
   /*
    * Apply diffusion to NU_TURB.
@@ -682,7 +676,7 @@ void scalar_horizontal_diffusion(planetspec  *planet,
 
     /* Copy NU_TURB(K,J,I) into HH(J,I)  */
     a = var.nu_turb.value+(K-Kshift)*Nelem2d;
-    memcpy(hh,a,Nelem2d*sizeof(EPIC_FLOAT));
+    memcpy(hh,a,Nelem2d*sizeof(double));
 
     laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
 
@@ -703,7 +697,7 @@ void scalar_horizontal_diffusion(planetspec  *planet,
   /* Need to apply bc_lateral() here. */
   bc_lateral(var.nu_turb.value,THREEDIM);
 
-  restore_mass(planet,NU_TURB_INDEX,NO_PHASE);
+  restore_mass(NU_TURB_INDEX,NO_PHASE);
 
   return;
 }
@@ -722,23 +716,23 @@ void scalar_horizontal_diffusion(planetspec  *planet,
  *  are passed in as buff1 and buff2.
  */
 
-void laplacian_h(int         kk,
-                 EPIC_FLOAT *hh,
-                 EPIC_FLOAT *diff_coef,
-                 EPIC_FLOAT *lph,
-                 EPIC_FLOAT *buff1,
-                 EPIC_FLOAT *buff2)
+void laplacian_h(int     kk,
+                 double *hh,
+                 double *diff_coef,
+                 double *lph,
+                 double *buff1,
+                 double *buff2)
 {
   int 
     J,I;
-  EPIC_FLOAT 
+  double 
     h_edge,
     m_2j,n_2j,m_2jp1,n_2jp1,
     m_2j_inv,m_2jp2_inv;
-  EPIC_FLOAT
+  double
     *gh1,*gh2;
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
 #  if EPIC_PRECISION == DOUBLE_PRECISION
      MPI_Datatype
@@ -765,8 +759,8 @@ void laplacian_h(int         kk,
   }
 
   /* Zero working buffers: */
-  memset(buff1,0,Nelem2d*sizeof(EPIC_FLOAT));
-  memset(buff2,0,Nelem2d*sizeof(EPIC_FLOAT));
+  memset(buff1,0,Nelem2d*sizeof(double));
+  memset(buff2,0,Nelem2d*sizeof(double));
 
   gh1 = buff1;
   gh2 = buff2;
@@ -895,19 +889,16 @@ void laplacian_h(int         kk,
  *       is only applied to the tendencies.
  */
 
-#undef  KLEN
-#define KLEN (kend-kstart+1)
-
-void uv_hyperviscosity(int          nu_order,
-                       double       nu_hyper,
-                       EPIC_FLOAT **Buff2D)
+void uv_hyperviscosity(int      nu_order,
+                       double   nu_hyper,
+                       double **Buff2D)
 {
   int
     K,J,I,kk,
     kstart,kend,
     itmp,
     sign;
-  EPIC_FLOAT
+  double
     *uu,
     *vv,
     *lpuu,
@@ -917,13 +908,13 @@ void uv_hyperviscosity(int          nu_order,
     *ptmp;
   double
      visc_coef;
-  register EPIC_FLOAT
+  register double
      rln,taper,tmp;
   static double
     max_nu_horizontal[MAX_NU_ORDER+1];
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *m0;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -937,7 +928,7 @@ void uv_hyperviscosity(int          nu_order,
     set_max_nu(max_nu_horizontal);
 
     /* Allocate memory */
-    m0 = fvector(0,grid.nk,dbmsname);
+    m0 = dvector(0,grid.nk,dbmsname);
     for (K = KLO; K <= KHI; K++) {
       rln   = grid.re[K]/sqrt(1.+SQR(grid.rp[K]/grid.re[K]*tan(LAT0*DEG)));
       m0[K] = 1./(rln*grid.dln*DEG);
@@ -989,8 +980,8 @@ void uv_hyperviscosity(int          nu_order,
      *       that yields numerical stability for the leapfrog scheme, since the hyperviscosity
      *       is applied directly to the variables, with a forward (Euler) step.
      */
-    memcpy(lpuu,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,Nelem2d*sizeof(EPIC_FLOAT));
-    memcpy(lpvv,var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,Nelem2d*sizeof(EPIC_FLOAT));
+    memcpy(lpuu,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,Nelem2d*sizeof(double));
+    memcpy(lpvv,var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,Nelem2d*sizeof(double));
 
     sign = -1;
     for (itmp = 2; itmp <= nu_order; itmp+=2) {
@@ -1015,7 +1006,7 @@ void uv_hyperviscosity(int          nu_order,
 
       taper = MIN(1.,(max_nu_horizontal[nu_order]/nu_hyper)*pow(m0[K]/grid.m[kk][2*J+1],nu_order));
 
-      tmp   = DT*(EPIC_FLOAT)sign*taper;
+      tmp   = DT*(double)sign*taper;
       for (I = ILO; I <= IHI; I++) {
         U(grid.it_uv,K,J,I) += tmp*LPUU(J,I);
       }
@@ -1027,7 +1018,7 @@ void uv_hyperviscosity(int          nu_order,
        */
       taper = MIN(1.,(max_nu_horizontal[nu_order]/nu_hyper)*pow(m0[K]/grid.m[kk][2*J],nu_order));
 
-      tmp   = DT*(EPIC_FLOAT)sign*taper;
+      tmp   = DT*(double)sign*taper;
       for (I = ILO; I <= IHI; I++) {
         V(grid.it_uv,K,J,I) += tmp*LPVV(J,I);
       }
@@ -1060,21 +1051,21 @@ void uv_hyperviscosity(int          nu_order,
  *  Pointers to memory for two working JI-plane buffers
  *  are passed in as buff1 and buff2.
  */
-void laplacian_uv(int         K,
-                  EPIC_FLOAT *uu,
-                  EPIC_FLOAT *vv,
-                  EPIC_FLOAT  viscosity,
-                  EPIC_FLOAT *lpuu,
-                  EPIC_FLOAT *lpvv,
-                  EPIC_FLOAT *buff1,
-                  EPIC_FLOAT *buff2)
+void laplacian_uv(int     K,
+                  double *uu,
+                  double *vv,
+                  double  viscosity,
+                  double *lpuu,
+                  double *lpvv,
+                  double *buff1,
+                  double *buff2)
 {
   int 
     J,I,
     kk = 2*K;
-  EPIC_FLOAT 
+  double 
     m_2j,n_2j,m_2jp1,n_2jp1;
-  EPIC_FLOAT
+  double
     *ze,*di;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -1106,8 +1097,8 @@ void laplacian_uv(int         K,
   divergence(kk,uu,vv,di);
 
   /* Zero output arrays */
-  memset(lpuu,0,Nelem2d*sizeof(EPIC_FLOAT));
-  memset(lpvv,0,Nelem2d*sizeof(EPIC_FLOAT));
+  memset(lpuu,0,Nelem2d*sizeof(double));
+  memset(lpvv,0,Nelem2d*sizeof(double));
 
   /*
    * Compute zonal component of the Laplacian.
@@ -1145,14 +1136,9 @@ void laplacian_uv(int         K,
 
 /*============== end of laplacian_uv() ============================*/
 
-
 /*============== scalar_vertical_subgrid() ========================*/
 
-#undef  KLEN
-#define KLEN (kend-kstart+1)
-
-void scalar_vertical_subgrid(planetspec  *planet,
-                             EPIC_FLOAT **Buff2D)
+void scalar_vertical_subgrid(double **Buff2D)
 {
   register int
     K,J,I,
@@ -1172,13 +1158,15 @@ void scalar_vertical_subgrid(planetspec  *planet,
     /*
      * NOTE: The vertical diffusion includes a provision for handling convectively unstable regions.
      */
-    scalar_vertical_diffusion(planet,Buff2D);
+    scalar_vertical_diffusion(Buff2D);
   }
   else if (strcmp(grid.turbulence_scheme,"off") == 0) {
     /*
      * Adjust convectively unstable regions to be neutrally stable.
      */
-    adiabatic_adjustment(planet,Buff2D);
+/*gurn adiabatic_adjustment() commented out
+    adiabatic_adjustment();
+*/
   }
   else {
     sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
@@ -1201,8 +1189,7 @@ void scalar_vertical_subgrid(planetspec  *planet,
 #undef  STAB_MULT
 #define STAB_MULT(k,j,i) stab_mult[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 
-void scalar_vertical_diffusion(planetspec  *planet,
-                               EPIC_FLOAT **Buff2D)
+void scalar_vertical_diffusion(double **Buff2D)
 {
   int
     K,J,I,
@@ -1211,14 +1198,14 @@ void scalar_vertical_diffusion(planetspec  *planet,
   static int
     nnk,
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     diffusion_coeff,
     delta_z_convect,
     brunt2,
    *tau_wall;
-  const EPIC_FLOAT
+  const double
     sigma_inv = 3./2.;
-  static EPIC_FLOAT
+  static double
     *stab_factor,
     *nu_convect,
     *zee,
@@ -1236,7 +1223,7 @@ void scalar_vertical_diffusion(planetspec  *planet,
   static char
     dbmsname[]="scalar_vertical_diffusion";
 
-  nbytes_2d = Nelem2d*sizeof(EPIC_FLOAT);
+  nbytes_2d = Nelem2d*sizeof(double);
 
   memset(Buff2D[0],0,nbytes_2d);
   tau_wall = Buff2D[0];
@@ -1245,13 +1232,13 @@ void scalar_vertical_diffusion(planetspec  *planet,
     nnk = KHI-KLO+1;
 
     /* Allocate memory: */
-    stab_factor = fvector(0,2*KHI+1,  dbmsname);
-    zee         = fvector(0,KHI+2,    dbmsname);
-    aaa         = fvector(0,KHI+2,    dbmsname);
-    dee         = fvector(0,KHI+2,    dbmsname);
-    ans         = fvector(0,KHI+2,    dbmsname);
-    nu_convect  = fvector(0,KHI+1,    dbmsname);
-    stab_mult   = fvector(0,Nelem3d-1,dbmsname);
+    stab_factor = dvector(0,2*KHI+1,  dbmsname);
+    zee         = dvector(0,KHI+2,    dbmsname);
+    aaa         = dvector(0,KHI+2,    dbmsname);
+    dee         = dvector(0,KHI+2,    dbmsname);
+    ans         = dvector(0,KHI+2,    dbmsname);
+    nu_convect  = dvector(0,KHI+1,    dbmsname);
+    stab_mult   = dvector(0,Nelem3d-1,dbmsname);
 
     initialized = TRUE;
   }
@@ -1332,7 +1319,7 @@ void scalar_vertical_diffusion(planetspec  *planet,
       /*
        * Clean up any negative potential temperature introduced by diffusion truncation errors.
        */
-      restore_mass(planet,THETA_INDEX,NO_PHASE);
+      restore_mass(THETA_INDEX,NO_PHASE);
     }
   }
   else {
@@ -1350,7 +1337,7 @@ void scalar_vertical_diffusion(planetspec  *planet,
    *
    * Loop over all activated species/phase variables.
    */
-  if (grid.cloud_microphysics != OFF && grid.cloud_microphysics != STEADY) {
+  if (grid.cloud_microphysics != OFF) {
     for (iq = 0; iq < grid.nq; iq++) {
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
@@ -1363,7 +1350,7 @@ void scalar_vertical_diffusion(planetspec  *planet,
              */
             for (K = KLO; K <= KHI; K++) {
               kay      = KHI-K;
-              dee[kay] = mass_diffusivity(planet,grid.is[iq],T2(K,J,I),P2(K,J,I))
+              dee[kay] = mass_diffusivity(grid.is[iq],T2(K,J,I),P2(K,J,I))
                         +STAB_MULT(K,J,I)*DIFFUSION_COEF_MASS(K,J,I);
             }
           }
@@ -1393,9 +1380,8 @@ void scalar_vertical_diffusion(planetspec  *planet,
       /*
        * Clean up any negative mass introduced by diffusion truncation errors.
        */
-      restore_mass(planet,grid.is[iq],grid.ip[iq]);
+      restore_mass(grid.is[iq],grid.ip[iq]);
     }
-    sync_x_to_q(planet);
   }
 
   /*
@@ -1433,13 +1419,13 @@ void scalar_vertical_diffusion(planetspec  *planet,
     /*
      * Clean up any negative fpara introduced by diffusion truncation errors.
      */
-    restore_mass(planet,FPARA_INDEX,NO_PHASE);
+    restore_mass(FPARA_INDEX,NO_PHASE);
   }
 
   /*
    * Update P2, etc.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
+  set_p2_etc(UPDATE_THETA);
 
   /*
    * Apply vertical diffusion to NU_TURB, which is carried in the layer.
@@ -1448,7 +1434,7 @@ void scalar_vertical_diffusion(planetspec  *planet,
    * NOTE: The function tau_surface() currently sets TAU_WALL to zero for the gas-giant case.
    */
   if (var.nu_turb.on) {
-    tau_surface(planet,NU_TURB_INDEX,tau_wall,Buff2D[1]);
+    tau_surface(NU_TURB_INDEX,tau_wall,Buff2D[1]);
 
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
@@ -1497,7 +1483,7 @@ void scalar_vertical_diffusion(planetspec  *planet,
     /*
      * Clean up any negative nu_turb introduced by diffusion truncation errors.
      */
-    restore_mass(planet,NU_TURB_INDEX,NO_PHASE);
+    restore_mass(NU_TURB_INDEX,NO_PHASE);
   }
 
   return;
@@ -1518,18 +1504,18 @@ void scalar_vertical_diffusion(planetspec  *planet,
  *       of the hybrid coordinate.
  */
 
-void adiabatic_adjustment(planetspec  *planet,
-                          EPIC_FLOAT **Buff2D)
+void adiabatic_adjustment(void)
 {
   int
-    K,J,I,
+    K,J,I,kk,
     klo,iq,
     modification;
-  EPIC_FLOAT
+  double
     avg,sum,
     fpara,mu,theta_ortho,theta_para,
-    alpha,max_alpha,dilute;
-  EPIC_FLOAT
+    alpha,max_alpha,dilute,
+    alpha_q;
+  double
     N2[2],d_enthalpy[3],
     orig_theta1,orig_theta3,
     avg_enthalpy,enthalpy1,enthalpy3,
@@ -1565,6 +1551,8 @@ void adiabatic_adjustment(planetspec  *planet,
          * Move down the column starting at the first non-isentropic layer.
          */
         for (K = klo; K <= KHI; K++) {
+          kk = 2*K;
+
           /*
            * get_brunt2() < 0 is a better indication of (hydro)static instability than dtheta/dz < 0. 
            * See the comments in get_brunt2() in epic/src/core/epic_funcs_diag.c.
@@ -1572,7 +1560,7 @@ void adiabatic_adjustment(planetspec  *planet,
            * NOTE: No adjustment is made when THETA(K,J,I) <= THETA(K-1,J,I), since in practice this case
            *       has the potential for an unstable positive feedback.
            */
-          N2[0] = get_brunt2(planet,2*K,J,I);
+          N2[0] = get_brunt2(2*K,J,I);
           if (N2[0] < 0 && THETA(K,J,I) > THETA(K-1,J,I)) {
             modification = TRUE;
 
@@ -1589,9 +1577,14 @@ void adiabatic_adjustment(planetspec  *planet,
             dilute    = .05;
             max_alpha = .002;
 
-            alpha = MIN(dilute*sqrt(-N2[0])*(EPIC_FLOAT)grid.dt,max_alpha);
+            alpha = MIN(dilute*sqrt(-N2[0])*(double)grid.dt,max_alpha);
 
-            if (grid.cloud_microphysics != OFF && grid.cloud_microphysics != STEADY) {
+            /*
+             * Set alpha_q for mixing volatiles to be a prescribed fraction [0.,1.] of alpha.
+             */
+            alpha_q = 1.0*alpha;
+
+            if (grid.cloud_microphysics != OFF) {
               /*
                * The mixing ratios, Q, are carried on the layer interfaces.
                * Relax towards the well-mixed state.
@@ -1602,20 +1595,29 @@ void adiabatic_adjustment(planetspec  *planet,
                * Loop over all activated species/phase variables.
                */
               for (iq = 0; iq < grid.nq; iq++) {
-                avg = .5*(Q(grid.is[iq],grid.ip[iq],K-1,J,I)+Q(grid.is[iq],grid.ip[iq],K,J,I));
-                Q(grid.is[iq],grid.ip[iq],K-1,J,I) = alpha*avg+(1.-alpha)*Q(grid.is[iq],grid.ip[iq],K-1,J,I);
-                Q(grid.is[iq],grid.ip[iq],K,  J,I) = alpha*avg+(1.-alpha)*Q(grid.is[iq],grid.ip[iq],K,  J,I);
-              }
-              /*
-               * Sync X to Q, needed for avg_molar_mass();
-               */
-              sum = planet->rgas/R_GAS;
-              for (iq = 0; iq < grid.nq; iq++) {
-                sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
-              }
-              for (iq = 0; iq < grid.nq; iq++) {
-                X(grid.is[iq],grid.ip[iq],K,J,I)   = Q(grid.is[iq],grid.ip[iq],K,J,I)/(var.species[grid.is[iq]].molar_mass*sum);
-                X(grid.is[iq],grid.ip[iq],K-1,J,I) = X(grid.is[iq],grid.ip[iq],K,J,I);
+                /*
+                 * Conserve mass of the phase with a weighted average.
+                 *
+                 * NOTE: Kerry Emanuel (MIT), email to T. Dowling 25 July 2024, on the question of whether mixing ratios might
+                 *       mix more slowly than the rate at which neutral buoyancy is reached:
+                 *
+                 *      "In terrestrial boundary layers driven mostly by convection (as opposed to shear), the only variable
+                 *       that seems truly constant between the top of the surface layer and the top of the boundary layer is
+                 *       the buoyancy variable (virtual potential temperature). The boundary layer is more nearly
+                 *       convectively neutral than well-mixed per se, because other conservative, non-buoyancy variables,
+                 *       like water vapor concentration, tend to have weak but measurable vertical gradients. I suspect, but
+                 *       do not know for sure, that in boundary layers that are far from statistical equilibrium, the
+                 *       buoyancy variable adjusts faster than the other conserved variables towards its equilibrium profile."
+                 */
+                avg = (grid.dsgth[kk-1]*HDRY3(K-1,J,I)*Q(grid.is[iq],grid.ip[iq],K-1,J,I)
+                      +grid.dsgth[kk+1]*HDRY3(K,  J,I)*Q(grid.is[iq],grid.ip[iq],K,  J,I))
+                     /(grid.dsgth[kk-1]*HDRY3(K-1,J,I)
+                      +grid.dsgth[kk+1]*HDRY3(K,  J,I));
+
+                Q(grid.is[iq],grid.ip[iq],K-1,J,I) = alpha_q*avg+(1.-alpha_q)*Q(grid.is[iq],grid.ip[iq],K-1,J,I);
+                if (K < grid.nk) {
+                  Q(grid.is[iq],grid.ip[iq],K,J,I) = alpha_q*avg+(1.-alpha_q)*Q(grid.is[iq],grid.ip[iq],K,J,I);
+                }
               }
             }
 
@@ -1623,9 +1625,15 @@ void adiabatic_adjustment(planetspec  *planet,
               /*
                * Relax fpara, which is carried on the layer interfaces.
                */
-              avg = .5*(FPARA(K-1,J,I)+FPARA(K,J,I));
-              FPARA(K-1,J,I) = alpha*avg+(1.-alpha)*FPARA(K-1,J,I);
-              FPARA(K,  J,I) = alpha*avg+(1.-alpha)*FPARA(K,  J,I);
+              avg = (grid.dsgth[kk-1]*HDRY3(K-1,J,I)*FPARA(K-1,J,I)
+                    +grid.dsgth[kk+1]*HDRY3(K,  J,I)*FPARA(K,  J,I))
+                   /(grid.dsgth[kk-1]*HDRY3(K-1,J,I)
+                    +grid.dsgth[kk+1]*HDRY3(K,  J,I));
+
+              FPARA(K-1,J,I) = alpha_q*avg+(1.-alpha_q)*FPARA(K-1,J,I);
+              if (K < grid.nk) {
+                FPARA(K,J,I) = alpha_q*avg+(1.-alpha_q)*FPARA(K,J,I);
+              }
             }
 
             /*
@@ -1662,8 +1670,8 @@ void adiabatic_adjustment(planetspec  *planet,
               fpara3 = return_fpe(T3(K,  J,I));
             }
 
-            cp1 = return_cp(planet,fpara1,P3(K-1,J,I),T3(K-1,J,I));
-            cp3 = return_cp(planet,fpara3,P3(K,  J,I),T3(K,  J,I));
+            cp1 = return_cp(fpara1,P3(K-1,J,I),T3(K-1,J,I));
+            cp3 = return_cp(fpara3,P3(K,  J,I),T3(K,  J,I));
  
             dp1 = P2(K,J,I)-P3(K-1,J,I);
             dp3 = P3(K,J,I)-P2(K,  J,I);
@@ -1677,11 +1685,11 @@ void adiabatic_adjustment(planetspec  *planet,
 
             /* Use theta = constant to get a good d_enthalpy[1]. */
             avg   = .5*(THETA(K-1,J,I)+THETA(K,J,I));
-            Temp1 = return_temp(planet,fpara1,P3(K-1,J,I),avg);
-            Temp3 = return_temp(planet,fpara3,P3(K,  J,I),avg);
+            Temp1 = return_temp(fpara1,P3(K-1,J,I),avg);
+            Temp3 = return_temp(fpara3,P3(K,  J,I),avg);
 
-            cp1 = return_cp(planet,fpara1,P3(K-1,J,I),Temp1);
-            cp3 = return_cp(planet,fpara3,P3(K,  J,I),Temp3);
+            cp1 = return_cp(fpara1,P3(K-1,J,I),Temp1);
+            cp3 = return_cp(fpara3,P3(K,  J,I),Temp3);
 
             enthalpy1 = dp1*cp1*Temp1;
             enthalpy3 = dp3*cp3*Temp3;
@@ -1695,18 +1703,22 @@ void adiabatic_adjustment(planetspec  *planet,
              * Update T3.
              */
             T3(K-1,J,I) = enthalpy1/(dp1*cp1);
-            T3(K,  J,I) = enthalpy3/(dp3*cp3);
+            if (K < grid.nk) {
+              T3(K,J,I) = enthalpy3/(dp3*cp3);
+            }
 
             /*
              * Update the relevant variables for get_brunt2().
              */
-            THETA(K-1,J,I) = return_theta(planet,fpara1,P3(K-1,J,I),T3(K-1,J,I),&theta_ortho,&theta_para);
-            mu             = avg_molar_mass(planet,2*K-1,J,I);
-            RHO3(K-1,J,I)  = return_density(planet,fpara1,P3(K-1,J,I),T3(K-1,J,I),mu,PASSING_T);
+            THETA(K-1,J,I) = return_theta(fpara1,P3(K-1,J,I),T3(K-1,J,I),&theta_ortho,&theta_para);
+            mu             = avg_molar_mass(2*K-1,J,I);
+            RHO3(K-1,J,I)  = return_density(fpara1,P3(K-1,J,I),T3(K-1,J,I),mu,PASSING_T);
 
-            THETA(K,J,I) = return_theta(planet,fpara3,P3(K,J,I),T3(K,J,I),&theta_ortho,&theta_para);
-            mu           = avg_molar_mass(planet,2*K+1,J,I);
-            RHO3(K,J,I)  = return_density(planet,fpara3,P3(K,J,I),T3(K,J,I),mu,PASSING_T);
+            if (K < grid.nk) {
+              THETA(K,J,I) = return_theta(fpara3,P3(K,J,I),T3(K,J,I),&theta_ortho,&theta_para);
+              mu           = avg_molar_mass(2*K+1,J,I);
+              RHO3(K,J,I)  = return_density(fpara3,P3(K,J,I),T3(K,J,I),mu,PASSING_T);
+            }
 
             if (var.fpara.on) {
               fpara = .5*(FPARA(K-1,J,I)+FPARA(K,J,I));
@@ -1715,14 +1727,14 @@ void adiabatic_adjustment(planetspec  *planet,
               fpara = .5*(return_fpe(T3(K-1,J,I))+return_fpe(T3(K,J,I)));
             }
             THETA2(K,J,I) = .5*(THETA(K-1,J,I)+THETA(K,J,I));
-            T2(    K,J,I) = return_temp(   planet,fpara,P2(K,J,I),THETA2(K,J,I));
-            mu            = avg_molar_mass(planet,2*K,J,I);
-            RHO2(K,J,I)   = return_density(planet,fpara,P2(K,J,I),T2(K,J,I),mu,PASSING_T);
+            T2(    K,J,I) = return_temp(fpara,P2(K,J,I),THETA2(K,J,I));
+            mu            = avg_molar_mass(2*K,J,I);
+            RHO2(K,J,I)   = return_density(fpara,P2(K,J,I),T2(K,J,I),mu,PASSING_T);
 
             /*
              * Calculate N^2 for d_enthaphy[1].
              */
-            N2[1] = get_brunt2(planet,2*K,J,I);
+            N2[1] = get_brunt2(2*K,J,I);
 
             /*
              * Assume the function N2(d_enthalpy) is linear. We have two data points:
@@ -1762,13 +1774,17 @@ void adiabatic_adjustment(planetspec  *planet,
              * Update T3.
              */
             T3(K-1,J,I) = enthalpy1/(dp1*cp1);
-            T3(K,  J,I) = enthalpy3/(dp3*cp3);
+            if (K < grid.nk) {
+              T3(K,J,I) = enthalpy3/(dp3*cp3);
+            }
 
             /*
              * Full THETA update.
              */
-            THETA(K-1,J,I) = return_theta(planet,fpara1,P3(K-1,J,I),T3(K-1,J,I),&theta_ortho,&theta_para);
-            THETA(K,  J,I) = return_theta(planet,fpara3,P3(K,  J,I),T3(K,  J,I),&theta_ortho,&theta_para);
+            THETA(K-1,J,I) = return_theta(fpara1,P3(K-1,J,I),T3(K-1,J,I),&theta_ortho,&theta_para);
+            if (K < grid.nk) {
+              THETA(K,J,I) = return_theta(fpara3,P3(K,J,I),T3(K,J,I),&theta_ortho,&theta_para);
+            }
 
             /*
              * Actual THETA update.
@@ -1779,7 +1795,9 @@ void adiabatic_adjustment(planetspec  *planet,
                * The full update is a twist in the right direction, so relax towards it.
                */
               THETA(K-1,J,I) = alpha*THETA(K-1,J,I)+(1.-alpha)*orig_theta1;
-              THETA(K,  J,I) = alpha*THETA(K,  J,I)+(1.-alpha)*orig_theta3;
+              if (K < grid.nk) {
+                THETA(K,J,I) = alpha*THETA(K,  J,I)+(1.-alpha)*orig_theta3;
+              }
             }
             else {
               /*
@@ -1795,22 +1813,21 @@ void adiabatic_adjustment(planetspec  *planet,
     } /* J loop */
 
 #ifdef EPIC_MPI
-  /*
-   * Make status of modification global.
-   */
-  mpi_itmp = modification;
-  MPI_Allreduce(&mpi_itmp,&modification,1,MPI_INT,MPI_SUM,para.comm);
+    /*
+     * Make status of modification global.
+     */
+    mpi_itmp = modification;
+    MPI_Allreduce(&mpi_itmp,&modification,1,MPI_INT,MPI_SUM,para.comm);
 #endif
 
     if (modification) {
       /*
        * Apply lateral boundary conditions.
        */
-      if (grid.cloud_microphysics != OFF && grid.cloud_microphysics != STEADY) {
+      if (grid.cloud_microphysics != OFF) {
         for (iq = 0; iq < grid.nq; iq++) {
           bc_lateral(var.species[grid.is[iq]].phase[grid.ip[iq]].q,THREEDIM);
         }
-        sync_x_to_q(planet);
       }
 
       if (var.fpara.on) {
@@ -1822,12 +1839,12 @@ void adiabatic_adjustment(planetspec  *planet,
       /*
        * Update diagnoatic variables THETA2, HDRY2, HDRY3, etc.
        */
-      set_p2_etc(planet,UPDATE_THETA,Buff2D);
+      set_p2_etc(UPDATE_THETA);
 
       /*
        * Update diagnostic variables T2, T3, RHO2, RHO3, etc.
        */
-      store_pgrad_vars(planet,Buff2D,SYNC_DIAGS_ONLY,CALC_PHI3NK);
+      store_pgrad_vars(SYNC_DIAGS_ONLY,CALC_PHI3NK);
     }
   }
   else {
@@ -1842,14 +1859,13 @@ void adiabatic_adjustment(planetspec  *planet,
 
 /*============== uv_horizontal_subgrid() ==========================*/
 
-void uv_horizontal_subgrid(planetspec  *planet,
-                           EPIC_FLOAT **Buff2D)
+void uv_horizontal_subgrid(double **Buff2D)
 {
   register int
     K;
   int
     kstart,kend;
-  EPIC_FLOAT
+  double
      tmp,
     *pt_dudt,
     *pt_dvdt;
@@ -1862,7 +1878,7 @@ void uv_horizontal_subgrid(planetspec  *planet,
     dbmsname[]="uv_horizontal_subgrid";
 
   if (strcmp(grid.turbulence_scheme,"on") == 0) {
-    uv_horizontal_diffusion(planet,Buff2D);
+    uv_horizontal_diffusion(Buff2D);
   }
   else if (strcmp(grid.turbulence_scheme,"on_vertical_only") == 0 ||
            strcmp(grid.turbulence_scheme,"off")              == 0)  {
@@ -1886,7 +1902,7 @@ void uv_horizontal_subgrid(planetspec  *planet,
     kend   = KHI;
 
     for (K = kstart; K <= kend; K++) {
-      divergence_damping(planet,K,grid.nudiv_nondim,Buff2D);
+      divergence_damping(K,grid.nudiv_nondim,Buff2D);
     }
   }
 
@@ -1931,31 +1947,30 @@ void uv_horizontal_subgrid(planetspec  *planet,
 #undef  COEFFD
 #define COEFFD(j,i) coeffd[i+(j)*Iadim-Shift2d]
 
-void uv_horizontal_diffusion(planetspec  *planet,
-			     EPIC_FLOAT **Buff2D)
+void uv_horizontal_diffusion(double **Buff2D)
 {
   register int
     K,J,I,
     kk,jj;
-  register EPIC_FLOAT
+  register double
     rho,rho_inv,nu,
     rln,rln_inv,rlt_inv,
     e11,e12,e22,
     taper;
-  EPIC_FLOAT
+  double
     *tau11,*tau12,*tau22,
     *uu,*vv,
     *coeffd,
      coeff;
-  register EPIC_FLOAT
+  register double
     m_2j,m_2jp1,
     n_2j,n_2jp1,n_2jp2;
   static int
    initialized = FALSE;
-  static EPIC_FLOAT
+  static double
    *m0;
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
 #  if EPIC_PRECISION == DOUBLE_PRECISION
      MPI_Datatype
@@ -1975,7 +1990,7 @@ void uv_horizontal_diffusion(planetspec  *planet,
 
   if (!initialized) {
     /* Allocate memory */
-    m0 = fvector(0,grid.nk,dbmsname);
+    m0 = dvector(0,grid.nk,dbmsname);
     for (K = KLO; K <= KHI; K++) {
       rln   = grid.re[K]/sqrt(1.+SQR(grid.rp[K]/grid.re[K]*tan(LAT0*DEG)));
       m0[K] = 1./(rln*grid.dln*DEG);
@@ -2004,8 +2019,8 @@ void uv_horizontal_diffusion(planetspec  *planet,
     /*
      * Copy U and V into UU and VV.
      */
-    memcpy(uu,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv_dis*Nelem3d,Nelem2d*sizeof(EPIC_FLOAT));
-    memcpy(vv,var.v.value+(K-Kshift)*Nelem2d+grid.it_uv_dis*Nelem3d,Nelem2d*sizeof(EPIC_FLOAT));
+    memcpy(uu,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv_dis*Nelem3d,Nelem2d*sizeof(double));
+    memcpy(vv,var.v.value+(K-Kshift)*Nelem2d+grid.it_uv_dis*Nelem3d,Nelem2d*sizeof(double));
 
     /*
      * TAU11 and TAU22 adapt naturally to the h-grid.
@@ -2174,15 +2189,14 @@ void uv_horizontal_diffusion(planetspec  *planet,
  * See Skamarock and Klemp (1992, Mon. Wea. Rev. 120, 2109-2127).
  */
 
-void divergence_damping(planetspec  *planet,
-                        int          K,
-                        EPIC_FLOAT   nudiv_nondim,
-                        EPIC_FLOAT **Buff2D)
+void divergence_damping(int      K,
+                        double   nudiv_nondim,
+                        double **Buff2D)
 {
   register int
     J,I,kay,
     kk = 2*K;
-  register EPIC_FLOAT
+  register double
     nudiv,
     coef,
     rln;
@@ -2190,9 +2204,9 @@ void divergence_damping(planetspec  *planet,
     initialized = FALSE;
   static double
     max_nu_horizontal[MAX_NU_ORDER+1];
-  EPIC_FLOAT
+  double
    *div;
-  static EPIC_FLOAT
+  static double
    *m0;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2206,7 +2220,7 @@ void divergence_damping(planetspec  *planet,
     set_max_nu(max_nu_horizontal);
 
     /* Allocate memory */
-    m0 = fvector(0,grid.nk,dbmsname);
+    m0 = dvector(0,grid.nk,dbmsname);
     for (kay = KLO; kay <= KHI; kay++) {
       rln   = grid.re[kay]/sqrt(1.+SQR(grid.rp[kay]/grid.re[kay]*tan(LAT0*DEG)));
       m0[kay] = 1./(rln*grid.dln*DEG);
@@ -2267,8 +2281,7 @@ void divergence_damping(planetspec  *planet,
 
 /*============== uv_vertical_subgrid() ============================*/
 
-void uv_vertical_subgrid(planetspec  *planet,
-                         EPIC_FLOAT **Buff2D)
+void uv_vertical_subgrid(double **Buff2D)
 {
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2280,7 +2293,7 @@ void uv_vertical_subgrid(planetspec  *planet,
 
   if (strcmp(grid.turbulence_scheme,"on")               == 0 ||
       strcmp(grid.turbulence_scheme,"on_vertical_only") == 0)  {
-    uv_vertical_diffusion(planet,Buff2D);
+    uv_vertical_diffusion(Buff2D);
   }
   else if (strcmp(grid.turbulence_scheme,"off") == 0) {
     /*
@@ -2317,17 +2330,16 @@ void uv_vertical_subgrid(planetspec  *planet,
  *       concludes that convective-adjustment mixing is not necessary for U, V.
  */
 
-void uv_vertical_diffusion(planetspec  *planet,
-                           EPIC_FLOAT **Buff2D)
+void uv_vertical_diffusion(double **Buff2D)
 {
   int
     K,J,I,
     kay;
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     *tau_wall;
-  static EPIC_FLOAT
+  static double
     *zee,
     *aaa,
     *mu,
@@ -2343,17 +2355,17 @@ void uv_vertical_diffusion(planetspec  *planet,
   static char
     dbmsname[]="uv_vertical_diffusion";
 
-  nbytes_2d = Nelem2d*sizeof(EPIC_FLOAT);
+  nbytes_2d = Nelem2d*sizeof(double);
   memset(Buff2D[0],0,nbytes_2d);
   tau_wall = Buff2D[0];
 
   if (!initialized) {
     /* Allocate memory: */
-    zee          = fvector(0,KHI+1,  dbmsname);
-    aaa          = fvector(0,KHI+1,  dbmsname);
-    mu           = fvector(0,KHI+1,  dbmsname);
-    rho          = fvector(0,KHI+1,  dbmsname);
-    ans          = fvector(0,KHI+1,  dbmsname);
+    zee          = dvector(0,KHI+1,  dbmsname);
+    aaa          = dvector(0,KHI+1,  dbmsname);
+    mu           = dvector(0,KHI+1,  dbmsname);
+    rho          = dvector(0,KHI+1,  dbmsname);
+    ans          = dvector(0,KHI+1,  dbmsname);
 
     initialized = TRUE;
   }
@@ -2361,7 +2373,7 @@ void uv_vertical_diffusion(planetspec  *planet,
   /*
    * Apply vertical diffusion to U.
    */
-  tau_surface(planet,U_INDEX,tau_wall,Buff2D[1]);
+  tau_surface(U_INDEX,tau_wall,Buff2D[1]);
   for (J = JLO; J <= JHI; J++) {
     for (I = ILO; I <= IHI; I++) {
       /*
@@ -2416,7 +2428,7 @@ void uv_vertical_diffusion(planetspec  *planet,
   /*
    * Apply vertical diffusion to V.
    */
-  tau_surface(planet,V_INDEX,tau_wall,Buff2D[1]);
+  tau_surface(V_INDEX,tau_wall,Buff2D[1]);
   for (J = JFIRST; J <= JHI; J++) {
     for (I = ILO; I <= IHI; I++) {
       /*
@@ -2490,7 +2502,7 @@ void make_arrays_subgrid(void)
   /*
    * Allocate memory.
    */
-  d_wall = fvector(0,Nelem3d-1,dbmsname);
+  d_wall = dvector(0,Nelem3d-1,dbmsname);
 
   return;
 }
@@ -2512,7 +2524,7 @@ void free_arrays_subgrid(void)
   /*
    * Free allocated memory.
    */
-  free_fvector(d_wall,0,Nelem3d-1,dbmsname);
+  free_dvector(d_wall,0,Nelem3d-1,dbmsname);
 
   return;
 }
@@ -2521,7 +2533,7 @@ void free_arrays_subgrid(void)
 
 /*======================= init_subgrid() ==========================*/
 
-void init_subgrid(planetspec *planet)
+void init_subgrid(void)
 {
   register int
     K,J,I;
@@ -2565,19 +2577,19 @@ void init_subgrid(planetspec *planet)
   * Molecular diffusion should be accounted for elsewhere.
   */
 
-void set_diffusion_coef(planetspec *planet)
+void set_diffusion_coef(void)
 {
   register int
     K,J,I,
     kk;
-  register EPIC_FLOAT
+  register double
     chi3,fv1,nu_turb,turb,
     u_tan,kin,
     tmp;
-  EPIC_FLOAT
+  double
    *u2d,
    *v2d;
-  const EPIC_FLOAT
+  const double
     cv1   = 7.1,
     cv1_3 = cv1*cv1*cv1;
   static double
@@ -2629,7 +2641,7 @@ void set_diffusion_coef(planetspec *planet)
     /*
      * DIFFUSION_COEF_UV and DIFFUSION_COEF_MASS, K = KHI
      */
-    dwall_SA(planet,d_wall);
+    dwall_SA(d_wall);
 
     K   = KHI;
     kk  = 2*K;
@@ -2638,9 +2650,9 @@ void set_diffusion_coef(planetspec *planet)
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
         nu_turb = NU_TURB(K,J,I);
-        kin     = get_kin(planet,u2d,v2d,kk,J,I);
+        kin     = get_kin(u2d,v2d,kk,J,I);
         u_tan   = sqrt(2.*kin);
-        turb    = law_of_the_wall(planet,K,J,I,NU_TURB_INDEX,nu_turb,u_tan);
+        turb    = law_of_the_wall(K,J,I,NU_TURB_INDEX,u_tan);
         tmp     = turb+planet->kinvisc;
         tmp     = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
         DIFFUSION_COEF_UV(KHI,J,I)   = tmp;
@@ -2768,9 +2780,9 @@ void set_diffusion_coef(planetspec *planet)
 #undef  SAVITZKY_GOLAY_NP
 #define SAVITZKY_GOLAY_NP (2*(SAVITZKY_GOLAY_M+2)+1)
 
-void stability_factor(int         J,
-                      int         I,
-                      EPIC_FLOAT *stab_factor)
+void stability_factor(int     J,
+                      int     I,
+                      double *stab_factor)
 {
   static int
     nr,nl,
@@ -2779,15 +2791,15 @@ void stability_factor(int         J,
   register int
     K,kk,kay,
     j,i;
-  EPIC_FLOAT
+  double
     smooth_ri[2*grid.nk+2],
     extended_ri[2*grid.nk+2+2*nc],
     xleft[ SAVITZKY_GOLAY_M+1],
     xright[SAVITZKY_GOLAY_M+1],
    *padded_ri;
-  EPIC_FLOAT
+  double
     dy;
-  static EPIC_FLOAT
+  static double
     c_sav[SAVITZKY_GOLAY_NP];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2817,7 +2829,7 @@ void stability_factor(int         J,
    * in low N^2, low (du/dz)^2 regions.
    */
   for (kk = 1; kk <= 2*KHI+1; kk++) {
-    padded_ri[kk] = get_richardson(planet,kk,J,I);
+    padded_ri[kk] = get_richardson(kk,J,I);
   }
 
   /*
@@ -2825,14 +2837,14 @@ void stability_factor(int         J,
    * fitted to the respective end-point data.
    */
   for (kay = 0; kay <= SAVITZKY_GOLAY_M; kay++) {
-    xleft[ kay] = (EPIC_FLOAT)(kay+1);
-    xright[kay] = (EPIC_FLOAT)(kay+2*grid.nk+1-SAVITZKY_GOLAY_M);
+    xleft[ kay] = (double)(kay+1);
+    xright[kay] = (double)(kay+2*grid.nk+1-SAVITZKY_GOLAY_M);
   }
   for (kay = -nc; kay < 0; kay++) {
     padded_ri[kay+1]           = poly_interp(SAVITZKY_GOLAY_M+1,
-                                             xleft, padded_ri+1,                           (EPIC_FLOAT)(kay+1),          &dy);
+                                             xleft, padded_ri+1,                           (double)(kay+1),          &dy);
     padded_ri[2*grid.nk+1-kay] = poly_interp(SAVITZKY_GOLAY_M+1,
-                                             xright,padded_ri+2*grid.nk+1-SAVITZKY_GOLAY_M,(EPIC_FLOAT)(2*grid.nk+1-kay),&dy);
+                                             xright,padded_ri+2*grid.nk+1-SAVITZKY_GOLAY_M,(double)(2*grid.nk+1-kay),&dy);
   }
 
   /* 
@@ -2843,7 +2855,7 @@ void stability_factor(int         J,
   }
 
   /* Zero smooth array. */
-  memset(smooth_ri,0,(2*grid.nk+2)*sizeof(EPIC_FLOAT));
+  memset(smooth_ri,0,(2*grid.nk+2)*sizeof(double));
 
   for (kk = 1; kk <= 2*KHI+1; kk++) {
     for (kay = kk-nl,i = 0; kay <= kk+nr; kay++,i++) {
@@ -2883,11 +2895,10 @@ void stability_factor(int         J,
  * NOTE: There is a name conflict with "source_sink_subgrid" and 
  *       LAM MPI, in the file lam_config_file.h.
  */
-void source_sink_turb(planetspec  *planet,
-                      EPIC_FLOAT **Buff2D)
+void source_sink_turb(double **Buff2D)
 {
 
-  source_sink_SA(planet,Buff2D);
+  source_sink_SA(Buff2D);
 
   return;
 }
@@ -2905,15 +2916,14 @@ void source_sink_turb(planetspec  *planet,
 #define VVV(k,j,i) vvv[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 #define WWW(k,j,i) www[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 
-void source_sink_SA(planetspec  *planet,
-                    EPIC_FLOAT **Buff2D)
+void source_sink_SA(double **Buff2D)
 {
   register int
     K,J,I,
     kk,jj;
   int
     itmp;
-  const EPIC_FLOAT    
+  const double    
     cw2             = 0.3,
     cw3_6           = pow(2.,6.),
     cb1             = 0.1355,
@@ -2925,7 +2935,7 @@ void source_sink_SA(planetspec  *planet,
     kappa_2         = kappa*kappa,
     cw1             = (cb1/kappa_2)+((1.+cb2)/sigma),
     C_DES           = 0.65;
-  EPIC_FLOAT
+  double
     ptop,pbot,
     var1,var3,S,
     u_var1,u_var3,
@@ -2937,11 +2947,11 @@ void source_sink_SA(planetspec  *planet,
     tmp1,tmp2,dz_inv,
     nu_turb,u_tan,kin,chi3,
     dnudt;
-  EPIC_FLOAT
+  double
     *u2d,*v2d;
-  static EPIC_FLOAT
+  static double
     *uuu,*vvv,*www;
-  register EPIC_FLOAT
+  register double
     m_2jp1,n_2j,n_2jp1,n_2jp2,
     m_2j_inv,n_2jp1_inv,
     mn_2jm1_inv,mn_2j_inv,
@@ -2955,7 +2965,7 @@ void source_sink_SA(planetspec  *planet,
   static double
     max_nu_horizontal[MAX_NU_ORDER+1];
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
 #  if EPIC_PRECISION == DOUBLE_PRECISION
      MPI_Datatype
@@ -2974,12 +2984,12 @@ void source_sink_SA(planetspec  *planet,
     dbmsname[]="source_sink_SA";
 
   if (!initialized) {
-    nbytes_2d = (unsigned long)(Nelem2d*sizeof(EPIC_FLOAT));
+    nbytes_2d = (unsigned long)(Nelem2d*sizeof(double));
 
     /* Allocate memory */
-    uuu = fvector(0,Nelem3d-1,dbmsname);
-    vvv = fvector(0,Nelem3d-1,dbmsname);
-    www = fvector(0,Nelem3d-1,dbmsname);
+    uuu = dvector(0,Nelem3d-1,dbmsname);
+    vvv = dvector(0,Nelem3d-1,dbmsname);
+    www = dvector(0,Nelem3d-1,dbmsname);
 
     if (strcmp(planet->type,"terrestrial") == 0) {
       solid_surface = TRUE;
@@ -2999,13 +3009,13 @@ void source_sink_SA(planetspec  *planet,
 
   /*
    * D_WALL(K,J,I) is the distance to the wall.
-   * For gas giants (no wall), dwall_SA sets this to FLOAT_MAX.
+   * For gas giants (no wall), dwall_SA sets this to DBL_MAX.
    */
-  dwall_SA(planet,d_wall);
+  dwall_SA(d_wall);
 
-  memcpy(uuu,var.u.value+grid.it_uv_dis*Nelem3d,Nelem3d*sizeof(EPIC_FLOAT));
-  memcpy(vvv,var.v.value+grid.it_uv_dis*Nelem3d,Nelem3d*sizeof(EPIC_FLOAT));
-  memcpy(www,var.dzdt2.value,                   Nelem3d*sizeof(EPIC_FLOAT));
+  memcpy(uuu,var.u.value+grid.it_uv_dis*Nelem3d,Nelem3d*sizeof(double));
+  memcpy(vvv,var.v.value+grid.it_uv_dis*Nelem3d,Nelem3d*sizeof(double));
+  memcpy(www,var.dzdt2.value,                   Nelem3d*sizeof(double));
 
   /*
    * The K = KHI case is done below for terrestrial planets.
@@ -3108,7 +3118,7 @@ void source_sink_SA(planetspec  *planet,
       n_2jp2 = grid.n[kk][jj+2];
       n_2j   = grid.n[kk][jj  ];
       for (I = ILO; I <= IHI; I++) {
-        delta   = delta_SA(planet,K,J,I);
+        delta   = delta_SA(K,J,I);
         d_tilda = MIN(D_WALL(K,J,I),C_DES*delta);
         chi     = NU_TURB(K,J,I)/planet->kinvisc;
         fv1     = pow(chi,3.)/(pow(chi,3.)+cv1_3);
@@ -3196,10 +3206,10 @@ void source_sink_SA(planetspec  *planet,
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
         nu_turb          = NU_TURB(K,J,I);
-        kin              = get_kin(planet,u2d,v2d,kk,J,I);
+        kin              = get_kin(u2d,v2d,kk,J,I);
         u_tan            = sqrt(2.*kin);
-        nu_turb          = law_of_the_wall(planet,K,J,I,NU_TURB_INDEX,nu_turb,u_tan);
-        nu_turb          = invert_fv1(planet,nu_turb);
+        nu_turb          = law_of_the_wall(K,J,I,NU_TURB_INDEX,u_tan);
+        nu_turb          = invert_fv1(nu_turb);
         NU_TURB(KHI,J,I) = nu_turb;
         NU_TURB(KHI,J,I) = LIMIT_RANGE(1.e-4*planet->kinvisc,NU_TURB(K,J,I),max_nu_horizontal[2]);
       }
@@ -3220,12 +3230,11 @@ void source_sink_SA(planetspec  *planet,
 
 /*======================= dwall_SA() ========================================*/
 
-void dwall_SA(planetspec *planet,
-              EPIC_FLOAT *d_wall)
+void dwall_SA(double *d_wall)
 {
   register int
     K,J,I;
-  register EPIC_FLOAT
+  register double
     g0_inv;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -3240,9 +3249,9 @@ void dwall_SA(planetspec *planet,
       for (J = JLOPAD; J <= JHIPAD; J++) {
         for (I = ILOPAD; I <= IHIPAD;I++) {
           /*
-           * Set distance to "wall" to FLOAT_MAX.
+           * Set distance to "wall" to DBL_MAX.
            */
-          D_WALL(K,J,I) = FLOAT_MAX;
+          D_WALL(K,J,I) = DBL_MAX;
         }
       }
     }
@@ -3288,15 +3297,14 @@ void dwall_SA(planetspec *planet,
  * NOTE: We have changed the definition from the Dowling et al (2006) paper.
  */
 
-EPIC_FLOAT delta_SA(planetspec *planet,
-                    int         K,
-                    int         J,
-                    int         I)
+double delta_SA(int K,
+                int J,
+                int I)
 {
   register int
     kk = 2*K,
     jj = 2*J+1;
-  EPIC_FLOAT
+  double
     dx,dy,dz,
     delta;
   
@@ -3330,22 +3338,21 @@ EPIC_FLOAT delta_SA(planetspec *planet,
  *       from a pad position (like J=JLOPAD or I=IHIPAD).
  */
 
-void tau_surface(planetspec  *planet,
-                 int          index,
-                 EPIC_FLOAT  *tau_wall,
-                 EPIC_FLOAT  *buffji)
+void tau_surface(int     index,
+                 double *tau_wall,
+                 double *buffji)
 {
   register int
     K,J,I;
-  EPIC_FLOAT
+  double
     chi3,fv1,
     rho,diffusion_coef,nu_turb,dz,
     kin,u_tan,theta0,
     *u2d,
     *v2d;
-  EPIC_FLOAT
+  double
     *kie;
-  const EPIC_FLOAT
+  const double
     cv1        = 7.1,
     cv1_3      = cv1*cv1*cv1;
   static int
@@ -3360,7 +3367,7 @@ void tau_surface(planetspec  *planet,
     dbmsname[]="tau_surface";
 
   if (!initialized) {
-    nbytes_2d = Nelem2d*sizeof(EPIC_FLOAT);
+    nbytes_2d = Nelem2d*sizeof(double);
 
     initialized = TRUE;
   }
@@ -3375,7 +3382,7 @@ void tau_surface(planetspec  *planet,
 
   for (J = JLO; J <= JHI; J++) {
     for (I = ILO; I <= IHI; I++) {
-      KIE(J,I) = get_kin(planet,u2d,v2d,2*K,J,I);
+      KIE(J,I) = get_kin(u2d,v2d,2*K,J,I);
     }
   }
   bc_lateral(kie,TWODIM);
@@ -3389,7 +3396,7 @@ void tau_surface(planetspec  *planet,
         /*
          * NOTE: Placeholder, need better tau values for bottom of gas-giant atmosphere.
          */
-        memset(tau_wall,0,sizeof(EPIC_FLOAT)*Nelem2d);
+        memset(tau_wall,0,sizeof(double)*Nelem2d);
       break;
       default:
         sprintf(Message,"unrecognized index=%d",index);
@@ -3398,7 +3405,7 @@ void tau_surface(planetspec  *planet,
     }
   }
   else if (strcmp(planet->type,"terrestrial") == 0) {
-    dwall_SA(planet,d_wall);
+    dwall_SA(d_wall);
 
     switch(index) {
       case U_INDEX:
@@ -3409,7 +3416,7 @@ void tau_surface(planetspec  *planet,
             dz             = .5*(Z2(K,J,I)+Z2(K,J,I-1)-Z3(K,J,I)-Z3(K,J,I-1));
             kin            = .5*(KIE(J,I)+KIE(J,I-1));
             u_tan          = sqrt(2.*kin);
-            diffusion_coef = law_of_the_wall(planet,K,J,I,index,nu_turb,u_tan);
+            diffusion_coef = law_of_the_wall(K,J,I,index,u_tan);
             TAU_WALL(J,I)  = (planet->dynvisc+rho*diffusion_coef)*(U(grid.it_uv,K,J,I)-0.)/dz;	
           }
         }
@@ -3422,7 +3429,7 @@ void tau_surface(planetspec  *planet,
             dz             = .5*(Z2(K,J,I)+Z2(K,J-1,I)-Z3(K,J,I)-Z3(K,J-1,I));
             kin            = .5*(KIE(J,I)+KIE(J-1,I));
             u_tan          = sqrt(2.*kin);
-            diffusion_coef = law_of_the_wall(planet,K,J,I,index,nu_turb,u_tan);
+            diffusion_coef = law_of_the_wall(K,J,I,index,u_tan);
             TAU_WALL(J,I)  = (planet->dynvisc+rho*diffusion_coef)*(V(grid.it_uv,K,J,I)-0.)/dz;
           }
         }
@@ -3433,10 +3440,10 @@ void tau_surface(planetspec  *planet,
             rho            = RHO2(K,J,I);
             nu_turb        = NU_TURB(K,J,I);
             dz             = (Z2(K,J,I)-Z3(K,J,I));
-            kin            = get_kin(planet,u2d,v2d,2*K,J,I);
+            kin            = get_kin(u2d,v2d,2*K,J,I);
             u_tan          = sqrt(2.*kin);
-            diffusion_coef = law_of_the_wall(planet,K,J,I,index,nu_turb,u_tan);
-            nu_turb        = invert_fv1(planet,diffusion_coef);
+            diffusion_coef = law_of_the_wall(K,J,I,index,u_tan);
+            nu_turb        = invert_fv1(diffusion_coef);
             TAU_WALL(J,I)  = (planet->dynvisc+rho*nu_turb)*(u_tan-0.)/dz;
           }
         }
@@ -3494,24 +3501,23 @@ void tau_surface(planetspec  *planet,
  * is used to specify the h-grid, u-grid, or v-grid.
  *
  * Modified by Tim Dowling on 07-14-08. Added K argument.
+ * Modified by Tim Dowling on 05-30-25. Removed unused t_vis input argument.
  */
 
-EPIC_FLOAT law_of_the_wall(planetspec *planet,
-                           int         K,
-                           int         J,
-                           int         I,
-                           int         index,
-			   EPIC_FLOAT  t_vis,
-			   EPIC_FLOAT  u_tan)
+double law_of_the_wall(int    K,
+                       int    J,
+                       int    I,
+                       int    index,
+                       double u_tan)
 {
-  EPIC_FLOAT
+  double
     t_vis_new,dwall,dwall_inv,
     u_tau,
     x1,x2,xl,dx,
     fl,f,
     rts,swap,
     chi3,fv1;
-  const EPIC_FLOAT
+  const double
     cv1        = 7.1,
     cv1_3      = cv1*cv1*cv1,
     tol        = 1.e-6;
@@ -3644,14 +3650,14 @@ EPIC_FLOAT law_of_the_wall(planetspec *planet,
 
 /*=================== func_utau() =================================*/
 
-EPIC_FLOAT func_utau(EPIC_FLOAT u_tau, 
-                     EPIC_FLOAT u_tan, 
-                     EPIC_FLOAT dwall)
+double func_utau(double u_tau, 
+                 double u_tan, 
+                 double dwall)
 {
-  register EPIC_FLOAT
+  register double
     res,u_plus,y_plus,
     yy;
-  const EPIC_FLOAT
+  const double
     C              = 5.,
     const1         = 0.127,
     const2         = 1./.41,
@@ -3721,14 +3727,13 @@ EPIC_FLOAT func_utau(EPIC_FLOAT u_tau,
 /* 
  * Calculate nu_turb (nu_tilde) from DIFF_COEF (nu_t).
  */
-EPIC_FLOAT invert_fv1(planetspec *planet,
-                      EPIC_FLOAT  t_vis)
+double invert_fv1(double t_vis)
 
 {
-  EPIC_FLOAT
+  double
     nu_turb,
     chi3,fv1,chi;
-  const EPIC_FLOAT
+  const double
     cv1        = 7.1,
     cv1_3      = cv1*cv1*cv1,
     pi_factor  = M_PI*0.5/30.0;

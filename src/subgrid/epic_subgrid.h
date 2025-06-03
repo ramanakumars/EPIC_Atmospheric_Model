@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2018 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 2013-2023 Timothy Dowling                         *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -59,122 +60,99 @@
 #define BUFF1(j,i) buff1[i+(j)*Iadim-Shift2d]
 #define BUFF2(j,i) buff2[i+(j)*Iadim-Shift2d]
 
-#define ZE(j,i) ze[i+(j)*Iadim-Shift2d]
-#define DI(j,i) di[i+(j)*Iadim-Shift2d]
-
 #define COEF(itmp,j,i) coef[itmp][i+(j)*Iadim-Shift2d]
 
 /*
  * Function prototypes.
  */
-EPIC_FLOAT max_nu_nondim(int order);
+double max_nu_nondim(int order);
 
 void set_max_nu(double *max_nu_horizontal);
 
-void set_hyperviscosity(void);
+void set_hyperviscosity(boolean modify);
 
-void scalar_horizontal_subgrid(planetspec  *planet,
-                               EPIC_FLOAT **Buff2D);
+void scalar_horizontal_subgrid(double **Buff2D);
 
-void scalar_horizontal_diffusion(planetspec  *planet,
-                                 EPIC_FLOAT **Buff2D);
+void scalar_horizontal_diffusion(double **Buff2D);
 
-void scalar_hyperviscosity(int          nu_order,
-                           double       nu_hyper,
-                           EPIC_FLOAT **Buff2D,
-                           int          kstart,
-                           int          kend,
-                           EPIC_FLOAT  *h);
+void scalar_hyperviscosity(int      nu_order,
+                           double   nu_hyper,
+                           double **Buff2D,
+                           int      kstart,
+                           int      kend,
+                           double  *h);
 
-void adiabatic_adjustment(planetspec  *planet,
-                          EPIC_FLOAT **Buff2D);
+void adiabatic_adjustment(void);
 
-void laplacian_h(int         kk,
-                 EPIC_FLOAT *hh,
-                 EPIC_FLOAT *diff_coeff,
-                 EPIC_FLOAT *lph,
-                 EPIC_FLOAT *buff1,
-                 EPIC_FLOAT *buff2);
+void laplacian_h(int     kk,
+                 double *hh,
+                 double *diff_coeff,
+                 double *lph,
+                 double *buff1,
+                 double *buff2);
 
-void scalar_vertical_subgrid(planetspec  *planet,
-			     EPIC_FLOAT **Buff2D);
+void scalar_vertical_subgrid(double **Buff2D);
 
-void scalar_vertical_diffusion(planetspec  *planet,
-			       EPIC_FLOAT **Buff2D);
+void scalar_vertical_diffusion(double **Buff2D);
 
-void uv_horizontal_subgrid(planetspec  *planet,
-                           EPIC_FLOAT **Buff2D);
+void uv_horizontal_subgrid(double **Buff2D);
 
-void uv_horizontal_diffusion(planetspec  *planet,
-                             EPIC_FLOAT **Buff2D);
+void uv_horizontal_diffusion(double **Buff2D);
 
-void divergence_damping(planetspec  *planet,
-                        int          K,
-                        EPIC_FLOAT   nudiv_nondim,
-                        EPIC_FLOAT **Buff2D);
+void divergence_damping(int          K,
+                        double       nudiv_nondim,
+                        double     **Buff2D);
 
-void uv_hyperviscosity(int          nu_order,
-                       double       nu_hyper,
-                       EPIC_FLOAT **Buff2D);
+void uv_hyperviscosity(int      nu_order,
+                       double   nu_hyper,
+                       double **Buff2D);
 
-void laplacian_uv(int         K,
-                  EPIC_FLOAT *uu,
-                  EPIC_FLOAT *vv,
-                  EPIC_FLOAT  viscosity,
-                  EPIC_FLOAT *lpuu,
-                  EPIC_FLOAT *lpvv,
-                  EPIC_FLOAT *buff1,
-                  EPIC_FLOAT *buff2);
+void laplacian_uv(int     K,
+                  double *uu,
+                  double *vv,
+                  double  viscosity,
+                  double *lpuu,
+                  double *lpvv,
+                  double *buff1,
+                  double *buff2);
 
-void uv_vertical_subgrid(planetspec  *planet,
-                         EPIC_FLOAT **Buff2D);
+void uv_vertical_subgrid(double **Buff2D);
 
-void uv_vertical_diffusion(planetspec  *planet,
-			   EPIC_FLOAT **Buff2D);
+void uv_vertical_diffusion(double **Buff2D);
 
 void make_arrays_subgrid(void);
 
 void free_arrays_subgrid(void);
 
-void init_subgrid(planetspec *planet);
+void init_subgrid(void);
 
-void set_diffusion_coef(planetspec *planet);
+void set_diffusion_coef(void);
 
-void source_sink_turb(planetspec  *planet,
-	              EPIC_FLOAT **Buff2D);
+void source_sink_turb(double **Buff2D);
 
-void source_sink_SA(planetspec  *planet,
-		    EPIC_FLOAT **Buff2D);
+void source_sink_SA(double **Buff2D);
 
-void dwall_SA(planetspec *planet,
-              EPIC_FLOAT *d_wall);
+void dwall_SA(double  *d_wall);
 
-void fp_init_prof(planetspec *planet);
+void fp_init_prof(void);
       
-EPIC_FLOAT delta_SA(planetspec *planet, 
-                    int         K, 
-                    int         J, 
-                    int         I);
+double delta_SA(int K, int J, int I);
 
-void tau_surface(planetspec  *planet,
-                 int          index,
-                 EPIC_FLOAT  *tau_wall,
-                 EPIC_FLOAT  *buffji); 
+void tau_surface(int     index,
+                 double *tau_wall,
+                 double *buffji); 
 
-EPIC_FLOAT law_of_the_wall(planetspec *planet,
-                           int         K,
-                           int         J,
-                           int         I,
-                           int         index,
-			   EPIC_FLOAT  t_vis,
-			   EPIC_FLOAT  u_tan);
+double law_of_the_wall(int    K,
+                       int    J,
+                       int    I,
+                       int    index,
+                       double u_tan);
 
-EPIC_FLOAT func_utau(EPIC_FLOAT u_tau,
-                     EPIC_FLOAT u_tan,
-                     EPIC_FLOAT dwall);
+double func_utau(double u_tau,
+                 double u_tan,
+                 double dwall);
 
-EPIC_FLOAT invert_fv1(planetspec *planet,
-                      EPIC_FLOAT t_vis);
+double invert_fv1(double t_vis);
 
 /* * * * * * * * * * * * * * * end of epic_subgrid.h * * * * * * * */
 #endif

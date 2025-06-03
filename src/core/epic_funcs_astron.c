@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -60,8 +61,7 @@ double kepler_zero(double E);
  * the planetocentric longitude of the Sun.
  */
 
-double solar_longitude(planetspec *planet,
-                       time_t      date)
+double solar_longitude(time_t date)
 {
   double
     tJ2000,
@@ -167,8 +167,7 @@ double solar_longitude(planetspec *planet,
  */
 
 
-double solar_declination(planetspec *planet,
-                         double      l_s)
+double solar_declination(double l_s)
 {
   double
     dec_s,
@@ -194,9 +193,8 @@ double solar_declination(planetspec *planet,
  * time if it has already been determined.
  */
 
-double equation_of_time(planetspec *planet,
-                        time_t      date,
-                        double      l_s)
+double equation_of_time(time_t date,
+                        double l_s)
 {
   double
     ans,alpha_s,
@@ -238,7 +236,7 @@ double equation_of_time(planetspec *planet,
     /*
      * User has asked for l_s to be calculated here.
      */
-    l_s = solar_longitude(planet,date);
+    l_s = solar_longitude(date);
   }
   else {
     /* 
@@ -320,9 +318,8 @@ double equation_of_time(planetspec *planet,
  * time if it has already been determined.
  */
 
-double east_longitude_of_solar_noon(planetspec *planet,
-                                    time_t      date,
-                                    double      l_s)
+double east_longitude_of_solar_noon(time_t date,
+                                    double l_s)
 {
   double
     west_lon,east_lon,
@@ -368,7 +365,7 @@ double east_longitude_of_solar_noon(planetspec *planet,
     /*
      * User has asked for l_s to be calculated here.
      */
-    l_s = solar_longitude(planet,date);
+    l_s = solar_longitude(date);
   }
   else {
     /* 
@@ -385,7 +382,7 @@ double east_longitude_of_solar_noon(planetspec *planet,
   /*
    * Use the equation of time to shift clock noon to solar noon.
    */
-  west_lon += equation_of_time(planet,date,l_s);
+  west_lon += equation_of_time(date,l_s);
 
   /* Map west longitude to [0.,360.] */
   west_lon = 360.*modf(1.+modf(west_lon/360.,&tmp),&tmp);
@@ -452,8 +449,7 @@ void season_string(double  l_s,
  *   Meeus J, 2005, Astronomical Algorithms, Willmann-Bell
  */
 
-double radius_vector(planetspec *planet,
-                     time_t      date)
+double radius_vector(time_t date)
 {
   double
     tJ2000,
@@ -635,10 +631,10 @@ double true_anomaly(double E,
  * cubic equation for ep = c/a.
  */
 
-EPIC_FLOAT polar_radius(EPIC_FLOAT a,
-                        EPIC_FLOAT J2,
-                        EPIC_FLOAT GM,
-                        EPIC_FLOAT omega)
+double polar_radius(double a,
+                    double J2,
+                    double GM,
+                    double omega)
 {
   int
     error_flag;
@@ -680,7 +676,7 @@ EPIC_FLOAT polar_radius(EPIC_FLOAT a,
     epic_error(dbmsname,Message);
   }
 
-  return (EPIC_FLOAT)(a*ep);
+  return (double)(a*ep);
 }
 
 /*======================= end of polar_radius() =============================*/
@@ -693,7 +689,7 @@ EPIC_FLOAT polar_radius(EPIC_FLOAT a,
  * See for example (5-57) of Turcotte and Schubert's 1982 text "Geodynamics".
  */
 
-EPIC_FLOAT polar_radius_cubic(EPIC_FLOAT ep)
+double polar_radius_cubic(double ep)
 {
   return ep*(ep*(ep*(1.+.5*PRC_J2+.5*PRC_a3w2_GM)-1.))+PRC_J2;
 }
@@ -708,10 +704,10 @@ EPIC_FLOAT polar_radius_cubic(EPIC_FLOAT ep)
  * cubic equation for ep = c/a.
  */
 
-EPIC_FLOAT equatorial_radius(EPIC_FLOAT c,
-                             EPIC_FLOAT J2,
-                             EPIC_FLOAT GM,
-                             EPIC_FLOAT omega)
+double equatorial_radius(double c,
+                         double J2,
+                         double GM,
+                         double omega)
 {
   int
     error_flag;
@@ -753,7 +749,7 @@ EPIC_FLOAT equatorial_radius(EPIC_FLOAT c,
     epic_error(dbmsname,Message);
   }
 
-  return (EPIC_FLOAT)(c/ep);
+  return (double)(c/ep);
 }
 
 /*======================= end of equatorial_radius() ========================*/
@@ -766,7 +762,7 @@ EPIC_FLOAT equatorial_radius(EPIC_FLOAT c,
  * See for example (5-57) of Turcotte and Schubert's 1982 text "Geodynamics".
  */
 
-EPIC_FLOAT equatorial_radius_cubic(EPIC_FLOAT ep)
+double equatorial_radius_cubic(double ep)
 {
   return ep*(ep*(ep*(1.+.5*ERC_J2)-1.))+ERC_J2+.5*ERC_c3w2_GM;
 }
@@ -787,14 +783,14 @@ EPIC_FLOAT equatorial_radius_cubic(EPIC_FLOAT ep)
  *       than to a "mixing ratio" that has the dry component in the denominator.
  */
 
-EPIC_FLOAT solar_fraction(char *species,
-                          int   type,
-                          char *min_element)
+double solar_fraction(char *species,
+                      int   type,
+                      char *min_element)
 {
   int
     i,ii,ii_min,
     min_count;
-  EPIC_FLOAT
+  double
     ratio,
     mu,
     min_abundance,
@@ -803,7 +799,7 @@ EPIC_FLOAT solar_fraction(char *species,
     initialized  = FALSE,
     num_elements = 0,
     *counts      = NULL;
-  static EPIC_FLOAT
+  static double
     total_number,
     total_mass,
     n_H_2;

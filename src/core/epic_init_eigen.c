@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -53,9 +54,8 @@
 #undef  MAX_VECS
 #define MAX_VECS 10
 
-void vertical_modes(planetspec *planet,
-                    int         J,
-                    int         I)
+void vertical_modes(int J,
+                    int I)
 {
   int 
     K,kk,klen,k,
@@ -70,14 +70,14 @@ void vertical_modes(planetspec *planet,
     *index;
   static long
     seed=-42355;
-  EPIC_FLOAT 
+  double 
     press,temperature,
     rgas,brunt2,hscale,nh2,
     clow,mult,cn,
     bb,change,max_y,d,
     c_ans[MAX_VECS],
     psi_ans[MAX_VECS][KHI];
-  EPIC_FLOAT
+  double
     *z,*dz,*b,
     *wr,*wi,*a_eig,*aa_eig,
     *bee,*oldbee;
@@ -97,20 +97,20 @@ void vertical_modes(planetspec *planet,
   /* 
    * Allocate memory: 
    */
-  z      = fvector(1,2*KHI+1,dbmsname);
-  dz     = fvector(2,2*KHI+1,dbmsname);
-  b      = fvector(2,2*KHI+1,dbmsname);
-  wr     = fvector(0,klen-1, dbmsname);
-  wi     = fvector(0,klen-1, dbmsname);
-  bee    = fvector(0,klen-1, dbmsname);
-  oldbee = fvector(0,klen-1, dbmsname);
+  z      = dvector(1,2*KHI+1,dbmsname);
+  dz     = dvector(2,2*KHI+1,dbmsname);
+  b      = dvector(2,2*KHI+1,dbmsname);
+  wr     = dvector(0,klen-1, dbmsname);
+  wi     = dvector(0,klen-1, dbmsname);
+  bee    = dvector(0,klen-1, dbmsname);
+  oldbee = dvector(0,klen-1, dbmsname);
   index  = ivector(0,klen-1, dbmsname);
-  a_eig  = fvector(0,klen*klen-1,dbmsname);
-  aa_eig = fvector(0,klen*klen-1,dbmsname);
+  a_eig  = dvector(0,klen*klen-1,dbmsname);
+  aa_eig = dvector(0,klen*klen-1,dbmsname);
 
   /* Calculate z = -log(p/p0): */
   for (kk = 1; kk <= 2*KHI+1; kk++) {
-    press = get_p(planet,P2_INDEX,kk,J,I);
+    press = get_p(P2_INDEX,kk,J,I);
     z[kk] = -log(press/planet->p0);
   }
 
@@ -132,7 +132,7 @@ void vertical_modes(planetspec *planet,
       temperature = T3(K,J,I);
     }
 
-    brunt2 = get_brunt2(planet,kk,J,I);
+    brunt2 = get_brunt2(kk,J,I);
     /*
      * Limit N^2 to be positive-definite for this calculation.
      */
@@ -225,7 +225,7 @@ void vertical_modes(planetspec *planet,
    *       Numerical Recipes in C because our matrix, while only tridiagonal,
    *       is not symmetric.
    */
-  memcpy(aa_eig,a_eig,klen*klen*sizeof(EPIC_FLOAT));
+  memcpy(aa_eig,a_eig,klen*klen*sizeof(double));
   for (n = 0; n < nvecs; n++) {
     converged[n] = FALSE;
 
@@ -298,8 +298,8 @@ void vertical_modes(planetspec *planet,
    * Write results to vertical_modes.dat file.
    */
   outfile = fopen("vertical_modes.dat","w");
-  fprintf(outfile,"  EPIC model output from vertical_modes(). \n");
-  fprintf(outfile,"  planet->name = %s.\n",planet->name);
+  fprintf(outfile,"  EPIC model output from vertical_modes(), lat=%.1f lon=%.1f\n",grid.lat[2*J+1],grid.lon[2*I+1]);
+  fprintf(outfile,"  planet->name = %s\n",planet->name);
   fprintf(outfile,"  Eigenvectors are normalized and headed with their eigenvalues, c [m/s].\n");
   fprintf(outfile,"  The first %d baroclinic modes are listed.\n",nvecs);
   fprintf(outfile,"  A column of zeros implies that the eigenvector solution did not converge.\n\n");
@@ -326,16 +326,16 @@ void vertical_modes(planetspec *planet,
   /* 
    * Free allocated memory: 
    */
-  free_fvector(aa_eig,0,klen*klen-1,dbmsname);
-  free_fvector(a_eig, 0,klen*klen-1,dbmsname);
+  free_dvector(aa_eig,0,klen*klen-1,dbmsname);
+  free_dvector(a_eig, 0,klen*klen-1,dbmsname);
   free_ivector(index, 0,klen-1,     dbmsname);
-  free_fvector(oldbee,0,klen-1,     dbmsname);
-  free_fvector(bee,   0,klen-1,     dbmsname);
-  free_fvector(wi,    0,klen-1,     dbmsname);
-  free_fvector(wr,    0,klen-1,     dbmsname);
-  free_fvector(b,     2,2*KHI+1,    dbmsname);
-  free_fvector(dz,    2,2*KHI+1,    dbmsname);
-  free_fvector(z,     1,2*KHI+1,    dbmsname);
+  free_dvector(oldbee,0,klen-1,     dbmsname);
+  free_dvector(bee,   0,klen-1,     dbmsname);
+  free_dvector(wi,    0,klen-1,     dbmsname);
+  free_dvector(wr,    0,klen-1,     dbmsname);
+  free_dvector(b,     2,2*KHI+1,    dbmsname);
+  free_dvector(dz,    2,2*KHI+1,    dbmsname);
+  free_dvector(z,     1,2*KHI+1,    dbmsname);
 }
 
 /*===================== end of vertical_modes() =====================*/

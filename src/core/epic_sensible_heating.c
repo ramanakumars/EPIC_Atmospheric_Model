@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -34,6 +35,7 @@
  *         t_rad()                                                 *
  *         temp_eq()                                               *
  *       rt_heating()                                              *
+ *       perturbation_heating()                                    *
  *                                                                 *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -49,8 +51,7 @@
  *   EPIC_APPLY     (apply radiative heating)
  *   EPIC_FREE      (free allocated memory when done)
  */
-void radiative_heating(planetspec *planet,
-                       int         action)
+void radiative_heating(int action)
 {
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -64,15 +65,19 @@ void radiative_heating(planetspec *planet,
     return;
   }
   else if (strcmp(grid.radiation_scheme,"Correlated k") == 0) {
-    rt_heating(planet,action);
+    rt_heating(action);
     return;
   }
   else if (strcmp(grid.radiation_scheme,"Newtonian") == 0) {
-    newtonian_cooling(planet,action);
+    newtonian_cooling(action);
     return;
   }
   else if (strcmp(grid.radiation_scheme,"Heating from file") == 0) {
-    heating_from_file(planet,action);
+    heating_from_file(action);
+    return;
+  }
+  else if(strcmp(grid.radiation_scheme,"Global heating-cooling") == 0) {
+    global_heating_cooling(action);
     return;
   }
   else {
@@ -89,25 +94,24 @@ void radiative_heating(planetspec *planet,
  * Apply heating/cooling based on input from a file.  This heating is 
  * one way---there is no feedback from the model's dynamics and chemistry.
  *
- * NOTE: For seasonal variation, we could use a truncated Fourier series with
- *       complex coefficients. For an example, see EPIC Version 3.85, the
- *       funtion temp_eq().
+ * NOTE: For seasonal variation, we could add a time argument and use a
+ *       truncated Fourier series with complex coefficients. For an example,
+ *       see EPIC Version 3.85, the funtion temp_eq().
  */
 
 #define FILE_HEATING(k,j) file_heating[j+(k)*nlat]
 
-void heating_from_file(planetspec *planet,
-                       int         action)
+void heating_from_file(int action)
 {
   int
     K,J,I,
     jj,j,k;
-  EPIC_FLOAT
+  double
     frac_lat,frac_logp,
     logp3;
   static int
     np,nlat;
-  static EPIC_FLOAT
+  static double
     *logp,
     *lat,
     *file_heating;
@@ -126,7 +130,7 @@ void heating_from_file(planetspec *planet,
        */
       if (strcmp(planet->name,"Jupiter") == 0) {
         /* Determine size of data file. */
-        read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/stratospheric_netheating.Jupiter.Allen_etal",SIZE_DATA,
+        read_meridional_plane(EPIC_PATH"/data/Jupiter/stratospheric_netheating.Jupiter.Allen_etal",SIZE_DATA,
                               &np,&nlat,NULL,NULL,NULL);
 
         /* Screen for bad input values. */
@@ -136,12 +140,12 @@ void heating_from_file(planetspec *planet,
         }
 
         /* Allocate memory */
-        logp         = fvector(0,     np-1,dbmsname);
-        lat          = fvector(0,   nlat-1,dbmsname);
-        file_heating = fvector(0,np*nlat-1,dbmsname);
+        logp         = dvector(0,     np-1,dbmsname);
+        lat          = dvector(0,   nlat-1,dbmsname);
+        file_heating = dvector(0,np*nlat-1,dbmsname);
 
         /* Read in data */
-        read_meridional_plane(planet,EPIC_PATH"/data/Jupiter/stratospheric_netheating.Jupiter.Allen_etal",POST_SIZE_DATA,
+        read_meridional_plane(EPIC_PATH"/data/Jupiter/stratospheric_netheating.Jupiter.Allen_etal",POST_SIZE_DATA,
                               &np,&nlat,logp,lat,file_heating);
       }
       else {
@@ -155,9 +159,9 @@ void heating_from_file(planetspec *planet,
        * Free allocated memory.
        */
       if (strcmp(planet->name,"Jupiter") == 0) {
-        free_fvector(logp,        0,np-1,     dbmsname);
-        free_fvector(lat,         0,nlat-1,   dbmsname);
-        free_fvector(file_heating,0,np*nlat-1,dbmsname);
+        free_dvector(logp,        0,np-1,     dbmsname);
+        free_dvector(lat,         0,nlat-1,   dbmsname);
+        free_dvector(file_heating,0,np*nlat-1,dbmsname);
       }
       else {
         sprintf(Message,"action = %d not yet implemented for %s",action,planet->name);
@@ -236,6 +240,58 @@ void heating_from_file(planetspec *planet,
 
 /*====================== end of heating_from_file() =========================*/
 
+#define SIGMOID(x) 1. / (1. + exp(-(x)))
+#define HEAT_FALLOFF 3
+/*======================== global_heating_cooling() =========================*/
+
+void global_heating_cooling(int action)
+{
+  int K, J, I;
+  /* 
+   * The following are part of DEBUG_MILESTONE(.) statements: 
+   */
+  int
+    idbms=0;
+  static char
+    dbmsname[]="global_heating_cooling";
+
+  double
+    pressure, fp, latitude, latscale, heat;
+
+  if(action!=EPIC_APPLY) return;
+
+  for (J = JLO; J <= JHI; J++) {
+    latitude = grid.lat[2 * J + 1];
+    latscale = SIGMOID((latitude - grid.globe_latbot) / grid.dlt - HEAT_FALLOFF) * SIGMOID((grid.globe_lattop - latitude) / grid.dlt - HEAT_FALLOFF);
+
+    for(int I = ILO; I <= IHI; I++) {
+      for (K = KLO; K < KHI; K++) {
+        pressure = P3(K, J, I);
+          if(var.fpara.on) {
+            fp = FPARA(K, J, I);
+          }
+          else {
+            fp = 0.25;
+          }
+
+          if(pressure <= grid.cool_bot_pressure) {
+            heat = -grid.cool_rate * return_cp(fp,pressure,T3(K,J,I));
+          }
+
+         if(pressure >= grid.heat_top_pressure) {
+           heat = grid.heat_rate * return_cp(fp,pressure,T3(K,J,I));
+         }
+
+         // scale the heat by the sigmoid function so that we zero out the edges over HEAT_FALLOFF gridcells
+         HEAT3(K, J, I) += latscale*heat;
+      }
+    }
+  }
+
+  return;
+}
+/*==================== end of global_heating_cooling() ======================*/
+
 /*====================== newtonian_cooling() ================================*/
 
 /*
@@ -246,22 +302,21 @@ void heating_from_file(planetspec *planet,
  * NOTE: Lateral boundary conditions, bc_lateral(), are not applied to HEAT array here.
  */
 
-void newtonian_cooling(planetspec *planet,
-                       int         action)
+void newtonian_cooling(int action)
 {
   register int
     K,J,I,
     ki;
-  register EPIC_FLOAT
+  register double
     lat,
     pressure,
     temperature,
     fpara,
     cp_over_time,
     da,heat_avg;
-  static EPIC_FLOAT
+  static double
    *buffji;
-  EPIC_FLOAT
+  double
     t_eq,
     area,heat_area,
     tmp;
@@ -270,17 +325,6 @@ void newtonian_cooling(planetspec *planet,
     infile[FILE_STR];
   FILE
     *t_cool_vs_p; 
-
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
-
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -294,7 +338,7 @@ void newtonian_cooling(planetspec *planet,
       /* 
        * Allocate memory.
        */
-      buffji = fvector(0,Nelem2d-1,dbmsname);
+      buffji = dvector(0,Nelem2d-1,dbmsname);
 
       /*
        * Set up t_cool_table.
@@ -323,7 +367,7 @@ void newtonian_cooling(planetspec *planet,
         /* 
          * Allocate memory for var.t_cool_table.
          */
-        var.t_cool_table = ftriplet(0,var.n_t_cool-1,dbmsname);
+        var.t_cool_table = dtriplet(0,var.n_t_cool-1,dbmsname);
 
         relax_times = fopen("./relax_times.dat","w");
         fprintf(relax_times," %s\n",planet->name);
@@ -331,12 +375,7 @@ void newtonian_cooling(planetspec *planet,
 
         /* stored in order of decreasing p (increasing -log p) */
         for (ki = var.n_t_cool-1; ki >= 0;  ki--) {  
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
           fscanf(t_cool_vs_p,"%lf %*f %lf",&var.t_cool_table[ki].x,&var.t_cool_table[ki].y);
-#else
-          fscanf(t_cool_vs_p,"%f %*f %f",&var.t_cool_table[ki].x,&var.t_cool_table[ki].y);
-#endif
 
           /* convert from hPa to Pa */
           var.t_cool_table[ki].x *= 100.;
@@ -373,8 +412,8 @@ void newtonian_cooling(planetspec *planet,
       /*
        * Free allocated memory.
        */
-      free_fvector(buffji,0,Nelem2d-1,dbmsname);
-      free_ftriplet(var.t_cool_table,0,var.n_t_cool-1,dbmsname);
+      free_dvector(buffji,0,Nelem2d-1,dbmsname);
+      free_dtriplet(var.t_cool_table,0,var.n_t_cool-1,dbmsname);
     break;
 
     case EPIC_APPLY:
@@ -390,25 +429,25 @@ void newtonian_cooling(planetspec *planet,
             else {
               fpara = return_fpe(temperature);
             }
-            cp_over_time = return_cp(planet,fpara,pressure,temperature)/t_rad(planet,K,J,I);
+            cp_over_time = return_cp(fpara,pressure,temperature)/t_rad(K,J,I);
             /*
              * Determine T_eq:
              */
             switch(planet->index) {
               case HELD_SUAREZ_INDEX:
-                t_eq = temp_eq(planet,lat,pressure,0.);
+                t_eq = temp_eq(lat,pressure);
               break;
               case VENUS_LLR05_INDEX:
-                t_eq = temp_eq(planet,lat,pressure,0.);
+                t_eq = temp_eq(lat,pressure);
               break;
               case TITAN_INDEX:
-                t_eq = temp_eq(planet,lat,pressure,0.);
+                t_eq = temp_eq(lat,pressure);
               break;
               default:
                 /*
                  * Use t_vs_p data for radiative equilibrium profile.
                  */
-                get_sounding(planet,pressure,"temperature",&t_eq);
+                get_sounding(pressure,"temperature",&t_eq);
               break;
             }
             BUFFJI(J,I) = -cp_over_time*(temperature-t_eq);
@@ -417,10 +456,10 @@ void newtonian_cooling(planetspec *planet,
         /* No need to apply bc_lateral() here. */
 
         /*
-         * Make layer average in sponge zero, and do this for the rest
+         * Make layer average in sponge and drag layers zero, and do this for the rest
          * of the model if requested.
          */
-        if (K <= grid.k_sponge || grid.newt_cool_adjust) {
+        if (K <= grid.k_sponge || K > grid.nk-grid.n_bot_drag || grid.newt_cool_adjust) {
           /*
            * Ensure that layer average is zero.
            */
@@ -436,9 +475,9 @@ void newtonian_cooling(planetspec *planet,
 
 #if defined(EPIC_MPI)
           tmp = area;
-          MPI_Allreduce(&tmp,&area,1,float_type,MPI_SUM,para.comm);
+          MPI_Allreduce(&tmp,&area,1,MPI_DOUBLE,MPI_SUM,para.comm);
           tmp = heat_area;
-          MPI_Allreduce(&tmp,&heat_area,1,float_type,MPI_SUM,para.comm);
+          MPI_Allreduce(&tmp,&heat_area,1,MPI_DOUBLE,MPI_SUM,para.comm);
 #endif
 
           heat_avg = heat_area/area;
@@ -479,33 +518,21 @@ void newtonian_cooling(planetspec *planet,
  * The value is for the bottom interface of layer K.
  */
 
-EPIC_FLOAT t_rad(planetspec *planet,
-                 int         K,
-                 int         J,
-                 int         I)
+double t_rad(int K,
+             int J,
+             int I)
 {
   register int
     ki;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     ka,ks;
-  EPIC_FLOAT
+  double
     pressure,
     t_cool,
     p_t_cool_d,   
     neglogp;
-
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
-
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -543,7 +570,7 @@ EPIC_FLOAT t_rad(planetspec *planet,
   pressure = P3(K,J,I);
 
   if (strcmp(planet->name,"Held_Suarez") == 0) {
-    EPIC_FLOAT
+    double
       kt,amp,
       pbot,cos_lat;
 
@@ -583,28 +610,24 @@ EPIC_FLOAT t_rad(planetspec *planet,
 /*======================= temp_eq() =========================================*/
 
 /*
- * Inputs: pressure [Pa], latitude [deg], time [sec].
- *
- * time = 0.0 corresponds to northern spring equinox.
+ * Inputs: pressure [Pa], latitude [deg].
  */
-EPIC_FLOAT temp_eq(planetspec *planet,
-                   EPIC_FLOAT  latitude,
-                   EPIC_FLOAT  pressure,
-                   EPIC_FLOAT  time)
+double temp_eq(double latitude,
+               double pressure)
 {
   int
     ki;
   static int
     initialized=FALSE;
-  register EPIC_FLOAT
+  register double
     t_tp,dt_tp;
-  EPIC_FLOAT
+  double
     ans,
     neglogp,p_d,
     sin_y_j,sin_y;
-  static EPIC_FLOAT
+  static double
     dt_y,dth_z,p0;
-  static float_triplet
+  static double_triplet
     *t_table,
     *dt_table;
   /* 
@@ -639,8 +662,8 @@ EPIC_FLOAT temp_eq(planetspec *planet,
       }
 
       /* Allocate memory */
-      t_table  = ftriplet(0,var.ntp-1,dbmsname);
-      dt_table = ftriplet(0,var.ntp-1,dbmsname);
+      t_table  = dtriplet(0,var.ntp-1,dbmsname);
+      dt_table = dtriplet(0,var.ntp-1,dbmsname);
 
       /* Assign table values */
       for (ki = 0; ki < var.ntp; ki++) { 
@@ -657,7 +680,7 @@ EPIC_FLOAT temp_eq(planetspec *planet,
   /* end of initialization */
 
   if (strcmp(planet->name,"Held_Suarez") == 0) {
-    EPIC_FLOAT
+    double
       cos2_lat,
       sin2_lat,
       p_p0;
@@ -753,39 +776,29 @@ EPIC_FLOAT temp_eq(planetspec *planet,
 #undef  N_ZONAL_SAMPLE
 #define N_ZONAL_SAMPLE 32
 
-void rt_heating(planetspec *planet,
-                int         action)
+void rt_heating(int action)
 {
   int
     K,J,I,
     i_stride,i_count,
     update_shortwave,
     update_longwave;
-  EPIC_FLOAT
+  double
     avg;
   static int
     warned = FALSE;
-  static EPIC_FLOAT
+  static double
    *shortwave_heating,
    *longwave_heating;
-  extern void rt_shortwave(planetspec *planet,
-                           EPIC_FLOAT *heating,
-                           int         i_stride,
-                           int         action);
-  extern void rt_longwave(planetspec *planet,
-                          EPIC_FLOAT *heating,
-                          int         i_stride,
-                          int         action);
+  extern void rt_shortwave(double *heating,
+                           int     i_stride,
+                           int     action);
+  extern void rt_longwave(double  *heating,
+                          int      i_stride,
+                          int      action);
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
 #endif
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -806,11 +819,11 @@ void rt_heating(planetspec *planet,
         fprintf(stdout,"Setting up radiative transfer:"); fflush(stdout);
       }
 
-      rt_longwave(planet,NULL,0,action);
-      longwave_heating = fvector(0,Nelem3d-1,dbmsname);
+      rt_longwave( NULL,0,action);
+      longwave_heating = dvector(0,Nelem3d-1,dbmsname);
 
-      rt_shortwave(planet,NULL,0,action);
-      shortwave_heating = fvector(0,Nelem3d-1,dbmsname);
+      rt_shortwave(NULL,0,action);
+      shortwave_heating = dvector(0,Nelem3d-1,dbmsname);
 
       /* Finish printing progress to stdout */
       if (IAMNODE == NODE0) {
@@ -822,11 +835,11 @@ void rt_heating(planetspec *planet,
       /*
        * Free allocated memory
        */
-      rt_longwave( planet,NULL,0,action);
-      free_fvector(longwave_heating, 0,Nelem3d-1,dbmsname);
+      rt_longwave( NULL,0,action);
+      free_dvector(longwave_heating, 0,Nelem3d-1,dbmsname);
 
-      rt_shortwave(planet,NULL,0,action);
-      free_fvector(shortwave_heating,0,Nelem3d-1,dbmsname);
+      rt_shortwave(NULL,0,action);
+      free_dvector(shortwave_heating,0,Nelem3d-1,dbmsname);
 
     break;
 
@@ -866,7 +879,7 @@ void rt_heating(planetspec *planet,
             warned = TRUE;
           }
 
-          rt_shortwave(planet,shortwave_heating,i_stride,action);
+          rt_shortwave(shortwave_heating,i_stride,action);
 
           /*
            * Average over i_stride points.
@@ -887,7 +900,7 @@ void rt_heating(planetspec *planet,
 
 #if defined(EPIC_MPI)
               mpi_tmp = avg;
-              MPI_Allreduce(&mpi_tmp,&avg,1,float_type,MPI_SUM,para.comm_JLO);
+              MPI_Allreduce(&mpi_tmp,&avg,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
               avg /= i_count;
@@ -904,7 +917,7 @@ void rt_heating(planetspec *planet,
            * Do every longitude point.
            */
           i_stride = 1;
-          rt_shortwave(planet,shortwave_heating,i_stride,action);
+          rt_shortwave(shortwave_heating,i_stride,action);
         }
       }
 
@@ -915,7 +928,7 @@ void rt_heating(planetspec *planet,
            *
            * NOTE: We are averaging over longitude of a snapshot, rather than over time.
            */
-          rt_longwave(planet,longwave_heating,i_stride,action);
+          rt_longwave(longwave_heating,i_stride,action);
 
           /*
            * Average over i_stride points.
@@ -933,7 +946,7 @@ void rt_heating(planetspec *planet,
 
 #if defined(EPIC_MPI)
               mpi_tmp = avg;
-              MPI_Allreduce(&mpi_tmp,&avg,1,float_type,MPI_SUM,para.comm_JLO);
+              MPI_Allreduce(&mpi_tmp,&avg,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
               avg /= i_count;
@@ -950,7 +963,7 @@ void rt_heating(planetspec *planet,
            * Do every longitude point.
            */
           i_stride = 1;
-          rt_longwave(planet,longwave_heating,i_stride,action);
+          rt_longwave(longwave_heating,i_stride,action);
         }
       }
 
@@ -961,8 +974,6 @@ void rt_heating(planetspec *planet,
           }
         }
       }
-      /* Apply bc_lateral() */
-      bc_lateral(var.heat3.value,THREEDIM);
     break;
 
     default:
@@ -975,5 +986,55 @@ void rt_heating(planetspec *planet,
 }
 
 /*====================== end of rt_heating() ================================*/
+
+/*====================== perturbation_heating() =============================*/
+
+/*
+ * Apply heating perturbation.
+ *
+ * NOTE: Control whether or not this function is called by setting
+ *       perturbation = TRUE or FALSE in calc_heating() in epic_funcs_diag.c.
+ */
+
+void perturbation_heating(void)
+{
+  int
+    K,J,I;
+  static boolean
+    announce = TRUE;
+  /*
+   * The following are part of DEBUG_MILESTONE(.) statements:
+   */
+  int
+    idbms=0;
+  static char
+    dbmsname[]="perturbation_heating";
+
+  if (announce == TRUE && IAMNODE == NODE0) {
+    /*
+     * One-time announcement that this function is being called.
+     */
+    fprintf(stdout,"NOTE: perturbation_heating() is activated\n");
+  }
+  announce = FALSE;
+
+  for (K = 0; K <= KHI; K++) {
+    for (J = JLO; J <= JHI; J++) {
+      for (I = ILO; I <= IHI; I++) {
+        if (P3(K,J,I) > 20.e+5) {
+          HEAT3(K,J,I) += 0.008*planet->cp/86400.;
+        }
+        else if (P3(K,J,I) < 60.e+2) {
+          HEAT3(K,J,I) -= 0.01*planet->cp/86400.;
+        }
+      }
+    }
+  }
+
+  return;
+}
+
+/*====================== end of perturbation_heating() ======================*/
+
 
 /************************ end of epic_sensible_heating.c *********************/

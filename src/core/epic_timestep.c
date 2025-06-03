@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -37,20 +38,17 @@
 
 #include <epic.h>
 #include <epic_pv_schemes.h>
-
 int IT_ZERO, IT_MINUS1, IT_MINUS2;
 
 /*
  * Local function prototypes.
  */
-void uv_pgrad_traditional(planetspec  *planet,
-                          int          Kstart,
-                          int          Kend,
-                          EPIC_FLOAT **Buff2D);
+void uv_pgrad_traditional(int      Kstart,
+                          int      Kend,
+                          double **Buff2D);
 
-void uv_pgrad_green_gauss(planetspec *planet,
-                          int         Kstart,
-                          int         Kend);
+void uv_pgrad_green_gauss(int Kstart,
+                          int Kend);
 
 
 /*======================= timestep() ========================================*/
@@ -67,24 +65,21 @@ void uv_pgrad_green_gauss(planetspec *planet,
  * This is used to prime the pump at startup.
  */
 
-void timestep(planetspec  *planet,
-              int          action,
-              EPIC_FLOAT **Buff2D)
+void timestep(int      action,
+              double **Buff2D)
 {
   register int
     K,J,I,
     i,itmp,
     is,ip,iq,
     shift;
-  register EPIC_FLOAT
+  register double
     tmp;
   static unsigned long
     nbytes_2d,
     nbytes_3d;
   static int
     initialized = FALSE;
-  char
-    filename[100];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -95,8 +90,8 @@ void timestep(planetspec  *planet,
 
   if (!initialized) {
     /* Allocate memory. */
-    nbytes_2d = Nelem2d*sizeof(EPIC_FLOAT);
-    nbytes_3d = Nelem3d*sizeof(EPIC_FLOAT);
+    nbytes_2d = Nelem2d*sizeof(double);
+    nbytes_3d = Nelem3d*sizeof(double);
 
     initialized = TRUE;
   }
@@ -119,20 +114,20 @@ void timestep(planetspec  *planet,
     /*
      * Apply sources and sinks to h-grid variables.
      */
-    source_sink(planet,Buff2D);
+    source_sink();
 
     /*
      * The HEAT array is now complete with the current latent heating.
      * Update the hybrid vertical velocity, W3, and DZDT2.
      */
-    calc_w(planet,action);
+    calc_w(action);
 
     /*
      * Apply sources and sinks to turbulence variables.
      */
     if (strcmp(grid.turbulence_scheme,"on")               == 0 ||
         strcmp(grid.turbulence_scheme,"on_vertical_only") == 0)  {
-      source_sink_turb(planet,Buff2D);
+      source_sink_turb(Buff2D);
     }
     else if (strcmp(grid.turbulence_scheme,"off") == 0) {
       ;
@@ -158,27 +153,13 @@ void timestep(planetspec  *planet,
          * The counter var.extract_time_index is incremented
          * after each use here.
          */
-        // if (grid.extract_append[0] != '\0') {
-        //   if (grid.itime > 0) {
-        //     var_write(planet,grid.extract_append,EXTRACT_DATA,var.extract_time_index++,0);
-        //   }
-        // }
-        // else {
-        //   var_write(planet,"extract.nc",EXTRACT_DATA,var.extract_time_index++,0);
-        // }
-        //
         if (grid.extract_append[0] != '\0') {
           if (grid.itime > 0) {
-            // var_write(planet,grid.extract_append,EXTRACT_DATA,var.extract_time_index++,0);
-            sprintf(filename,"extract%ld.nc",100 + var.extract_num++);
-            var_write(planet,filename,EXTRACT_HEADER_DATA,var.extract_time_index,0);
-            var_write(planet,filename,EXTRACT_DATA,var.extract_time_index,0);
+            var_write(grid.extract_append,EXTRACT_DATA,var.extract_time_index++,0);
           }
-        } else {
-          // var_write(planet,"extract.nc",EXTRACT_DATA,var.extract_time_index++,0);
-          sprintf(filename,"extract%ld.nc",100 + var.extract_num++);
-          var_write(planet,filename,EXTRACT_HEADER_DATA,var.extract_time_index,0);
-          var_write(planet,filename,EXTRACT_DATA,var.extract_time_index,0);     
+        }
+        else {
+          var_write("extract.nc",EXTRACT_DATA,var.extract_time_index++,0);
         }
       }
       /*
@@ -190,24 +171,24 @@ void timestep(planetspec  *planet,
     /*
      * Calculate Coriolis and advection tendencies for (u,v).
      */
-    uv_core(planet,Buff2D);
+    uv_core(Buff2D);
 
     /*
      * Add sponge-layer drag to (u,v) tendencies.
      * For the leapfrog timestep, lagging is used for stability.
      */
-    uv_sponge(planet);
+    uv_sponge();
 
     /*
      * Apply subgrid-scale model to scalar variables.
      */
-    scalar_vertical_subgrid(planet,Buff2D);
-    scalar_horizontal_subgrid(planet,Buff2D);
+    scalar_vertical_subgrid(Buff2D);
+    scalar_horizontal_subgrid(Buff2D);
 
     /*
      * Advect scalar prognostic variables forward one timestep.
      */
-    advection(planet,Buff2D);
+    advection(Buff2D);
 
     /*
      * Apply high-latitude, low-pass filter to scalar prognostic variables.
@@ -218,27 +199,27 @@ void timestep(planetspec  *planet,
 
       if (var.h.on) {
         zonal_filter(H_INDEX,var.h.value+shift);
-        restore_mass(planet,H_INDEX,NO_PHASE);
+        restore_mass(H_INDEX,NO_PHASE);
       }
 
       if (var.theta.on) {
         zonal_filter(THETA_INDEX,var.theta.value+shift);
-        restore_mass(planet,THETA_INDEX,NO_PHASE);
+        restore_mass(THETA_INDEX,NO_PHASE);
       }
 
       if (var.fpara.on) {
         zonal_filter(FPARA_INDEX,var.fpara.value+shift);
-        restore_mass(planet,FPARA_INDEX,NO_PHASE);
+        restore_mass(FPARA_INDEX,NO_PHASE);
       }
 
       if (var.nu_turb.on) {
         zonal_filter(NU_TURB_INDEX,var.nu_turb.value+shift);
-        restore_mass(planet,NU_TURB_INDEX,NO_PHASE);
+        restore_mass(NU_TURB_INDEX,NO_PHASE);
       }
 
       for (iq = 0; iq < grid.nq; iq++) {
         zonal_filter(grid.is[iq],var.species[grid.is[iq]].phase[grid.ip[iq]].q+shift);
-        restore_mass(planet,grid.is[iq],grid.ip[iq]);
+        restore_mass(grid.is[iq],grid.ip[iq]);
       }
     }
 
@@ -253,22 +234,22 @@ void timestep(planetspec  *planet,
      *       need to calculate PHI3(KHI,J,I) on the grid.thetabot isentropic surface
      *       and call store_pgrad_vars with PASSING_PHI3NK; this is not yet implemented.
      */
-    set_p2_etc(planet,UPDATE_THETA,Buff2D);
-    store_pgrad_vars(planet,Buff2D,action,CALC_PHI3NK);
-    uv_pgrad(planet,Buff2D);
+    set_p2_etc(UPDATE_THETA);
+    store_pgrad_vars(action,CALC_PHI3NK);
+    uv_pgrad(Buff2D);
 
     /*
      * Add horizontal subgrid-scale model to wind tendencies.
      * The vertical turbulence model is applied implicitly on (u,v) below.
      */
-    uv_horizontal_subgrid(planet,Buff2D);
+    uv_horizontal_subgrid(Buff2D);
 
     if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
       /*
        * March u,v forward one timestep.
        */
-      adams_bashforth_step(planet,U_INDEX);
-      adams_bashforth_step(planet,V_INDEX);
+      adams_bashforth_step(U_INDEX);
+      adams_bashforth_step(V_INDEX);
 
       /*
        *  Cycle time index backwards:
@@ -282,8 +263,8 @@ void timestep(planetspec  *planet,
       /*
        * March u,v forward one timestep.
        */
-      leapfrog_step(planet,U_INDEX);
-      leapfrog_step(planet,V_INDEX);
+      leapfrog_step(U_INDEX);
+      leapfrog_step(V_INDEX);
 
       /* 
        * Cycle time index backwards.
@@ -303,7 +284,7 @@ void timestep(planetspec  *planet,
      * Apply vertical turbulence model to U,V.
      * This is done implicitly to handle thin layers.
      */
-    uv_vertical_subgrid(planet,Buff2D);
+    uv_vertical_subgrid(Buff2D);
 
     /*
      * Apply hyperviscosity to U,V.
@@ -326,39 +307,39 @@ void timestep(planetspec  *planet,
     /*
      * Update solar longitude, L_s.
      */
-    L_s = solar_longitude(planet,var.model_time);
+    L_s = solar_longitude(var.model_time);
 
     /*
      * Store commonly used diagnostic variables not calculated elsewhere.
      */
-    store_diag(planet);
+    store_diag();
 
     /*
      * Start the calculation of HEAT, in W/kg, on the layer interfaces (all except
      * the latent heating).
      */
-    calc_heating(planet);
+    calc_heating();
   } 
   else if (action == SYNC_DIAGS_ONLY) {
-    set_p2_etc(planet,UPDATE_THETA,Buff2D);
-    store_pgrad_vars(planet,Buff2D,action,CALC_PHI3NK);
+    set_p2_etc(UPDATE_THETA);
+    store_pgrad_vars(action,CALC_PHI3NK);
 
     /*
      * Store commonly used diagnostic variables not calculated elsewhere.
      */
-    store_diag(planet);
+    store_diag();
 
     /*
      * Calculate HEAT, in W/kg, on the layer interfaces.
      *
-     * NOTE: This currently does not include latent heating from cloud microphysics.
+     * NOTE: This does not include latent heating from cloud microphysics.
      */
-    calc_heating(planet);
+    calc_heating();
 
     /*
      * Calculate the hybrid vertical velocity, W, on layer interfaces.
      */
-    calc_w(planet,action);
+    calc_w(action);
   }
   else {
     sprintf(Message,"unrecognized action=%d",action);
@@ -382,8 +363,7 @@ void timestep(planetspec  *planet,
  * it requires more memory because it uses two previous time derivatives.
  */
 
-void adams_bashforth_step(planetspec *planet,
-                          int         index)
+void adams_bashforth_step(int index)
 {
   register int
     K,J,I,
@@ -417,12 +397,11 @@ void adams_bashforth_step(planetspec *planet,
 
   /* 
    * Specify Adams-Bashforth coefficients.
-   * The FLOAT_MAX flags are set in epic_initial.c. 
    *
    * NOTE: Use jlo rather than JLO for this test.
    */
-  if (DWINDDT(wind,IT_MINUS2,KLO,jlo,ILO) == FLOAT_MAX) {
-    if (DWINDDT(wind,IT_MINUS1,KLO,jlo,ILO) == FLOAT_MAX) {
+  if (DWINDDT(wind,IT_MINUS2,KLO,jlo,ILO) == DBL_MAX) {
+    if (DWINDDT(wind,IT_MINUS1,KLO,jlo,ILO) == DBL_MAX) {
       /* 
        * Use 1st-order Adams-Bashforth, aka forward (Euler) difference,
        * for the initial step.
@@ -500,13 +479,12 @@ void adams_bashforth_step(planetspec *planet,
 
 #define GAMMA_ASSELIN 0.06
 
-void leapfrog_step(planetspec *planet,
-                   int         index)
+void leapfrog_step(int index)
 {
   register int
     K,J,I,
     jlo;
-  register EPIC_FLOAT
+  register double
     twodt,
     old_filtered,
     present,
@@ -543,9 +521,9 @@ void leapfrog_step(planetspec *planet,
    */
 
   /*
-   * NOTE: Need jlo, not JLO for this test, otherwise the flagged V=FLOAT_MAX will be V=0.
+   * NOTE: Need jlo, not JLO for this test, otherwise the flagged V=DBL_MAX will be V=0.
    */
-  if (WIND(wind,IT_MINUS1,KLO,jlo,ILO) == FLOAT_MAX) {
+  if (WIND(wind,IT_MINUS1,KLO,jlo,ILO) == DBL_MAX) {
     for (K = KLO; K <= KHI; K++) {
       for (J = jlo; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
@@ -625,15 +603,14 @@ void leapfrog_step(planetspec *planet,
  * of the economical explicit scheme. 
  */
 
-void uv_core(planetspec  *planet,
-             EPIC_FLOAT **Buff2D)
+void uv_core(double **Buff2D)
 {
   register int    
     K,J,I,
     kk,jj;
   unsigned long
     nbytes_2d;
-  register EPIC_FLOAT
+  register double
     al, be,       /* Used in AL_U, BE_U, etc. macros.         */
     ga, de,       /* See Arakawa and Lamb (1981) eqn. (3.34)  */
     ep1,ep2,      /*       "                     "            */
@@ -643,7 +620,7 @@ void uv_core(planetspec  *planet,
     n_2j,n_2jp1_inv,
     havg,
     d1,d2,d1d2,davg;
-  EPIC_FLOAT
+  double
     *uh,*vh,*kin;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -653,7 +630,7 @@ void uv_core(planetspec  *planet,
   static char
     dbmsname[]="uv_core";
 
-  nbytes_2d = Nelem2d*sizeof(EPIC_FLOAT);
+  nbytes_2d = Nelem2d*sizeof(double);
 
  /*
   * Calculate the horizontal advection and Coriolis terms for U and V.
@@ -697,8 +674,8 @@ void uv_core(planetspec  *planet,
      */
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
-        KIN(J,I) = get_kin(planet,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
-                                  var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
+        KIN(J,I) = get_kin(var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,
+                           var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d,kk,J,I);
       }
     }
     /* Need to apply bc_lateral() here. */
@@ -751,7 +728,7 @@ void uv_core(planetspec  *planet,
   /*
    * Calculate vertical advection terms for U and V.
    */
-  uv_vertical_advection(planet);
+  uv_vertical_advection();
 
   return;
 }
@@ -767,8 +744,7 @@ void uv_core(planetspec  *planet,
  * force: uv_pgrad_traditional() and uv_pgrad_green_gauss().
  */
 
-void uv_pgrad(planetspec  *planet,
-              EPIC_FLOAT **Buff2D)
+void uv_pgrad(double **Buff2D)
 {
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -782,7 +758,7 @@ void uv_pgrad(planetspec  *planet,
   switch(grid.coord_type) {
     case COORD_ISENTROPIC:
     case COORD_ISOBARIC:
-      uv_pgrad_traditional(planet,KLO,KHI,Buff2D);
+      uv_pgrad_traditional(KLO,KHI,Buff2D);
     break;
     case COORD_HYBRID:
       /* --gurn green-gauss--
@@ -793,8 +769,8 @@ void uv_pgrad(planetspec  *planet,
        * yet been able to isolate what is causing this problem, and so have
        * reverted to using the traditional pressure-gradient force algorithm.
        */
-      /* uv_pgrad_green_gauss(planet,KLO,KHI); */
-      uv_pgrad_traditional(planet,KLO,KHI,Buff2D);
+      /* uv_pgrad_green_gauss(KLO,KHI); */
+      uv_pgrad_traditional(KLO,KHI,Buff2D);
     break;
     default:
       sprintf(Message,"Need to specify a pressure-gradient force algorithm for grid.coord_type=%d",
@@ -816,17 +792,16 @@ void uv_pgrad(planetspec  *planet,
 
 #define FPARA2(j,i) fpara2[i+(j)*Iadim-Shift2d]
 
-void uv_pgrad_traditional(planetspec  *planet,
-                          int          Kstart,
-                          int          Kend,
-                          EPIC_FLOAT **Buff2D)
+void uv_pgrad_traditional(int      Kstart,
+                          int      Kend,
+                          double **Buff2D)
 {
   register int    
     K,J,I,
     kk,k_isen;
-  register EPIC_FLOAT
+  register double
     m_2jp1,n_2j;
-  EPIC_FLOAT
+  double
    *fpara2;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1000,14 +975,13 @@ void uv_pgrad_traditional(planetspec  *planet,
 #define  RHO_HAT_EAST(k,j,i)  rho_hat_east[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 #define RHO_HAT_NORTH(k,j,i) rho_hat_north[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 
-void uv_pgrad_green_gauss(planetspec *planet,
-                          int         Kstart,
-                          int         Kend)
+void uv_pgrad_green_gauss(int Kstart,
+                          int Kend)
 { 
   register int    
     K,J,I,
     kk,jj;
-  EPIC_FLOAT
+  double
     pbsw,pbse,pbnw,pbne,        /* Given pressures at the 8 corners */
     ptsw,ptse,ptnw,ptne,
     pbw,pbe,ptw,pte,            /* Calculated pressures, center of edges */
@@ -1027,7 +1001,7 @@ void uv_pgrad_green_gauss(planetspec *planet,
     lne,lnw,lts,ltn,            /* longitude and latitude limits on the control volume */
     D_u,N_u,                    /* Denominator and numerator terms, from zonal component, as in Bradley & Dowling (2011) */
     pgflon,pgflat;              /* Pressure gradient forces, longitudinal and latitudinal */
-  EPIC_FLOAT
+  double
     S_v,N_v,E_v,W_v,
     T_v,B_v,M_v,                /*  South, north, east, west, top, bottom and mass terms in Meridional PGF */
     rho_hat_top,
@@ -1035,7 +1009,7 @@ void uv_pgrad_green_gauss(planetspec *planet,
   static int
     j_periodic  = FALSE,
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
    *rho_hat_east,
    *rho_hat_north;
   /* 
@@ -1048,8 +1022,8 @@ void uv_pgrad_green_gauss(planetspec *planet,
 
   if (!initialized) {
     /* Allocate memory */
-    rho_hat_east  = fvector(0,Nelem3d-1,dbmsname);
-    rho_hat_north = fvector(0,Nelem3d-1,dbmsname);
+    rho_hat_east  = dvector(0,Nelem3d-1,dbmsname);
+    rho_hat_north = dvector(0,Nelem3d-1,dbmsname);
 
     if (strcmp(grid.geometry,"f-plane") == 0 &&
         strcmp(grid.f_plane_map,"cartesian") == 0) {
@@ -1601,21 +1575,25 @@ void uv_pgrad_green_gauss(planetspec *planet,
  */
 
 /*
- * Pick values for sponge stiffness, from 0. to 1. 
+ * Pick values for sponge and drag-layer stiffness, from 0. to 1.
+ * The goal is to make these as weak as possible while still being effective.
  */
-#define TOP_SPONGE (0.1)
-#define LATERAL_SPONGE (0.1)
+#define TOP_SPONGE     (0.05)
+#define BOT_DRAG       (0.05)
+#define LATERAL_SPONGE (0.05)
 
-void uv_sponge(planetspec *planet)
+void uv_sponge(void)
 {
   register int
-    K,J,I;
-  register EPIC_FLOAT
+    K,J,I,
+    kstart,kend,kay;
+  register double
     tmp,
-    t_sponge_inv;
+    t_sponge_inv,
+    t_drag_inv;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
      max_nu_horizontal[2+1];
   wind_variable
     *u,*v;
@@ -1636,11 +1614,11 @@ void uv_sponge(planetspec *planet)
   /*
    * Sponge at the top of the model.
    *
-   * Add Rayleigh friction to U and V, relative to no motion,
-   * to dampen gravity-wave reflections at the model's top.
+   * Add Rayleigh drag to U and V to dampen
+   * gravity-wave reflections at the model's top.
    */
   for (K = KLO; K <= grid.k_sponge; K++) {
-    tmp          = (EPIC_FLOAT)(grid.k_sponge+1-K)/(grid.k_sponge);
+    tmp          = (double)(grid.k_sponge+1-K)/(grid.k_sponge);
     t_sponge_inv = TOP_SPONGE*max_nu_horizontal[0]*.5*(1.-cos(M_PI*tmp));
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
@@ -1656,22 +1634,50 @@ void uv_sponge(planetspec *planet)
   /* No need to apply bc_lateral() here. */
 
   /*
+   * Add Rayleigh drag to U and V in the vicinity of the bottom of the model
+   * to stabilize the transition to the abyssal wind profile.
+   * 
+   * The index kay counts upwards from the bottom layer.
+   */
+  for (kay = 1; kay <= grid.n_bot_drag; kay++) {
+    K = grid.nk-kay+1;
+    tmp        = (double)(grid.n_bot_drag+1-kay)/(grid.n_bot_drag);
+    t_drag_inv = BOT_DRAG*max_nu_horizontal[0]*.5*(1.-cos(M_PI*tmp));
+    for (J = JLO; J <= JHI; J++) {
+      for (I = ILO; I <= IHI; I++) {
+        DUDT(grid.it_uv_tend,K,J,I) -= t_drag_inv*(U(grid.it_uv_dis,K,J,I)-U_SPINUP(K,J,I));
+      }
+    }
+    for (J = JFIRST; J <= JHI; J++) {
+      for (I = ILO; I <= IHI; I++) {
+        DVDT(grid.it_uv_tend,K,J,I) -= t_drag_inv*(V(grid.it_uv_dis,K,J,I)-0.);
+      }
+    }
+  }
+  /* No need to apply bc_lateral() here. */
+
+  /*
    * Sponges at the northern and southern (lateral) edges of the model.
    *
-   * Add Rayleigh friction to V, relative to no motion,
+   * Add Rayleigh drag to V, relative to no motion,
    * to control numerical instabilities at channel walls.
-   * Do not add Rayleigh friction to U.
+   * Do not add Rayleigh drag to U.
    */
   if (grid.j_sponge > 0) {
+    /*
+     * Avoid overlapping the top sponge and bottom drag layers.
+     */
+    kstart = IMAX(KLO,KLO+grid.k_sponge  );
+    kend   = IMIN(KHI,KHI-grid.n_bot_drag);
+
     for (J = JFIRST; J <= JHI; J++) {
       /*
        * Southern sponge
        */
-      tmp = (EPIC_FLOAT)(grid.j_sponge+1-J)/(grid.j_sponge);
+      tmp = (double)(grid.j_sponge+1-J)/(grid.j_sponge);
       if (tmp > 0.) {
         t_sponge_inv = LATERAL_SPONGE*max_nu_horizontal[0]*.5*(1.-cos(M_PI*tmp));
-        /* Avoid overlapping the top and lateral sponge */
-        for (K = grid.k_sponge+1; K <= KHI; K++) {
+        for (K = kstart; K <= kend; K++) { 
           for (I = ILO; I <= IHI; I++) {
             DVDT(grid.it_uv_tend,K,J,I) -= t_sponge_inv*(V(grid.it_uv_dis,K,J,I)-0.);
           }
@@ -1680,11 +1686,10 @@ void uv_sponge(planetspec *planet)
       /*
        * Northern sponge
        */
-      tmp = (EPIC_FLOAT)(grid.j_sponge+1-(grid.nj-(J-grid.jfirst)))/(grid.j_sponge);
+      tmp = (double)(grid.j_sponge+1-(grid.nj-(J-grid.jfirst)))/(grid.j_sponge);
       if (tmp > 0.) {
         t_sponge_inv = LATERAL_SPONGE*max_nu_horizontal[0]*.5*(1.-cos(M_PI*tmp));
-        /* Avoid overlapping the top and lateral sponge */
-        for (K = grid.k_sponge+1; K <= KHI; K++) {
+        for (K = kstart; K <= kend; K++) {
           for (I = ILO; I <= IHI; I++) {
             DVDT(grid.it_uv_tend,K,J,I) -= t_sponge_inv*(V(grid.it_uv_dis,K,J,I)-0.);
           }
@@ -1699,9 +1704,9 @@ void uv_sponge(planetspec *planet)
    * Otherwise, the PBL is handled by epic_subgrid.c subroutines.
    */
   if (strcmp(planet->name,"Held_Suarez") == 0) {
-    EPIC_FLOAT
+    double
       p2,pbot,amp,nu0;
-    const EPIC_FLOAT
+    const double
       held_suarez_pbl_nu0 = (1./(24.*60.*60.));
 
     for (J = JLO; J <= JHI; J++) {

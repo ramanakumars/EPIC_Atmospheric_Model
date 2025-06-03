@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -150,11 +151,13 @@
           var.thermo.info[0].long_name = (char *)malloc(strlen(#the_long_name)+1); \
           strcpy(var.thermo.info[0].long_name,#the_long_name); \
           var.thermo.info[0].units = (char *)malloc(strlen(#the_units)+1); \
-          sprintf(var.thermo.info[0].units,"%s",#the_units);
+          strcpy(var.thermo.info[0].units,#the_units);
 
 /*
  * Species variables are distinguished by the fact that separate memory is needed
- * to handle each phase.
+ * to handle each phase.  To facilitate development and implementation, also included
+ * are the diagnostic variables associated with  moist convection of each species,
+ * and the tendencies associated with each phase.
  */
 #define SET_SPECIES(ispecies,the_species,the_standard_name,the_long_name) \
           var.species[ispecies].info[0].index = ispecies; \
@@ -164,6 +167,51 @@
           strcpy(var.species[ispecies].info[0].standard_name,#the_standard_name); \
           var.species[ispecies].info[0].long_name = (char *)malloc(strlen(#the_long_name)+1); \
           strcpy(var.species[ispecies].info[0].long_name,#the_long_name); \
+          var.species[ispecies].cwf.info[0].index = ispecies*100000+1; \
+          var.species[ispecies].cwf.info[0].name = (char *)malloc(strlen(#the_species) + strlen("_cwf")+1); \
+          sprintf(var.species[ispecies].cwf.info[0].name,"%s_cwf",#the_species); \
+          var.species[ispecies].cwf.info[0].standard_name = (char *)malloc(strlen(#the_species) + strlen("_cloud_work_function")+1); \
+          sprintf(var.species[ispecies].cwf.info[0].standard_name,"%s_cloud_work_function",#the_species); \
+          var.species[ispecies].cwf.info[0].long_name = (char *)malloc(strlen("Cloud work function for ")+strlen(#the_species)+1); \
+          sprintf(var.species[ispecies].cwf.info[0].long_name,"Cloud work function for %s",#the_species); \
+          var.species[ispecies].cwf.info[0].units = (char *)malloc(strlen("J/kg")+1); \
+          strcpy(var.species[ispecies].cwf.info[0].units,"J/kg"); \
+          var.species[ispecies].pbase_mc.info[0].index = ispecies*100000+2; \
+          var.species[ispecies].pbase_mc.info[0].name = (char *)malloc(strlen(#the_species) + strlen("_pbase_mc")+1); \
+          sprintf(var.species[ispecies].pbase_mc.info[0].name,"%s_pbase_mc",#the_species); \
+          var.species[ispecies].pbase_mc.info[0].standard_name = (char *)malloc(strlen(#the_species) + strlen("_base_pressure")+1); \
+          sprintf(var.species[ispecies].pbase_mc.info[0].standard_name,"%s_base_pressure",#the_species); \
+          var.species[ispecies].pbase_mc.info[0].long_name = (char *)malloc(strlen("Cloud base pressure for ")+strlen(#the_species)+1); \
+          sprintf(var.species[ispecies].pbase_mc.info[0].long_name,"Cloud base pressure for %s",#the_species); \
+          var.species[ispecies].pbase_mc.info[0].units = (char *)malloc(strlen("Pa")+1); \
+          strcpy(var.species[ispecies].pbase_mc.info[0].units,"Pa"); \
+          var.species[ispecies].lambda_mc.info[0].index = ispecies*1000003; \
+          var.species[ispecies].lambda_mc.info[0].name = (char *)malloc(strlen(#the_species) + strlen("_lambda_mc")+1); \
+          sprintf(var.species[ispecies].lambda_mc.info[0].name,"%s_lambda_mc",#the_species); \
+          var.species[ispecies].lambda_mc.info[0].standard_name = (char *)malloc(strlen(#the_species) + strlen("_entrainment_parameter")+1); \
+          sprintf(var.species[ispecies].lambda_mc.info[0].standard_name,"%s_entrainment_parameter",#the_species); \
+          var.species[ispecies].lambda_mc.info[0].long_name = (char *)malloc(strlen("RAS entrainment parameter for ")+strlen(#the_species)+1); \
+          sprintf(var.species[ispecies].lambda_mc.info[0].long_name,"RAS entrainment parameter for %s",#the_species); \
+          var.species[ispecies].lambda_mc.info[0].units = (char *)malloc(strlen("nondim")+1); \
+          strcpy(var.species[ispecies].lambda_mc.info[0].units,"nondim"); \
+          var.species[ispecies].mb_mc.info[0].index = ispecies*1000004; \
+          var.species[ispecies].mb_mc.info[0].name = (char *)malloc(strlen(#the_species) + strlen("_mb_mc")+1); \
+          sprintf(var.species[ispecies].mb_mc.info[0].name,"%s_mb_mc",#the_species); \
+          var.species[ispecies].mb_mc.info[0].standard_name = (char *)malloc(strlen(#the_species) + strlen("_base_mass_flux")+1); \
+          sprintf(var.species[ispecies].mb_mc.info[0].standard_name,"%s_base_mass_flux",#the_species); \
+          var.species[ispecies].mb_mc.info[0].long_name = (char *)malloc(strlen("RAS cloud base mass flux for ")+strlen(#the_species)+1); \
+          sprintf(var.species[ispecies].mb_mc.info[0].long_name,"RAS cloud base mass flux for %s",#the_species); \
+          var.species[ispecies].mb_mc.info[0].units = (char *)malloc(strlen("kg/s")+1); \
+          strcpy(var.species[ispecies].mb_mc.info[0].units,"kg/s"); \
+          var.species[ispecies].dAdt.info[0].index = ispecies*100000+5; \
+          var.species[ispecies].dAdt.info[0].name = (char *)malloc(strlen(#the_species) + strlen("_dadt")+1); \
+          sprintf(var.species[ispecies].dAdt.info[0].name,"%s_dadt",#the_species); \
+          var.species[ispecies].dAdt.info[0].standard_name = (char *)malloc(strlen(#the_species) + strlen("_rate_of_change_of_cwf")+1); \
+          sprintf(var.species[ispecies].dAdt.info[0].standard_name,"%s_rate_of_change_of_cwf",#the_species); \
+          var.species[ispecies].dAdt.info[0].long_name = (char *)malloc(strlen("RAS rate of change of cwf for ")+strlen(#the_species)+1); \
+          sprintf(var.species[ispecies].dAdt.info[0].long_name,"RAS rate of change of cwf for %s",#the_species); \
+          var.species[ispecies].dAdt.info[0].units = (char *)malloc(strlen("W/kg")+1); \
+          strcpy(var.species[ispecies].dAdt.info[0].units,"W/kg"); \
           for (ip = FIRST_PHASE; ip <= LAST_PHASE; ip++) { \
             ; /* Mass mixing ratios */ \
             var.species[ispecies].phase[ip].info[MASS].index = ispecies*1000000+(ip+1)*1000+MASS; \
@@ -185,6 +233,16 @@
             sprintf(var.species[ispecies].phase[ip].info[MOLAR].long_name,"%s %s mole fraction",#the_long_name,Long_Phase_Name[ip]); \
             var.species[ispecies].phase[ip].info[MOLAR].units = (char *)malloc(strlen("kmol/kmol")+1); \
             strcpy(var.species[ispecies].phase[ip].info[MOLAR].units,"kmol/kmol"); \
+            ; /* Tendencies for mass mixing ratios */ \
+            var.species[ispecies].phase[ip].info[TEND].index = ispecies*1000000+(ip+1)*1000+TEND; \
+            var.species[ispecies].phase[ip].info[TEND].name  = (char *)malloc(strlen(#the_species"_")+ \
+                                                                strlen(Phase_Name[ip])+strlen("_tendency")+1); \
+            sprintf(var.species[ispecies].phase[ip].info[TEND].name,"%s_%s_tendency",#the_species,Phase_Name[ip]); \
+            var.species[ispecies].phase[ip].info[TEND].long_name = (char *)malloc(strlen(#the_long_name" ")+ \
+                                                                    strlen(Long_Phase_Name[ip])+strlen(" mixing ratio tendency")+1); \
+            sprintf(var.species[ispecies].phase[ip].info[TEND].long_name,"%s %s mixing ratio tendency",#the_long_name,Long_Phase_Name[ip]); \
+            var.species[ispecies].phase[ip].info[TEND].units = (char *)malloc(strlen("kg/kg/s")+1); \
+            strcpy(var.species[ispecies].phase[ip].info[TEND].units,"kg/kg/s"); \
           }
 /*
  * Diagnostic variables are not associated with any tendency or moment data.
@@ -200,7 +258,7 @@
             var.diag.info[0].units = (char *)malloc(strlen(#the_units)+1) ; \
             strcpy(var.diag.info[0].units,#the_units);
 
-void set_var_props(planetspec *planet) 
+void set_var_props(void) 
 {
   int
     im,is,ip;
@@ -290,7 +348,7 @@ void set_var_props(planetspec *planet)
   SET_THERMO(FPARA_INDEX,fpara,mole_fraction_of_para_in_hydrogen,para fraction of molecular hydrogen,kmol/kmol);
 
   /* 
-   * Optional species (Qs).
+   * Optional species (Qs, mass mixing ratios---dry denominator).
    */
   SET_SPECIES(H_2O_INDEX,H_2O,water,water);
   var.species[H_2O_INDEX].enthalpy_change        = enthalpy_change_H_2O;
@@ -318,9 +376,9 @@ void set_var_props(planetspec *planet)
   var.species[C_2H_2_INDEX].HITRAN_index         = 26;
 
   SET_SPECIES(C_2H_4_INDEX,C_2H_4,ethylene,ethylene);
-  var.species[C_2H_4_INDEX].enthalpy_change     = enthalpy_change_C_2H_4;
-  var.species[C_2H_4_INDEX].sat_vapor_p         = sat_vapor_p_C_2H_4;
-  var.species[C_2H_4_INDEX].HITRAN_index        = 38;
+  var.species[C_2H_4_INDEX].enthalpy_change      = enthalpy_change_C_2H_4;
+  var.species[C_2H_4_INDEX].sat_vapor_p          = sat_vapor_p_C_2H_4;
+  var.species[C_2H_4_INDEX].HITRAN_index         = 38;
 
   SET_SPECIES(C_2H_6_INDEX,C_2H_6,ethane,ethane);
   var.species[C_2H_6_INDEX].enthalpy_change      = enthalpy_change_C_2H_6;
@@ -425,6 +483,7 @@ void set_var_props(planetspec *planet)
   SET_DIAG(DIFFUSION_COEF_MASS_INDEX,diffusion_coef_mass,mass_diffusion,mass eddy diffusion,m^2/s);
   SET_DIAG(PHI_SURFACE_INDEX,phi_surface,surface_geopotential,surface geopotential,m^2/s^2);
   SET_DIAG(GRAVITY2_INDEX,gravity2,gravity,acceleration of gravity,m/s^2);
+  SET_DIAG(U_SPINUP_INDEX,u_spinup,rayleigh_drag_eastward_wind,Rayleigh-drag zonal wind profile,m/s);
   SET_DIAG(PBOT_INDEX,pbot,pbot,pressure bottom boundary condition,Pa);
 
   /*
@@ -433,6 +492,12 @@ void set_var_props(planetspec *planet)
   for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
     var.species[is].molar_mass = molar_mass(is);
   }
+
+  /*
+   * Add the moist convective heat to the output, as well as the cloud base locations for each species, marked by its index.
+   */
+  SET_DIAG(HEAT_MC_INDEX,heat_mc,moist_convective_heating_rate,heating rate per mass from moist convection,W/kg);
+  SET_DIAG(CLOUD_BASE_INDEX,cloud_base,cloud_base_indices,cloud base indices,1);
 
   /*
    * These functions are defined in the subdirectory epic/src/clouds
@@ -482,11 +547,33 @@ void set_var_props(planetspec *planet)
           free(var.species[ispecies].info[0].name); \
           free(var.species[ispecies].info[0].standard_name); \
           free(var.species[ispecies].info[0].long_name); \
+          free(var.species[ispecies].cwf.info[0].name); \
+          free(var.species[ispecies].cwf.info[0].standard_name); \
+          free(var.species[ispecies].cwf.info[0].long_name); \
+          free(var.species[ispecies].cwf.info[0].units); \
+          free(var.species[ispecies].pbase_mc.info[0].name); \
+          free(var.species[ispecies].pbase_mc.info[0].standard_name); \
+          free(var.species[ispecies].pbase_mc.info[0].long_name); \
+          free(var.species[ispecies].pbase_mc.info[0].units); \
+          free(var.species[ispecies].lambda_mc.info[0].name); \
+          free(var.species[ispecies].lambda_mc.info[0].standard_name); \
+          free(var.species[ispecies].lambda_mc.info[0].long_name); \
+          free(var.species[ispecies].lambda_mc.info[0].units); \
+          free(var.species[ispecies].mb_mc.info[0].name); \
+          free(var.species[ispecies].mb_mc.info[0].standard_name); \
+          free(var.species[ispecies].mb_mc.info[0].long_name); \
+          free(var.species[ispecies].mb_mc.info[0].units); \
+          free(var.species[ispecies].dAdt.info[0].name); \
+          free(var.species[ispecies].dAdt.info[0].standard_name); \
+          free(var.species[ispecies].dAdt.info[0].long_name); \
+          free(var.species[ispecies].dAdt.info[0].units); \
           for (ip = FIRST_PHASE; ip <= LAST_PHASE; ip++) { \
             free(var.species[ispecies].phase[ip].info[MASS ].name); \
             free(var.species[ispecies].phase[ip].info[MASS ].units); \
             free(var.species[ispecies].phase[ip].info[MOLAR].name); \
             free(var.species[ispecies].phase[ip].info[MOLAR].units); \
+            free(var.species[ispecies].phase[ip].info[TEND ].name); \
+            free(var.species[ispecies].phase[ip].info[TEND ].units); \
           }
 
 #define FREE_DIAG(diag) \
@@ -497,7 +584,7 @@ void set_var_props(planetspec *planet)
 
 /*
  */
-void free_var_props(planetspec *planet)
+void free_var_props(void)
 {
   int
     im,is,ip;
@@ -597,7 +684,10 @@ void free_var_props(planetspec *planet)
   FREE_DIAG(diffusion_coef_mass);
   FREE_DIAG(phi_surface);
   FREE_DIAG(gravity2);
+  FREE_DIAG(u_spinup);
   FREE_DIAG(pbot);
+  FREE_DIAG(heat_mc);
+  FREE_DIAG(cloud_base);
 
   return;
 }
@@ -606,7 +696,7 @@ void free_var_props(planetspec *planet)
 
 /*======================= make_arrays() =====================================*/
 
-void make_arrays(planetspec *planet)
+void make_arrays(void)
 /*
  * Allocate memory for variables.
  *
@@ -617,6 +707,7 @@ void make_arrays(planetspec *planet)
 {
   int    
     is,ip,kk,
+    mc_diag_extract_sum,
     itmp;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -709,12 +800,12 @@ void make_arrays(planetspec *planet)
   if (var.on_list[U_INDEX] == LISTED_AND_ON) {
     var.u.on       = TRUE;
     if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
-      var.u.value    = fvector(0,  Nelem3d-1,dbmsname);
-      var.u.tendency = fvector(0,3*Nelem3d-1,dbmsname);
+      var.u.value    = dvector(0,  Nelem3d-1,dbmsname);
+      var.u.tendency = dvector(0,3*Nelem3d-1,dbmsname);
     }
     else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
-      var.u.value    = fvector(0,2*Nelem3d-1,dbmsname);
-      var.u.tendency = fvector(0,  Nelem3d-1,dbmsname);
+      var.u.value    = dvector(0,2*Nelem3d-1,dbmsname);
+      var.u.tendency = dvector(0,  Nelem3d-1,dbmsname);
     }
     if (var.extract_on_list[U_INDEX] == LISTED_AND_ON) var.u.extract_on = TRUE;
   }
@@ -722,31 +813,31 @@ void make_arrays(planetspec *planet)
   if (var.on_list[V_INDEX] == LISTED_AND_ON) {
     var.v.on       = TRUE;
     if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
-      var.v.value    = fvector(0,  Nelem3d-1,dbmsname);
-      var.v.tendency = fvector(0,3*Nelem3d-1,dbmsname);
+      var.v.value    = dvector(0,  Nelem3d-1,dbmsname);
+      var.v.tendency = dvector(0,3*Nelem3d-1,dbmsname);
     }
     else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
-      var.v.value    = fvector(0,2*Nelem3d-1,dbmsname);
-      var.v.tendency = fvector(0,  Nelem3d-1,dbmsname);
+      var.v.value    = dvector(0,2*Nelem3d-1,dbmsname);
+      var.v.tendency = dvector(0,  Nelem3d-1,dbmsname);
     }
     if (var.extract_on_list[V_INDEX] == LISTED_AND_ON) var.v.extract_on = TRUE;
   }
 
   if (var.on_list[H_INDEX] == LISTED_AND_ON) {
     var.h.on    = TRUE;
-    var.h.value = fvector(0,Nelem3d-1,dbmsname);
+    var.h.value = dvector(0,Nelem3d-1,dbmsname);
     if (var.extract_on_list[H_INDEX] == LISTED_AND_ON) var.h.extract_on = TRUE;
   }
 
   if (var.on_list[THETA_INDEX] == LISTED_AND_ON) {
     var.theta.on    = TRUE;
-    var.theta.value = fvector(0,Nelem3d-1,dbmsname);
+    var.theta.value = dvector(0,Nelem3d-1,dbmsname);
     if (var.extract_on_list[THETA_INDEX] == LISTED_AND_ON) var.theta.extract_on = TRUE;
   }
 
   if (var.on_list[FPARA_INDEX] == LISTED_AND_ON) {
     var.fpara.on    = TRUE;
-    var.fpara.value = fvector(0,Nelem3d-1,dbmsname);
+    var.fpara.value = dvector(0,Nelem3d-1,dbmsname);
     if (var.extract_on_list[FPARA_INDEX] == LISTED_AND_ON) var.fpara.extract_on = TRUE;
   }
 
@@ -754,7 +845,7 @@ void make_arrays(planetspec *planet)
    * Turn on phases appropriate to choice of physics package.
    * The phases are switched on here, whether or not the species are invoked. 
    */
-  turn_on_phases(planet);
+  turn_on_phases();
   
   /*
    * NOTE: Do not use grid.nq yet, it is set below.
@@ -762,7 +853,54 @@ void make_arrays(planetspec *planet)
   for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
     if (var.on_list[is] == LISTED_AND_ON) {
       var.species[is].on = TRUE;
-      if (var.extract_on_list[is] == LISTED_AND_ON) var.species[is].extract_on = TRUE;
+
+      if (grid.moist_convection == ACTIVE) {
+        var.species[is].cwf.value       = dvector(0,Nelem3d-1,dbmsname);
+        var.species[is].pbase_mc.value  = dvector(0,Nelem2d-1,dbmsname);
+        var.species[is].lambda_mc.value = dvector(0,Nelem3d-1,dbmsname);
+        var.species[is].mb_mc.value     = dvector(0,Nelem3d-1,dbmsname);
+        var.species[is].dAdt.value      = dvector(0,Nelem3d-1,dbmsname);
+      }
+
+      if (var.extract_on_list[is] == LISTED_AND_ON) {
+        var.species[is].extract_on = TRUE;
+
+        /*
+         * The extract booleans for these moist convection diagnostic variables are packed into
+         * a base10 integer sum. For details, see prompt_extract_on() in epic_funcs_io.c.
+         */
+        if (grid.moist_convection == ACTIVE) {
+          mc_diag_extract_sum = grid.mc_diag_extract_sum;
+
+          var.species[is].cwf.extract_on = FALSE;
+          itmp = GET_DIGIT(mc_diag_extract_sum,1000);
+          if (itmp > 0) {
+            var.species[is].cwf.extract_on = TRUE;
+            mc_diag_extract_sum -= itmp*1000;
+          }
+
+          var.species[is].lambda_mc.extract_on = FALSE;
+          itmp = GET_DIGIT(mc_diag_extract_sum,100);
+          if (itmp > 0) {
+            var.species[is].lambda_mc.extract_on = TRUE;
+            mc_diag_extract_sum -= itmp*100;
+          }
+
+          var.species[is].mb_mc.extract_on = FALSE;
+          itmp = GET_DIGIT(mc_diag_extract_sum,10);
+          if (itmp > 0) {
+            var.species[is].mb_mc.extract_on = TRUE;
+            mc_diag_extract_sum -= itmp*10;
+          }
+
+          var.species[is].dAdt.extract_on = FALSE;
+          itmp = mc_diag_extract_sum;
+          if (itmp > 0) {
+            var.species[is].dAdt.extract_on = TRUE;
+          }
+        }
+      }
+
       for (ip = FIRST_PHASE; ip <= LAST_PHASE; ip++) {
         /*
          * The appropriate phases for the chosen physics package should already be turned on.
@@ -770,19 +908,13 @@ void make_arrays(planetspec *planet)
         if (var.species[is].phase[ip].on) {
           /* 
            * Allocate memory for mass mixing ratio, Q [density_i/density_dry_air],
-           * and number fraction, X [n_i/n_total].
+           * and mixing ratio tendency, dQ/dt.
            */
-          var.species[is].phase[ip].q = fvector(0,Nelem3d-1,dbmsname);
-          var.species[is].phase[ip].x = fvector(0,Nelem3d-1,dbmsname);
+          var.species[is].phase[ip].q    = dvector(0,Nelem3d-1,dbmsname);
+          var.species[is].phase[ip].dqdt = dvector(0,Nelem3d-1,dbmsname);
 
           if (var.extract_on_list[is] == LISTED_AND_ON) {
-            if (grid.cloud_microphysics == ACTIVE ||
-                ip == VAPOR) {
-              var.species[is].phase[ip].extract_on = TRUE;
-            }
-            else {
-              var.species[is].phase[ip].extract_on = FALSE;
-            }
+            var.species[is].phase[ip].extract_on = TRUE;
           }
           else {
             var.species[is].phase[ip].extract_on = FALSE;
@@ -791,9 +923,10 @@ void make_arrays(planetspec *planet)
       }
     }
   }
+
   if (var.on_list[NU_TURB_INDEX] == LISTED_AND_ON) {
     var.nu_turb.on    = TRUE;
-    var.nu_turb.value = fvector(0,Nelem3d-1,dbmsname);
+    var.nu_turb.value = dvector(0,Nelem3d-1,dbmsname);
     if (var.extract_on_list[NU_TURB_INDEX] == LISTED_AND_ON) var.nu_turb.extract_on = TRUE;
   }
 
@@ -840,75 +973,95 @@ void make_arrays(planetspec *planet)
     }
   }
 
+  if (grid.moist_convection == ACTIVE) {
+    /*
+     * Turn on HEAT_MC and CLOUD_BASE.
+     */
+    var.heat_mc.on    = TRUE;
+    var.heat_mc.value = dvector(0,Nelem3d-1,dbmsname);
+    if (var.extract_on_list[HEAT_MC_INDEX] == LISTED_AND_ON) {
+      var.heat_mc.extract_on    = TRUE;
+    }
+
+    var.cloud_base.on    = TRUE;
+    var.cloud_base.value = dvector(0,Nelem3d-1,dbmsname);
+    if (var.extract_on_list[CLOUD_BASE_INDEX] == LISTED_AND_ON) {
+      var.cloud_base.extract_on = TRUE;
+    }
+  }
+
   /*
    * Allocate memory for 2D arrays.
    */
-  grid.rln = (EPIC_FLOAT **)calloc(2*grid.nk+2,sizeof(EPIC_FLOAT *));
+  grid.rln = (double **)calloc(2*grid.nk+2,sizeof(double *));
   if (!grid.rln) epic_error(dbmsname,"calloc error allocating grid.rln[kk]");
 
-  grid.rlt = (EPIC_FLOAT **)calloc(2*grid.nk+2,sizeof(EPIC_FLOAT *));
+  grid.rlt = (double **)calloc(2*grid.nk+2,sizeof(double *));
   if (!grid.rlt) epic_error(dbmsname,"calloc error allocating grid.rlt[kk]");
 
-  grid.m =   (EPIC_FLOAT **)calloc(2*grid.nk+2,sizeof(EPIC_FLOAT *));
+  grid.m =   (double **)calloc(2*grid.nk+2,sizeof(double *));
   if (!grid.m)   epic_error(dbmsname,"calloc error allocating grid.m[kk]");
 
-  grid.n =   (EPIC_FLOAT **)calloc(2*grid.nk+2,sizeof(EPIC_FLOAT *));
+  grid.n =   (double **)calloc(2*grid.nk+2,sizeof(double *));
   if (!grid.n)   epic_error(dbmsname,"calloc error allocating grid.n[kk]" );
 
-  grid.mn =  (EPIC_FLOAT **)calloc(2*grid.nk+2,sizeof(EPIC_FLOAT *));
+  grid.mn =  (double **)calloc(2*grid.nk+2,sizeof(double *));
   if (!grid.mn)  epic_error(dbmsname,"calloc error allocating grid.mn[kk]");
 
-  grid.beta = (EPIC_FLOAT **)calloc(2*grid.nk+2,sizeof(EPIC_FLOAT *));
+  grid.beta = (double **)calloc(2*grid.nk+2,sizeof(double *));
   if (!grid.beta) epic_error(dbmsname,"calloc error allocating grid.beta[kk]");
 
-  grid.g =   (EPIC_FLOAT **)calloc(2*grid.nk+2,sizeof(EPIC_FLOAT *));
+  grid.g =   (double **)calloc(2*grid.nk+2,sizeof(double *));
   if (!grid.g)   epic_error(dbmsname,"calloc error allocating grid.g[kk]");
 
   for (kk = 0; kk <= 2*grid.nk+1; kk++) {
-    grid.rln[ kk] = fvector(0,2*(grid.nj+1),dbmsname);
-    grid.rlt[ kk] = fvector(0,2*(grid.nj+1),dbmsname);
-    grid.m[   kk] = fvector(0,2*(grid.nj+1),dbmsname);
-    grid.n[   kk] = fvector(0,2*(grid.nj+1),dbmsname);
-    grid.mn[  kk] = fvector(0,2*(grid.nj+1),dbmsname);
-    grid.beta[kk] = fvector(0,2*(grid.nj+1),dbmsname);
-    grid.g[   kk] = fvector(0,2*(grid.nj+1),dbmsname);
+    grid.rln[ kk] = dvector(0,2*(grid.nj+1),dbmsname);
+    grid.rlt[ kk] = dvector(0,2*(grid.nj+1),dbmsname);
+    grid.m[   kk] = dvector(0,2*(grid.nj+1),dbmsname);
+    grid.n[   kk] = dvector(0,2*(grid.nj+1),dbmsname);
+    grid.mn[  kk] = dvector(0,2*(grid.nj+1),dbmsname);
+    grid.beta[kk] = dvector(0,2*(grid.nj+1),dbmsname);
+    grid.g[   kk] = dvector(0,2*(grid.nj+1),dbmsname);
   }
 
   /*
    * Allocate memory for 1D arrays.
    */
-  grid.lon        = fvector(0,2*(grid.ni+1),dbmsname);
+  grid.lon        = dvector(0,2*(grid.ni+1),dbmsname);
 
-  grid.lat        = fvector(0,2*(grid.nj+1),dbmsname); 
-  grid.f          = fvector(0,2*(grid.nj+1),dbmsname);
-  grid.f2         = fvector(0,2*(grid.nj+1),dbmsname);
+  grid.lat        = dvector(0,2*(grid.nj+1),dbmsname); 
+  grid.f          = dvector(0,2*(grid.nj+1),dbmsname);
+  grid.f2         = dvector(0,2*(grid.nj+1),dbmsname);
 
   grid.sigmatheta = dvector(0,2*(grid.nk+1)+1,dbmsname);
-  grid.dsgth      = fvector(0,2*(grid.nk+1)+1,dbmsname);
-  grid.dsgth_inv  = fvector(0,2*(grid.nk+1)+1,dbmsname);
-  grid.p_ref      = fvector(0,2*(grid.nk+1)+1,dbmsname);
-  grid.t_ref      = fvector(0,2*(grid.nk+1)+1,dbmsname);
-  grid.rho_ref    = fvector(0,2*(grid.nk+1)+1,dbmsname);
-  grid.theta_ref  = fvector(0,2*(grid.nk+1)+1,dbmsname);
-  grid.h_min      = fvector(0,   grid.nk+1,   dbmsname);
-  grid.re         = fvector(0,   grid.nk+1,   dbmsname);
-  grid.rp         = fvector(0,   grid.nk+1,   dbmsname);
+  grid.dsgth      = dvector(0,2*(grid.nk+1)+1,dbmsname);
+  grid.dsgth_inv  = dvector(0,2*(grid.nk+1)+1,dbmsname);
+  grid.p_ref      = dvector(0,2*(grid.nk+1)+1,dbmsname);
+  grid.t_ref      = dvector(0,2*(grid.nk+1)+1,dbmsname);
+  grid.rho_ref    = dvector(0,2*(grid.nk+1)+1,dbmsname);
+  grid.theta_ref  = dvector(0,2*(grid.nk+1)+1,dbmsname);
+  grid.h_min      = dvector(0,   grid.nk+1,   dbmsname);
+  grid.re         = dvector(0,   grid.nk+1,   dbmsname);
+  grid.rp         = dvector(0,   grid.nk+1,   dbmsname);
 
   if (var.ntp > 0) {
-    var.pdat  = fvector(0,var.ntp-1,dbmsname);
-    var.tdat  = fvector(0,var.ntp-1,dbmsname);
-    var.dtdat = fvector(0,var.ntp-1,dbmsname);
+    var.pdat  = dvector(0,var.ntp-1,dbmsname);
+    var.tdat  = dvector(0,var.ntp-1,dbmsname);
+    var.dtdat = dvector(0,var.ntp-1,dbmsname);
   }
 
   /*
    * Allocate memory for diagnostic arrays and parameter arrays.
    */
   if (var.n_t_cool > 0) {
-    var.t_cool_table = ftriplet(0,var.n_t_cool-1,dbmsname);
+    var.t_cool_table = dtriplet(0,var.n_t_cool-1,dbmsname);
   }
 
   var.gravity2.on    = TRUE;
-  var.gravity2.value = fvector(0,KADIM*JADIM-1,dbmsname); 
+  var.gravity2.value = dvector(0,KADIM*JADIM-1,dbmsname);
+
+  var.u_spinup.on    = TRUE;
+  var.u_spinup.value = dvector(0,Nelem3d-1,dbmsname);
 
   if (strcmp(planet->type,"gas-giant") == 0) {
     var.phi_surface.on                     = FALSE;
@@ -916,12 +1069,12 @@ void make_arrays(planetspec *planet)
     var.phi_surface.extract_on             = FALSE;
 
     var.pbot.on    = TRUE;
-    var.pbot.value = fvector(0,NELEM2D-1,dbmsname);
+    var.pbot.value = dvector(0,NELEM2D-1,dbmsname);
     if (var.extract_on_list[PBOT_INDEX] == LISTED_AND_ON) var.pbot.extract_on = TRUE;
   }
   else if (strcmp(planet->type,"terrestrial") == 0) {
     var.phi_surface.on    = TRUE;
-    var.phi_surface.value = fvector(0,NELEM2D-1,dbmsname);
+    var.phi_surface.value = dvector(0,NELEM2D-1,dbmsname);
     if (var.extract_on_list[PHI_SURFACE_INDEX] == LISTED_AND_ON) var.phi_surface.extract_on = TRUE;
 
     var.pbot.on                     = FALSE;
@@ -935,7 +1088,7 @@ void make_arrays(planetspec *planet)
 
   var.hdry2.on = TRUE;
   if (grid.nq > 0) {
-    var.hdry2.value = fvector(0,Nelem3d-1,dbmsname);
+    var.hdry2.value = dvector(0,Nelem3d-1,dbmsname);
   }
   else {
     /*
@@ -946,12 +1099,12 @@ void make_arrays(planetspec *planet)
   if (var.extract_on_list[HDRY2_INDEX] == LISTED_AND_ON) var.hdry2.extract_on = TRUE;
 
   var.hdry3.on       = TRUE;
-  var.hdry3.value    = fvector(0,Nelem3d-1,dbmsname);
+  var.hdry3.value    = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[HDRY3_INDEX] == LISTED_AND_ON) var.hdry3.extract_on = TRUE;
 
   var.h3.on = TRUE;
   if (grid.nq > 0) {
-    var.h3.value = fvector(0,Nelem3d-1,dbmsname);
+    var.h3.value = dvector(0,Nelem3d-1,dbmsname);
   }
   else {
     /*
@@ -962,16 +1115,16 @@ void make_arrays(planetspec *planet)
   if (var.extract_on_list[H3_INDEX] == LISTED_AND_ON) var.h3.extract_on = TRUE;
 
   var.p2.on          = TRUE;
-  var.p2.value       = fvector(0,Nelem3d-1,dbmsname);
+  var.p2.value       = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[P2_INDEX] == LISTED_AND_ON) var.p2.extract_on = TRUE;
 
   var.pdry3.on       = TRUE;
-  var.pdry3.value    = fvector(0,Nelem3d-1,dbmsname);
+  var.pdry3.value    = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[PDRY3_INDEX] == LISTED_AND_ON) var.pdry3.extract_on = TRUE;
  
   var.p3.on          = TRUE;
   if (grid.nq > 0) {
-    var.p3.value = fvector(0,Nelem3d-1,dbmsname);
+    var.p3.value = dvector(0,Nelem3d-1,dbmsname);
   }
   else {
     /*
@@ -982,59 +1135,59 @@ void make_arrays(planetspec *planet)
   if (var.extract_on_list[P3_INDEX] == LISTED_AND_ON) var.p3.extract_on = TRUE;
 
   var.theta2.on      = TRUE;
-  var.theta2.value   = fvector(0,Nelem3d-1,dbmsname);
+  var.theta2.value   = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[THETA2_INDEX] == LISTED_AND_ON) var.theta2.extract_on = TRUE;
 
   var.t2.on          = TRUE;
-  var.t2.value       = fvector(0,Nelem3d-1,dbmsname);
+  var.t2.value       = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[T2_INDEX] == LISTED_AND_ON) var.t2.extract_on = TRUE;
 
   var.t3.on          = TRUE;
-  var.t3.value       = fvector(0,Nelem3d-1,dbmsname);
+  var.t3.value       = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[T3_INDEX] == LISTED_AND_ON) var.t3.extract_on = TRUE;
 
   var.rho2.on        = TRUE;
-  var.rho2.value     = fvector(0,Nelem3d-1,dbmsname);
+  var.rho2.value     = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[RHO2_INDEX] == LISTED_AND_ON) var.rho2.extract_on = TRUE;
 
   var.rho3.on        = TRUE;
-  var.rho3.value     = fvector(0,Nelem3d-1,dbmsname);
+  var.rho3.value     = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[RHO3_INDEX] == LISTED_AND_ON) var.rho3.extract_on = TRUE;
 
   var.exner2.on      = TRUE;
-  var.exner2.value   = fvector(0,Nelem3d-1,dbmsname);
+  var.exner2.value   = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[EXNER2_INDEX] == LISTED_AND_ON) var.exner2.extract_on = TRUE;
 
   var.exner3.on      = TRUE;
-  var.exner3.value   = fvector(0,Nelem3d-1,dbmsname);
+  var.exner3.value   = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[EXNER3_INDEX] == LISTED_AND_ON) var.exner3.extract_on = TRUE;
 
   var.phi2.on        = TRUE;
-  var.phi2.value     = fvector(0,Nelem3d-1,dbmsname);
+  var.phi2.value     = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[PHI2_INDEX] == LISTED_AND_ON) var.phi2.extract_on = TRUE;
 
   var.phi3.on        = TRUE;
-  var.phi3.value     = fvector(0,Nelem3d-1,dbmsname);
+  var.phi3.value     = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[PHI3_INDEX] == LISTED_AND_ON) var.phi3.extract_on = TRUE;
 
   var.mont2.on       = TRUE;
-  var.mont2.value    = fvector(0,Nelem3d-1,dbmsname);
+  var.mont2.value    = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[MONT2_INDEX] == LISTED_AND_ON) var.mont2.extract_on = TRUE;
 
   var.heat3.on       = TRUE;
-  var.heat3.value    = fvector(0,Nelem3d-1,dbmsname);
+  var.heat3.value    = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[HEAT3_INDEX] == LISTED_AND_ON) var.heat3.extract_on = TRUE;
 
   var.pv2.on         = TRUE;
-  var.pv2.value      = fvector(0,Nelem3d-1,dbmsname);
+  var.pv2.value      = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[PV2_INDEX] == LISTED_AND_ON) var.pv2.extract_on = TRUE;
 
   var.ri2.on         = TRUE;
-  var.ri2.value      = fvector(0,Nelem3d-1,dbmsname);
+  var.ri2.value      = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[RI2_INDEX] == LISTED_AND_ON) var.ri2.extract_on = TRUE;
 
   var.div_uv2.on     = TRUE;
-  var.div_uv2.value  = fvector(0,Nelem3d-1,dbmsname);
+  var.div_uv2.value  = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[DIV_UV2_INDEX] == LISTED_AND_ON) var.div_uv2.extract_on = TRUE;
 
   /* 
@@ -1061,35 +1214,35 @@ void make_arrays(planetspec *planet)
   }
 
   var.w3.on          = TRUE;
-  var.w3.value       = fvector(0,Nelem3d-1,dbmsname);
+  var.w3.value       = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[W3_INDEX] == LISTED_AND_ON) var.w3.extract_on = TRUE;
 
   var.z2.on          = TRUE;
-  var.z2.value       = fvector(0,Nelem3d-1,dbmsname);
+  var.z2.value       = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[Z2_INDEX] == LISTED_AND_ON) var.z2.extract_on = TRUE;
 
   var.z3.on          = TRUE;
-  var.z3.value       = fvector(0,Nelem3d-1,dbmsname);
+  var.z3.value       = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[Z3_INDEX] == LISTED_AND_ON) var.z3.extract_on = TRUE;
 
   var.dzdt2.on       = TRUE;
-  var.dzdt2.value    = fvector(0,Nelem3d-1,dbmsname);
+  var.dzdt2.value    = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[DZDT2_INDEX] == LISTED_AND_ON) var.dzdt2.extract_on = TRUE;
 
   var.diffusion_coef_uv.on    = TRUE;
-  var.diffusion_coef_uv.value = fvector(0,Nelem3d-1,dbmsname);
+  var.diffusion_coef_uv.value = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[DIFFUSION_COEF_UV_INDEX] == LISTED_AND_ON) var.diffusion_coef_uv.extract_on = TRUE;
 
   var.diffusion_coef_theta.on    = TRUE;
-  var.diffusion_coef_theta.value = fvector(0,Nelem3d-1,dbmsname);
+  var.diffusion_coef_theta.value = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[DIFFUSION_COEF_THETA_INDEX] == LISTED_AND_ON) var.diffusion_coef_theta.extract_on = TRUE;
 
   var.diffusion_coef_mass.on     = TRUE;
-  var.diffusion_coef_mass.value  = fvector(0,Nelem3d-1,dbmsname);
+  var.diffusion_coef_mass.value  = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[DIFFUSION_COEF_MASS_INDEX] == LISTED_AND_ON) var.diffusion_coef_mass.extract_on = TRUE;
 
   var.fgibb2.on    = TRUE;
-  var.fgibb2.value = fvector(0,Nelem3d-1,dbmsname);
+  var.fgibb2.value = dvector(0,Nelem3d-1,dbmsname);
   if (var.extract_on_list[FGIBB2_INDEX] == LISTED_AND_ON) var.fgibb2.extract_on = TRUE;
 
   /*
@@ -1114,13 +1267,13 @@ void make_arrays(planetspec *planet)
 
 /*====================== free_arrays() ======================================*/
 
-void free_arrays(planetspec *planet)
+void free_arrays(void)
 /*
  * Free memory allocated by make_arrays().
  */
 {
   int    
-    iq,kk;
+    iq,is,kk;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
    */
@@ -1131,39 +1284,54 @@ void free_arrays(planetspec *planet)
 
   if (var.u.on) {
     if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
-      free_fvector(var.u.value,   0,  Nelem3d-1,dbmsname);
-      free_fvector(var.u.tendency,0,3*Nelem3d-1,dbmsname);
+      free_dvector(var.u.value,   0,  Nelem3d-1,dbmsname);
+      free_dvector(var.u.tendency,0,3*Nelem3d-1,dbmsname);
     }
     else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
-      free_fvector(var.u.value,   0,2*Nelem3d-1,dbmsname);
-      free_fvector(var.u.tendency,0,  Nelem3d-1,dbmsname);
+      free_dvector(var.u.value,   0,2*Nelem3d-1,dbmsname);
+      free_dvector(var.u.tendency,0,  Nelem3d-1,dbmsname);
     }
   }
   if (var.v.on) {
     if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
-      free_fvector(var.v.value,   0,  Nelem3d-1,dbmsname);
-      free_fvector(var.v.tendency,0,3*Nelem3d-1,dbmsname);
+      free_dvector(var.v.value,   0,  Nelem3d-1,dbmsname);
+      free_dvector(var.v.tendency,0,3*Nelem3d-1,dbmsname);
     }
     else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
-      free_fvector(var.v.value,   0,2*Nelem3d-1,dbmsname);
-      free_fvector(var.v.tendency,0,  Nelem3d-1,dbmsname);
+      free_dvector(var.v.value,   0,2*Nelem3d-1,dbmsname);
+      free_dvector(var.v.tendency,0,  Nelem3d-1,dbmsname);
     }
   }
   if (var.h.on) {
-    free_fvector(var.h.value,0,Nelem3d-1,dbmsname);
+    free_dvector(var.h.value,0,Nelem3d-1,dbmsname);
   }
   if (var.theta.on) {
-    free_fvector(var.theta.value,0,Nelem3d-1,dbmsname);
+    free_dvector(var.theta.value,0,Nelem3d-1,dbmsname);
   }
   if (var.fpara.on) {
-    free_fvector(var.fpara.value,0,Nelem3d-1,dbmsname);
+    free_dvector(var.fpara.value,0,Nelem3d-1,dbmsname);
   }
   for (iq = 0; iq < grid.nq; iq++) {
-    free_fvector(var.species[grid.is[iq]].phase[grid.ip[iq]].q,0,Nelem3d-1,dbmsname);
-    free_fvector(var.species[grid.is[iq]].phase[grid.ip[iq]].x,0,Nelem3d-1,dbmsname);
+    free_dvector(var.species[grid.is[iq]].phase[grid.ip[iq]].q,   0,Nelem3d-1,dbmsname);
+    free_dvector(var.species[grid.is[iq]].phase[grid.ip[iq]].dqdt,0,Nelem3d-1,dbmsname);
   }
+
+  if (grid.moist_convection == ACTIVE) {
+    for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+      if (var.on_list[is] == LISTED_AND_ON) {
+        free_dvector(var.species[is].cwf.value,      0,Nelem3d-1,dbmsname);
+        free_dvector(var.species[is].pbase_mc.value, 0,Nelem2d-1,dbmsname);
+        free_dvector(var.species[is].lambda_mc.value,0,Nelem3d-1,dbmsname);
+        free_dvector(var.species[is].mb_mc.value,    0,Nelem3d-1,dbmsname);
+        free_dvector(var.species[is].dAdt.value,     0,Nelem3d-1,dbmsname);
+      }
+    }
+    free_dvector(var.heat_mc.value,   0,Nelem3d-1,dbmsname);
+    free_dvector(var.cloud_base.value,0,Nelem3d-1,dbmsname);
+  }
+
   if (var.nu_turb.on) {
-    free_fvector(var.nu_turb.value,0,Nelem3d-1,dbmsname);
+    free_dvector(var.nu_turb.value,0,Nelem3d-1,dbmsname);
   }
 
   if (grid.nq > 0) {
@@ -1172,13 +1340,13 @@ void free_arrays(planetspec *planet)
   }
 
   for (kk = 0; kk <= 2*grid.nk+1; kk++) {
-    free_fvector(grid.rln[ kk],0,2*(grid.nj+1),dbmsname);
-    free_fvector(grid.rlt[ kk],0,2*(grid.nj+1),dbmsname);
-    free_fvector(grid.m[   kk],0,2*(grid.nj+1),dbmsname);
-    free_fvector(grid.n[   kk],0,2*(grid.nj+1),dbmsname);
-    free_fvector(grid.mn[  kk],0,2*(grid.nj+1),dbmsname);
-    free_fvector(grid.beta[kk],0,2*(grid.nj+1),dbmsname);
-    free_fvector(grid.g[   kk],0,2*(grid.nj+1),dbmsname);
+    free_dvector(grid.rln[ kk],0,2*(grid.nj+1),dbmsname);
+    free_dvector(grid.rlt[ kk],0,2*(grid.nj+1),dbmsname);
+    free_dvector(grid.m[   kk],0,2*(grid.nj+1),dbmsname);
+    free_dvector(grid.n[   kk],0,2*(grid.nj+1),dbmsname);
+    free_dvector(grid.mn[  kk],0,2*(grid.nj+1),dbmsname);
+    free_dvector(grid.beta[kk],0,2*(grid.nj+1),dbmsname);
+    free_dvector(grid.g[   kk],0,2*(grid.nj+1),dbmsname);
   }
   free(grid.rln );
   free(grid.rlt );
@@ -1188,68 +1356,70 @@ void free_arrays(planetspec *planet)
   free(grid.beta);
   free(grid.g   );
 
-  free_fvector(grid.lon,       0,2*(grid.ni+1),  dbmsname);
-  free_fvector(grid.lat,       0,2*(grid.nj+1),  dbmsname); 
-  free_fvector(grid.f,         0,2*(grid.nj+1),  dbmsname);
-  free_fvector(grid.f2,        0,2*(grid.nj+1),  dbmsname);
+  free_dvector(grid.lon,       0,2*(grid.ni+1),  dbmsname);
+  free_dvector(grid.lat,       0,2*(grid.nj+1),  dbmsname); 
+  free_dvector(grid.f,         0,2*(grid.nj+1),  dbmsname);
+  free_dvector(grid.f2,        0,2*(grid.nj+1),  dbmsname);
   free_dvector(grid.sigmatheta,0,2*(grid.nk+1)+1,dbmsname);
-  free_fvector(grid.dsgth,     0,2*(grid.nk+1)+1,dbmsname);
-  free_fvector(grid.dsgth_inv, 0,2*(grid.nk+1)+1,dbmsname);
-  free_fvector(grid.p_ref,     0,2*(grid.nk+1)+1,dbmsname);
-  free_fvector(grid.t_ref,     0,2*(grid.nk+1)+1,dbmsname);
-  free_fvector(grid.rho_ref,   0,2*(grid.nk+1)+1,dbmsname);
-  free_fvector(grid.theta_ref, 0,2*(grid.nk+1)+1,dbmsname);
-  free_fvector(grid.h_min,     0,   grid.nk+1,   dbmsname);
-  free_fvector(grid.re,        0,   grid.nk+1,   dbmsname);
-  free_fvector(grid.rp,        0,   grid.nk+1,   dbmsname);
+  free_dvector(grid.dsgth,     0,2*(grid.nk+1)+1,dbmsname);
+  free_dvector(grid.dsgth_inv, 0,2*(grid.nk+1)+1,dbmsname);
+  free_dvector(grid.p_ref,     0,2*(grid.nk+1)+1,dbmsname);
+  free_dvector(grid.t_ref,     0,2*(grid.nk+1)+1,dbmsname);
+  free_dvector(grid.rho_ref,   0,2*(grid.nk+1)+1,dbmsname);
+  free_dvector(grid.theta_ref, 0,2*(grid.nk+1)+1,dbmsname);
+  free_dvector(grid.h_min,     0,   grid.nk+1,   dbmsname);
+  free_dvector(grid.re,        0,   grid.nk+1,   dbmsname);
+  free_dvector(grid.rp,        0,   grid.nk+1,   dbmsname);
 
   if (var.ntp > 0) {
-    free_fvector(var.pdat, 0,var.ntp-1,dbmsname);
-    free_fvector(var.tdat, 0,var.ntp-1,dbmsname);
-    free_fvector(var.dtdat,0,var.ntp-1,dbmsname);
+    free_dvector(var.pdat, 0,var.ntp-1,dbmsname);
+    free_dvector(var.tdat, 0,var.ntp-1,dbmsname);
+    free_dvector(var.dtdat,0,var.ntp-1,dbmsname);
   }
 
-  if (var.n_t_cool > 0) free_ftriplet(var.t_cool_table,0,var.n_t_cool-1,dbmsname);
+  if (var.n_t_cool > 0) free_dtriplet(var.t_cool_table,0,var.n_t_cool-1,dbmsname);
 
-  free_fvector(var.gravity2.value,0,KADIM*JADIM-1,dbmsname); 
+  free_dvector(var.gravity2.value,0,KADIM*JADIM-1,dbmsname);
+
+  free_dvector(var.u_spinup.value,0,Nelem3d-1,dbmsname);
 
   if (strcmp(planet->type,"gas-giant") == 0) {
-    free_fvector(var.pbot.value,0,NELEM2D-1,dbmsname);
+    free_dvector(var.pbot.value,0,NELEM2D-1,dbmsname);
   }
   else if (strcmp(planet->type,"terrestrial") == 0) {
-    free_fvector(var.phi_surface.value,0,NELEM2D-1,dbmsname);
+    free_dvector(var.phi_surface.value,0,NELEM2D-1,dbmsname);
   }
 
-  free_fvector(var.pdry3.value,               0,Nelem3d-1,dbmsname);
-  free_fvector(var.p2.value,                  0,Nelem3d-1,dbmsname);
-  free_fvector(var.theta2.value,              0,Nelem3d-1,dbmsname);
+  free_dvector(var.pdry3.value,               0,Nelem3d-1,dbmsname);
+  free_dvector(var.p2.value,                  0,Nelem3d-1,dbmsname);
+  free_dvector(var.theta2.value,              0,Nelem3d-1,dbmsname);
   if (grid.nq > 0) {
-    free_fvector(var.hdry2.value,             0,Nelem3d-1,dbmsname);
-    free_fvector(var.h3.value,                0,Nelem3d-1,dbmsname);
-    free_fvector(var.p3.value,                0,Nelem3d-1,dbmsname);
+    free_dvector(var.hdry2.value,             0,Nelem3d-1,dbmsname);
+    free_dvector(var.h3.value,                0,Nelem3d-1,dbmsname);
+    free_dvector(var.p3.value,                0,Nelem3d-1,dbmsname);
   }
-  free_fvector(var.t2.value,                  0,Nelem3d-1,dbmsname);
-  free_fvector(var.t3.value,                  0,Nelem3d-1,dbmsname);
-  free_fvector(var.rho2.value,                0,Nelem3d-1,dbmsname);
-  free_fvector(var.rho3.value,                0,Nelem3d-1,dbmsname);
-  free_fvector(var.exner2.value,              0,Nelem3d-1,dbmsname);
-  free_fvector(var.exner3.value,              0,Nelem3d-1,dbmsname);
-  free_fvector(var.phi2.value,                0,Nelem3d-1,dbmsname);
-  free_fvector(var.phi3.value,                0,Nelem3d-1,dbmsname);
-  free_fvector(var.mont2.value,               0,Nelem3d-1,dbmsname);
-  free_fvector(var.heat3.value,               0,Nelem3d-1,dbmsname);
-  free_fvector(var.pv2.value,                 0,Nelem3d-1,dbmsname);
-  free_fvector(var.ri2.value,                 0,Nelem3d-1,dbmsname);
-  free_fvector(var.div_uv2.value,             0,Nelem3d-1,dbmsname);
-  free_fvector(var.w3.value,                  0,Nelem3d-1,dbmsname);
-  free_fvector(var.z2.value,                  0,Nelem3d-1,dbmsname);
-  free_fvector(var.z3.value,                  0,Nelem3d-1,dbmsname);
-  free_fvector(var.dzdt2.value,               0,Nelem3d-1,dbmsname);
-  free_fvector(var.diffusion_coef_uv.value,   0,Nelem3d-1,dbmsname);
-  free_fvector(var.diffusion_coef_theta.value,0,Nelem3d-1,dbmsname);
-  free_fvector(var.diffusion_coef_mass.value, 0,Nelem3d-1,dbmsname);
+  free_dvector(var.t2.value,                  0,Nelem3d-1,dbmsname);
+  free_dvector(var.t3.value,                  0,Nelem3d-1,dbmsname);
+  free_dvector(var.rho2.value,                0,Nelem3d-1,dbmsname);
+  free_dvector(var.rho3.value,                0,Nelem3d-1,dbmsname);
+  free_dvector(var.exner2.value,              0,Nelem3d-1,dbmsname);
+  free_dvector(var.exner3.value,              0,Nelem3d-1,dbmsname);
+  free_dvector(var.phi2.value,                0,Nelem3d-1,dbmsname);
+  free_dvector(var.phi3.value,                0,Nelem3d-1,dbmsname);
+  free_dvector(var.mont2.value,               0,Nelem3d-1,dbmsname);
+  free_dvector(var.heat3.value,               0,Nelem3d-1,dbmsname);
+  free_dvector(var.pv2.value,                 0,Nelem3d-1,dbmsname);
+  free_dvector(var.ri2.value,                 0,Nelem3d-1,dbmsname);
+  free_dvector(var.div_uv2.value,             0,Nelem3d-1,dbmsname);
+  free_dvector(var.w3.value,                  0,Nelem3d-1,dbmsname);
+  free_dvector(var.z2.value,                  0,Nelem3d-1,dbmsname);
+  free_dvector(var.z3.value,                  0,Nelem3d-1,dbmsname);
+  free_dvector(var.dzdt2.value,               0,Nelem3d-1,dbmsname);
+  free_dvector(var.diffusion_coef_uv.value,   0,Nelem3d-1,dbmsname);
+  free_dvector(var.diffusion_coef_theta.value,0,Nelem3d-1,dbmsname);
+  free_dvector(var.diffusion_coef_mass.value, 0,Nelem3d-1,dbmsname);
   if (var.fpara.on) {
-    free_fvector(var.fgibb2.value,0,Nelem3d-1,dbmsname);
+    free_dvector(var.fgibb2.value,0,Nelem3d-1,dbmsname);
   }
 
   /*
@@ -1276,8 +1446,7 @@ void free_arrays(planetspec *planet)
 
 /*
  * Generalized coordinate, sigmatheta, as a function of pressure and potential
- * temperature. Use double precision to increase accuracy of diagnostic theta
- * calculations.
+ * temperature. 
  */
 
 double return_sigmatheta(register double theta,
@@ -1306,7 +1475,6 @@ double return_sigmatheta(register double theta,
 /*
  * Hybrid vertical coordinate definition:
  *   sigmatheta = f(sigma)+g(sigma)*theta.
- * Use double precision to increase accuracy of diagnostic theta calculations.
  */
 
 double f_sigma(double sigma)
@@ -1345,7 +1513,6 @@ double f_sigma(double sigma)
 /*
  * Part of the hybrid vertical coordinate definition,
  * sigmatheta = f(sigma)+g(sigma)*theta.
- * Use double precision to increase accuracy of diagnostic theta calculations.
  */
 
 double g_sigma(double sigma)
@@ -1488,18 +1655,18 @@ void set_lonlat(void)
  * The map factors are functions of vertical index as well as meridional index.
  * Also compute beta = df/dy.
  */
-void set_fmn(planetspec *planet)
+void set_fmn(void)
 {
   int
     K,kk,jj,
     nj,ni;
-  EPIC_FLOAT
+  double
     omega,re,rp,
     dlnr,dltr,lat,
     rln,rlt,
     dx,dy,tmp,
     lat0,m0,n0;
-  float_triplet
+  double_triplet
    *buff_triplet;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -1655,9 +1822,9 @@ void set_fmn(planetspec *planet)
       else {
         jj = 2*(nj+1);
         lat  = DEG*(grid.lat)[jj];
-        rln  = re/sqrt( 1.+ pow(rp/re*tan(lat),(EPIC_FLOAT)2.) );
-        rlt  = rln/( cos(lat)*( pow(sin(lat),(EPIC_FLOAT)2.)+
-               pow(re/rp*cos(lat),(EPIC_FLOAT)2.)));
+        rln  = re/sqrt( 1.+ pow(rp/re*tan(lat),(double)2.) );
+        rlt  = rln/( cos(lat)*( pow(sin(lat),(double)2.)+
+               pow(re/rp*cos(lat),(double)2.)));
 
         grid.rln[kk][jj] = rln;
         grid.rlt[kk][jj] = rlt;
@@ -1716,7 +1883,7 @@ void set_fmn(planetspec *planet)
    */
 
   /* Allocate memory */
-  buff_triplet = ftriplet(0,KHI,dbmsname);
+  buff_triplet = dtriplet(0,KHI,dbmsname);
   for (K = 0; K <= KHI; K++) {
     kk                = 2*K+1;
     buff_triplet[K].x = (double)(kk);
@@ -1820,7 +1987,7 @@ void set_fmn(planetspec *planet)
   }
 
   /* Free allocated memory */
-  free_ftriplet(buff_triplet,0,KHI,dbmsname);
+  free_dtriplet(buff_triplet,0,KHI,dbmsname);
 
   return;
 }
@@ -1834,11 +2001,12 @@ void set_fmn(planetspec *planet)
  *
  * NOTE: In this version, gravity does not vary in the vertical dimension.
  *
- * See eqn (41) of Yoder C, 1995, Global Earth Physics: A handbook of physical constants,
- *   http://www.agu.org/reference/gephys/4_yoder.pdf
+ * See eqn (41) of CF Yoder, 1995, Astrometric and Geodetic Properties of Earth
+ * and the Solar System, in Global Earth Physics: A handbook of physical constants,
+ * TJ Ahrens, Ed.
  */
 
-void set_gravity(planetspec *planet)
+void set_gravity(void)
 {
   register int
     K,J,
@@ -2003,9 +2171,9 @@ double get_p_sigma(double pbot,
  * the bottom is kk = 2*KHI+1.
  */
 
-void calc_h(int         jj,
-            EPIC_FLOAT *p,
-            EPIC_FLOAT *h)
+void calc_h(int     jj,
+            double *p,
+            double *h)
 {
   int
     K,kk;
@@ -2043,15 +2211,14 @@ void calc_h(int         jj,
  * Return total or partial gas pressure, depending on the input index.
  */
 
-EPIC_FLOAT get_p(planetspec *planet,
-                 int         index,
-                 int         kk,
-                 int         J,
-                 int         I) 
+double get_p(int index,
+             int kk,
+             int J,
+             int I) 
 {
   register int
     K;
-  register EPIC_FLOAT
+  register double
     pressure;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2084,12 +2251,40 @@ EPIC_FLOAT get_p(planetspec *planet,
      *       p = p(sigmatheta,theta).
      */
     K = kk/2;
-    pressure = onto_kk(planet,P2_INDEX,P3(K-1,J,I),P3(K,J,I),kk,J,I);
     if (index == P2_INDEX || index == P3_INDEX) {
+      pressure = onto_kk(P2_INDEX,P3(K-1,J,I),P3(K,J,I),kk);
+
       return pressure;
     }
-    else if (index >= FIRST_SPECIES && index <= LAST_SPECIES) { 
-      return pressure*.5*(X(index,VAPOR,K,J,I)+X(index,VAPOR,K-1,J,I));
+    else if (index >= FIRST_SPECIES && index <= LAST_SPECIES) {
+      /*
+       * Partial pressure.
+       * See Dowling notes, 7-17-24.
+       */
+      register double
+        sum,pp1,pp3;
+      int
+        is;
+
+      sum = planet->rgas/R_GAS;
+      for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+        if (var.species[is].on) {
+          sum += Q(is,VAPOR,K-1,J,I)/var.species[is].molar_mass;
+        }
+      }
+      pp1 = P3(K-1,J,I)*Q(index,VAPOR,K-1,J,I)/(var.species[index].molar_mass*sum);
+
+      sum = planet->rgas/R_GAS;
+      for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+        if (var.species[is].on) {
+          sum += Q(is,VAPOR,K,J,I)/var.species[is].molar_mass;
+        }
+      }
+      pp3 = P3(K,J,I)*Q(index,VAPOR,K,J,I)/(var.species[index].molar_mass*sum);
+
+      pressure = onto_kk(P2_INDEX,pp1,pp3,kk);
+
+      return pressure;
     }
     else {
       sprintf(Message,"index = %d unknown",index);
@@ -2101,12 +2296,30 @@ EPIC_FLOAT get_p(planetspec *planet,
      * Interface value.
      */
     K = (kk-1)/2;
-    pressure = P3(K,J,I);
     if (index == P2_INDEX || index == P3_INDEX) {
+      pressure = P3(K,J,I);
+
       return pressure;
     }
     else if (index >= FIRST_SPECIES && index <= LAST_SPECIES) {
-      return pressure*X(index,VAPOR,K,J,I); 
+      /*
+       * Partial pressure.
+       * See Dowling notes, 7-17-24.
+       */
+      register double
+        sum;
+      int
+        is;
+
+      sum = planet->rgas/R_GAS;
+      for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+        if (var.species[is].on) {
+          sum += Q(is,VAPOR,K,J,I)/var.species[is].molar_mass;
+        }
+      }
+      pressure = P3(K,J,I)*Q(index,VAPOR,K,J,I)/(var.species[index].molar_mass*sum);
+
+      return pressure;
     }
     else {
       sprintf(Message,"index = %d unknown",index);
@@ -2128,12 +2341,11 @@ EPIC_FLOAT get_p(planetspec *planet,
  * The molar mass for dry air is assumed to be R_GAS/planet->rgas.
  */
 
-EPIC_FLOAT molar_mixing_ratio(planetspec *planet,
-                              int         is,
-                              int         ip,
-                              int         kk,
-                              int         J,
-                              int         I)
+double molar_mixing_ratio(int is,
+                          int ip,
+                          int kk,
+                          int J,
+                          int I)
 {
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2150,8 +2362,7 @@ EPIC_FLOAT molar_mixing_ratio(planetspec *planet,
     return 0.;
   }
 
-  return get_var(planet,is,ip,grid.it_h,kk,J,I)*R_GAS/
-         (planet->rgas*var.species[is].molar_mass);
+  return get_var(is,ip,grid.it_h,kk,J,I)*R_GAS/(planet->rgas*var.species[is].molar_mass);
 }
 
 /*======================= end of molar_mixing_ratio() ========================*/
@@ -2179,17 +2390,16 @@ EPIC_FLOAT molar_mixing_ratio(planetspec *planet,
  *       boundary cases.
  */
 
-EPIC_FLOAT get_var(planetspec *planet,
-                   int         species_index,
-                   int         phase_index,
-                   int         IT,
-                   int         kk,
-                   int         J,
-                   int         I)
+double get_var(int species_index,
+               int phase_index,
+               int IT,
+               int kk,
+               int J,
+               int I)
 {
   int
     K;
-  EPIC_FLOAT
+  double
     x,y,dy,
     xa[3],ya[3];
   /* 
@@ -2311,8 +2521,8 @@ EPIC_FLOAT get_var(planetspec *planet,
       break;
     }
 
-    return onto_kk(planet,species_index,get_var(planet,species_index,phase_index,IT,kk-1,J,I),
-                                        get_var(planet,species_index,phase_index,IT,kk+1,J,I),kk,J,I);
+    return onto_kk(species_index,get_var(species_index,phase_index,IT,kk-1,J,I),
+                                 get_var(species_index,phase_index,IT,kk+1,J,I),kk);
   }
   else {
     /*
@@ -2342,8 +2552,8 @@ EPIC_FLOAT get_var(planetspec *planet,
       break;
     }
 
-    return onto_kk(planet,species_index,get_var(planet,species_index,phase_index,IT,kk-1,J,I),
-                                        get_var(planet,species_index,phase_index,IT,kk+1,J,I),kk,J,I);
+    return onto_kk(species_index,get_var(species_index,phase_index,IT,kk-1,J,I),
+                                 get_var(species_index,phase_index,IT,kk+1,J,I),kk);
   }
 
   /* Should not get here. */
@@ -2362,33 +2572,26 @@ EPIC_FLOAT get_var(planetspec *planet,
  * Aaron Herrnstein, January 2006.
  */
 
-EPIC_FLOAT get_var_mean2d(EPIC_FLOAT *a,
-                          int         index,
-                          int         kk)
+double get_var_mean2d(double *a,
+                      int     index,
+                      int     kk)
 {
   register int
     I,J,jbot,jay;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *da_u,
     *da_v,
      sum_da_u,
      sum_da_v;
-  EPIC_FLOAT
+  double
     *da,
      sum_da,
      var_mean;
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
 #endif
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2400,8 +2603,8 @@ EPIC_FLOAT get_var_mean2d(EPIC_FLOAT *a,
 
   if (!initialized) {
     /* Allocate memory. */
-    da_u = fvector(0,JHI-JLO,  dbmsname);
-    da_v = fvector(0,JHI+1-JLO,dbmsname);
+    da_u = dvector(0,JHI-JLO,  dbmsname);
+    da_v = dvector(0,JHI+1-JLO,dbmsname);
 
     sum_da_u = 0.;
     for (J = JLO; J <= JHI; J++) { 
@@ -2411,7 +2614,7 @@ EPIC_FLOAT get_var_mean2d(EPIC_FLOAT *a,
     sum_da_u *= grid.ni;
 #if defined(EPIC_MPI)
     mpi_tmp = sum_da_u;
-    MPI_Allreduce(&mpi_tmp,&sum_da_u,1,float_type,MPI_SUM,para.comm);
+    MPI_Allreduce(&mpi_tmp,&sum_da_u,1,MPI_DOUBLE,MPI_SUM,para.comm);
 #endif
 
     sum_da_v = 0.;
@@ -2432,7 +2635,7 @@ EPIC_FLOAT get_var_mean2d(EPIC_FLOAT *a,
     sum_da_v *= grid.ni;
 #if defined(EPIC_MPI)
     mpi_tmp = sum_da_v;
-    MPI_Allreduce(&mpi_tmp,&sum_da_v,1,float_type,MPI_SUM,para.comm);
+    MPI_Allreduce(&mpi_tmp,&sum_da_v,1,MPI_DOUBLE,MPI_SUM,para.comm);
 #endif
 
     initialized = TRUE;
@@ -2476,7 +2679,7 @@ EPIC_FLOAT get_var_mean2d(EPIC_FLOAT *a,
 
 #if defined(EPIC_MPI)
   mpi_tmp = var_mean;
-  MPI_Allreduce(&mpi_tmp,&var_mean,1,float_type,MPI_SUM,para.comm);
+  MPI_Allreduce(&mpi_tmp,&var_mean,1,MPI_DOUBLE,MPI_SUM,para.comm);
 #endif
   var_mean /= sum_da;
   
@@ -2506,15 +2709,12 @@ EPIC_FLOAT get_var_mean2d(EPIC_FLOAT *a,
  * lower K and higher K endpoints, respectively.
  */
 
-EPIC_FLOAT onto_kk(planetspec *planet,
-                   int         index,
-                   EPIC_FLOAT  topval,
-                   EPIC_FLOAT  botval,
-                   int         kk,
-                   int         J,
-                   int         I)
+double onto_kk(int    index,
+               double topval,
+               double botval,
+               int    kk)
 {
-  register EPIC_FLOAT
+  register double
     kappap1,
     topwt,botwt;
   /* 
@@ -2533,7 +2733,7 @@ EPIC_FLOAT onto_kk(planetspec *planet,
     epic_error(dbmsname,Message);
   }
   else if (kk > 2*(grid.nk+1)) {
-    sprintf(Message,"kk = %d > 2*nk+1=%d",kk,2*grid.nk+1);
+    sprintf(Message,"index=%d, kk=%d > 2*nk+1=%d",index,kk,2*grid.nk+1);
     epic_error(dbmsname,Message);
   }
 
@@ -2602,9 +2802,6 @@ EPIC_FLOAT onto_kk(planetspec *planet,
       case THETA_INDEX:
       case FPARA_INDEX:
       case W3_INDEX:
-        sprintf(Message,"kk=%d, index=%d defined on interface, use directly",kk,index);
-        epic_error(dbmsname,Message);
-      break;
       case U_INDEX:
         return .5*(botval+topval);
       break;
@@ -2642,9 +2839,9 @@ EPIC_FLOAT onto_kk(planetspec *planet,
 
 /*====================== fpe_minus_fpe() =====================================*/
 
-EPIC_FLOAT fpe_minus_fpe(EPIC_FLOAT fpe)
+double fpe_minus_fpe(double fpe)
 {
-  EPIC_FLOAT
+  double
     p,theta,temp;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2656,7 +2853,7 @@ EPIC_FLOAT fpe_minus_fpe(EPIC_FLOAT fpe)
 
   p     = FPEMFPE_p;
   theta = FPEMFPE_theta;
-  temp  = return_temp(planet,fpe,p,theta);
+  temp  = return_temp(fpe,p,theta);
 
   return fpe-return_fpe(temp);
 }
@@ -2671,23 +2868,22 @@ EPIC_FLOAT fpe_minus_fpe(EPIC_FLOAT fpe)
  * See comments on Hollingsworth-Kallberg non-cancellation instability below.
  */
 
-EPIC_FLOAT get_kin(planetspec *planet,
-                   EPIC_FLOAT *u2d,
-                   EPIC_FLOAT *v2d,
-                   int         kk,
-                   int         J,
-                   int         I)
+double get_kin(double *u2d,
+               double *v2d,
+               int     kk,
+               int     J,
+               int     I)
 {
   register int
     jj;
   static int
     j_periodic  = FALSE,
     initialized = FALSE;
-  register EPIC_FLOAT
+  register double
     kin,kin_c,kin_s,
     u2,u4,v2,v4,
     alpha;
-  static EPIC_FLOAT
+  static double
     *mn_inv;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -2699,7 +2895,7 @@ EPIC_FLOAT get_kin(planetspec *planet,
 
   if (!initialized) {
     /* Allocate memory. */
-    mn_inv = fvector(2*grid.jlo,2*(grid.nj+1),dbmsname);
+    mn_inv = dvector(2*grid.jlo,2*(grid.nj+1),dbmsname);
 
     for (jj = 2*grid.jlo; jj <= 2*(grid.nj+1); jj++) {
       mn_inv[jj] = 1./grid.mn[kk][jj];
@@ -2880,10 +3076,9 @@ EPIC_FLOAT get_kin(planetspec *planet,
 #undef C
 #define C(i,j) c[j+i*(np)]
 
-EPIC_FLOAT get_brunt2(planetspec *planet,
-                      int         kk,
-                      int         J,
-                      int         I)
+double get_brunt2(int kk,
+                  int J,
+                  int I)
 {
   register int
     K,
@@ -2892,11 +3087,11 @@ EPIC_FLOAT get_brunt2(planetspec *planet,
   static int
     np,nhw,
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *c,
     *rho,
     *press;
-  EPIC_FLOAT
+  double
     brunt2,        /* squared Brunt-Vaisala frequency, 1/s^2      */
     mu,            /* molar mass                                  */
     pressure,
@@ -2920,8 +3115,8 @@ EPIC_FLOAT get_brunt2(planetspec *planet,
     dbmsname[]="get_brunt2";
 
   if (!initialized) {
-    rho   = fvector(0,2*KHI+1,dbmsname);
-    press = fvector(0,2*KHI+1,dbmsname);
+    rho   = dvector(0,2*KHI+1,dbmsname);
+    press = dvector(0,2*KHI+1,dbmsname);
 
     /*
      * Set half-width, nhw, for Savitsky-Golay smoothing of Drho_Dp.
@@ -2934,7 +3129,7 @@ EPIC_FLOAT get_brunt2(planetspec *planet,
     nhw = (np-1)/2;
 
     if (np > 3) {
-      c   = fvector(0,np*np-1,dbmsname);
+      c   = dvector(0,np*np-1,dbmsname);
       /*
        * Calculate Savitsky-Golay coefficients for first derivative.
        * NOTE: the second-to-last argument in savitzky_golay() indicates
@@ -2968,23 +3163,23 @@ EPIC_FLOAT get_brunt2(planetspec *planet,
     density     = RHO3(K,J,I);  
   }
   if (var.fpara.on) {
-    fpara = get_var(planet,FPARA_INDEX,NO_PHASE,grid.it_h,kk,J,I);
+    fpara = get_var(FPARA_INDEX,NO_PHASE,grid.it_h,kk,J,I);
   }
   else {
     fpara = return_fpe(temperature);
   }
-  cp    = return_cp(planet,fpara,pressure,temperature);
-  mu    = avg_molar_mass(planet,kk,J,I);
+  cp    = return_cp(fpara,pressure,temperature);
+  mu    = avg_molar_mass(kk,J,I);
 
   deltap = 0.001*pressure;
   deltaT = 0.001*temperature;
 
-  drho_dp_T = (return_density(planet,fpara,pressure+deltap,temperature,mu,PASSING_T) 
-              -return_density(planet,fpara,pressure-deltap,temperature,mu,PASSING_T))/
+  drho_dp_T = (return_density(fpara,pressure+deltap,temperature,mu,PASSING_T) 
+              -return_density(fpara,pressure-deltap,temperature,mu,PASSING_T))/
               (2.*deltap);
 
-  drho_dT_p = (return_density(planet,fpara,pressure,temperature+deltaT,mu,PASSING_T)
-              -return_density(planet,fpara,pressure,temperature-deltaT,mu,PASSING_T))/
+  drho_dT_p = (return_density(fpara,pressure,temperature+deltaT,mu,PASSING_T)
+              -return_density(fpara,pressure,temperature-deltaT,mu,PASSING_T))/
               (2.*deltaT);
 
   /*
@@ -3081,14 +3276,13 @@ EPIC_FLOAT get_brunt2(planetspec *planet,
  */
 #define MAX_RI (1.e+10)
  
-EPIC_FLOAT get_richardson(planetspec *planet,
-                          int         kk,
-                          int         J,
-                          int         I)
+double get_richardson(int kk,
+                      int J,
+                      int I)
 {
   int
     K;
-  EPIC_FLOAT
+  double
     dudz2,
     dvdz2,
     dveldz2;
@@ -3111,13 +3305,13 @@ EPIC_FLOAT get_richardson(planetspec *planet,
     /*
      * Top of model.
      */
-    return get_richardson(planet,kk+1,J,I);
+    return get_richardson(kk+1,J,I);
   }
   else if (kk == 2*grid.nk+1) {
     /*
      * Bottom of model.
      */
-    return get_richardson(planet,kk-1,J,I);
+    return get_richardson(kk-1,J,I);
   }
   else if (kk%2 == 0) {
     /*
@@ -3152,13 +3346,13 @@ EPIC_FLOAT get_richardson(planetspec *planet,
     /*
      * Limit answer to signed MAX_RI value.
      */
-    return LIMIT_RANGE(-MAX_RI,get_brunt2(planet,kk,J,I)/dveldz2,MAX_RI);
+    return LIMIT_RANGE(-MAX_RI,get_brunt2(kk,J,I)/dveldz2,MAX_RI);
   }
   else {
     /*
      * Return signed MAX_RI for Ri = infinity case.
      */
-    return NR_SIGN(MAX_RI,get_brunt2(planet,kk,J,I));
+    return NR_SIGN(MAX_RI,get_brunt2(kk,J,I));
   }
 }
 
@@ -3176,25 +3370,19 @@ EPIC_FLOAT get_richardson(planetspec *planet,
  * NOTE: Currently not using argument Buff2D.
  */
 
-void set_p2_etc(planetspec  *planet,
-                int          theta_switch,
-                EPIC_FLOAT **Buff2D)
+void set_p2_etc(int theta_switch)
 {
   register int
     K,J,I,
-    kk,jj,iq;
-  register EPIC_FLOAT
-    sigma,
+    kk,jj,is,iq;
+  register double
     sum,
     pbot;
-  EPIC_FLOAT
+  double
     tmp,dp,p_diag,
     x,gsg;
   static int
-    initialized   = FALSE,
     theta2_is_set = FALSE;
-  static EPIC_FLOAT
-    *h,*p;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -3202,13 +3390,6 @@ void set_p2_etc(planetspec  *planet,
     idbms=0;
   static char
     dbmsname[]="set_p2_etc";
-
-  if (!initialized) {
-    p = fvector(0,2*grid.nk+1,dbmsname);
-    h = fvector(0,2*grid.nk+1,dbmsname);
-
-    initialized = TRUE;
-  }
 
   switch(grid.coord_type) {
     case COORD_ISOBARIC:
@@ -3219,7 +3400,7 @@ void set_p2_etc(planetspec  *planet,
       /*
        * Ensure nonnegative H.
        */
-      restore_mass(planet,H_INDEX,NO_PHASE);
+      restore_mass(H_INDEX,NO_PHASE);
     break;
     default:
       sprintf(Message,"grid.coord_type=%d not yet implemented",grid.coord_type);
@@ -3261,7 +3442,7 @@ void set_p2_etc(planetspec  *planet,
         /*
          * P2 depends on P3.
          */
-        P2(K,J,I) = get_p(planet,P2_INDEX,kk,J,I);
+        P2(K,J,I) = get_p(P2_INDEX,kk,J,I);
       }
 
       /*
@@ -3275,16 +3456,17 @@ void set_p2_etc(planetspec  *planet,
 
       /*
        * Calculate H3 from H.
-       *
-       * NOTE: If this algorithm is changed, it should also be changed in advection().
        */
       for (K = KLO; K < KHI; K++) {
         H3(K,J,I) = sqrt(H(K,J,I)*H(K+1,J,I));
       }
+
       K = KLO-1;
       H3(K,J,I) = SQR(H(K+1,J,I))/H3(K+1,J,I);
+
       K = KHI;
       H3(K,J,I) = SQR(H(K,J,I))/H3(K-1,J,I);
+
       K = KHI+1;
       H3(K,J,I) = SQR(H3(K-1,J,I))/H3(K-2,J,I);
     }
@@ -3299,10 +3481,11 @@ void set_p2_etc(planetspec  *planet,
      * NOTE: The grid.coord == COORD_ISOBARIC case with grid.nq > 0 needs to calculate PDRY3, too,
      *       since P3 is the coordinate but PDRY3 is not. 
      */
-    for (K = KLO-1; K <= KHI; K++) {
-      kk = 2*K+1;
-      for (J = JLOPAD; J <= JHIPAD; J++) {
-        for (I = ILOPAD; I <= IHIPAD; I++) {
+    for (J = JLOPAD; J <= JHIPAD; J++) {
+      for (I = ILOPAD; I <= IHIPAD; I++) {
+        for (K = KLO; K <= KHI; K++) {
+          kk = 2*K+1;
+
           sum = 1.;
           for (iq = 0; iq < grid.nq; iq++) {
             sum += Q(grid.is[iq],grid.ip[iq],K,J,I);
@@ -3310,10 +3493,20 @@ void set_p2_etc(planetspec  *planet,
           HDRY3(K,J,I) = H3(K,J,I)/sum;
 
           PDRY3(K,J,I) = P3(K,J,I);
-          for (iq = 0; iq < grid.nq; iq++) {
-            PDRY3(K,J,I) -= get_p(planet,grid.is[iq],kk,J,I);
+          for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+            if (var.species[is].on) {
+              PDRY3(K,J,I) -= get_p(is,kk,J,I);
+            }
           }
         }
+
+        K = KLO-1;
+        HDRY3(K,J,I) = SQR(HDRY3(K+1,J,I))/HDRY3(K+2,J,I);
+        PDRY3(K,J,I) = SQR(PDRY3(K+1,J,I))/PDRY3(K+2,J,I);
+
+        K = KHI+1;
+        HDRY3(K,J,I) = SQR(HDRY3(K-1,J,I))/HDRY3(K-2,J,I);
+        PDRY3(K,J,I) = SQR(PDRY3(K-1,J,I))/PDRY3(K-2,J,I);
       }
     }
 
@@ -3325,10 +3518,9 @@ void set_p2_etc(planetspec  *planet,
         for (K = KLO; K <= KHI; K++) {
           HDRY2(K,J,I) = sqrt(HDRY3(K,J,I)*HDRY3(K-1,J,I));
         }
+
         K = KLO-1;
         HDRY2(K,J,I) = SQR(HDRY3(K,J,I))/HDRY2(K+1,J,I);
-        K = KHI+1;
-        HDRY2(K,J,I) = SQR(HDRY3(K-1,J,I))/HDRY2(K-1,J,I);
       }
     }
   }
@@ -3342,9 +3534,11 @@ void set_p2_etc(planetspec  *planet,
         for (I = ILOPAD; I <= IHIPAD; I++) {
           K = KLO-1;
           THETA2(K,J,I) = THETA(K,J,I);
-          for (K = KLO; K <= KHI+1; K++) {
+          for (K = KLO; K <= KHI; K++) {
             THETA2(K,J,I) = .5*(THETA(K,J,I)+THETA(K-1,J,I));
           }
+          /* Assume constant THETA in the abyssal layer */
+          THETA2(KHI+1,J,I) = THETA(KHI+1,J,I);
         }
       }
       /* No need to apply bc_lateral() here. */
@@ -3387,56 +3581,45 @@ void set_p2_etc(planetspec  *planet,
  * NOTE: This function must be called from all nodes.
  */
 
-void store_pgrad_vars(planetspec  *planet,
-                      EPIC_FLOAT **Buff2D,
-                      int          action,
-                      int          phi3nk_status) 
+void store_pgrad_vars(int action,
+                      int phi3nk_status) 
 {
   register int
     K,J,I;
   int
     K0,J0,I0,
     kstart,kend,klen,
-    is,ip,
+    is,ip,i,
     kk,kay,nkay,
     jj,order;
-  register EPIC_FLOAT
+  register double
     theta,
     fpara,
     pressure,
     temperature,
     enthalpy,
     mu,g_inv,
-    avg,pbot,sigma,
+    avg,pbot,
     dt_inv,
     phi,sgth,
     z0,z1,z2,
     dtheta,mont3,mont0,phi0,
     small = 1.e-6;
   double
-    nu;
-  EPIC_FLOAT
     fgibb,fpe,uoup,
     fptol,
-    dsgth,dz,tmp,g0_inv,
-    nu_nondim,
-    interval;
+    dsgth,dz,tmp,
+    interval,
+    dry_molar_mass;
   static int
     initialized = FALSE;
-  static EPIC_FLOAT
+  static double
     *u1d,*phi1d,*mont1d,*a;
-  float_triplet
+  double_triplet
     table[KHI-KLO+2];
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
 #endif
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -3448,7 +3631,7 @@ void store_pgrad_vars(planetspec  *planet,
 
   if (!initialized) {
     /* Allocate memory */
-    a = fvector(0,KHI,dbmsname);
+    a       = dvector(0,KHI,      dbmsname);
 
     if (strcmp(planet->type,"gas-giant") == 0) {
       /*
@@ -3457,7 +3640,7 @@ void store_pgrad_vars(planetspec  *planet,
        */
 
       /* Allocate memory */
-      u1d = fvector(0,JADIM-1,dbmsname);
+      u1d = dvector(0,JADIM-1,dbmsname);
 
       for (J = JLOPAD; J <= JHIPAD; J++) {
         /*
@@ -3470,7 +3653,7 @@ void store_pgrad_vars(planetspec  *planet,
 
 #if defined(EPIC_MPI)
         mpi_tmp = U1D(J);
-        MPI_Allreduce(&mpi_tmp,&U1D(J),1,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(&mpi_tmp,&U1D(J),1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
         U1D(J) /= grid.ni;
@@ -3486,17 +3669,18 @@ void store_pgrad_vars(planetspec  *planet,
 
       /* Allocate memory */
       if (grid.coord_type == COORD_ISENTROPIC) {
-        mont1d = fvector(0,JADIM-1,dbmsname);
+        mont1d = dvector(0,JADIM-1,dbmsname);
         K      = KHI;
         mont0  = phi0+planet->cp*grid.t_ref[2*K+1];
-        mont_from_u(planet,2*KHI+1,u1d,mont1d,grid.jtp,mont0);
+        mont_from_u(2*KHI+1,u1d,mont1d,grid.jtp,mont0);
       }
       else {
         /*
-         * NOTE: Need to fix phi0 such that Z = 0 is close to p = 1000 hPa.
+         * NOTE: Should set phi0 such that Z = 0 is close to p = 1000 hPa for planets
+         *       with pbot >= 1000 hPa.
          */
-        phi1d = fvector(0,JADIM-1,dbmsname);
-        phi_from_u(planet,2*KHI+1,u1d,phi1d,grid.jtp,0.);
+        phi1d = dvector(0,JADIM-1,dbmsname);
+        phi_from_u(2*KHI+1,u1d,phi1d,grid.jtp,0.);
       }
     }
 
@@ -3521,9 +3705,10 @@ void store_pgrad_vars(planetspec  *planet,
   /*
    * Calculate T3, EXNER3, RHO3.
    *
-   * Global variable used to communicate with fpe_minus_fpe():
+   * NOTE: The Exner functions should be defined in terms of a reference c_p, not c_p(T).
+   *       This is how entropy and potential temperature are connected, see for example
+   *       Appendix A in Dowling et al. (1998), eqns (A.9)-(A.11). 
    */
-  FPEMFPE_planet = planet;
 
   fptol = pow(machine_epsilon(),2./3.);
 
@@ -3537,10 +3722,10 @@ void store_pgrad_vars(planetspec  *planet,
 
           fpara         = FPARA(K,J,I);
 
-          T3(K,J,I)     = temperature = return_temp(planet,fpara,pressure,theta);
+          T3(K,J,I)     = temperature = return_temp(fpara,pressure,theta);
           EXNER3(K,J,I) = planet->cp*temperature/theta;
-          mu            = avg_molar_mass(planet,kk,J,I);
-          RHO3(K,J,I)   = return_density(planet,fpara,pressure,temperature,mu,PASSING_T);
+          mu            = avg_molar_mass(kk,J,I);
+          RHO3(K,J,I)   = return_density(fpara,pressure,temperature,mu,PASSING_T);
         }
       }
       /* No need to apply bc_lateral() here. */
@@ -3564,10 +3749,10 @@ void store_pgrad_vars(planetspec  *planet,
           find_root(0.25,1.00,fptol,&fpe,fpe_minus_fpe);
           fpara = fpe;
 
-          T3(K,J,I)     = temperature = return_temp(planet,fpara,pressure,theta);
+          T3(K,J,I)     = temperature = return_temp(fpara,pressure,theta);
           EXNER3(K,J,I) = planet->cp*temperature/theta;
-          mu            = avg_molar_mass(planet,kk,J,I);
-          RHO3(K,J,I)   = return_density(planet,fpara,pressure,temperature,mu,PASSING_T);
+          mu            = avg_molar_mass(kk,J,I);
+          RHO3(K,J,I)   = return_density(fpara,pressure,temperature,mu,PASSING_T);
         }
       }
       /* No need to apply bc_lateral() here. */
@@ -3585,14 +3770,14 @@ void store_pgrad_vars(planetspec  *planet,
           theta         = THETA2(K,J,I); 
           pressure      = P2(K,J,I);
 
-          fpara         = get_var(planet,FPARA_INDEX,NO_PHASE,grid.it_h,kk,J,I); 
+          fpara         = get_var(FPARA_INDEX,NO_PHASE,grid.it_h,kk,J,I);
 
-          T2(K,J,I)     = temperature = return_temp(planet,fpara,pressure,theta);
+          T2(K,J,I)     = temperature = return_temp(fpara,pressure,theta);
           EXNER2(K,J,I) = planet->cp*temperature/theta;
-          mu            = avg_molar_mass(planet,kk,J,I);
-          RHO2(K,J,I)   = return_density(planet,fpara,pressure,temperature,mu,PASSING_T);
+          mu            = avg_molar_mass(kk,J,I);
+          RHO2(K,J,I)   = return_density(fpara,pressure,temperature,mu,PASSING_T);
 
-          return_enthalpy(planet,fpara,pressure,temperature,&fgibb,&fpe,&uoup);
+          return_enthalpy(fpara,pressure,temperature,&fgibb,&fpe,&uoup);
           FGIBB2(K,J,I) = fgibb;
         }
       }
@@ -3617,10 +3802,10 @@ void store_pgrad_vars(planetspec  *planet,
           find_root(0.25,1.00,fptol,&fpe,fpe_minus_fpe);
           fpara = fpe;
 
-          T2(K,J,I)     = temperature = return_temp(planet,fpara,pressure,theta);
+          T2(K,J,I)     = temperature = return_temp(fpara,pressure,theta);
           EXNER2(K,J,I) = planet->cp*temperature/theta;
-          mu            = avg_molar_mass(planet,kk,J,I);
-          RHO2(K,J,I)   = return_density(planet,fpara,pressure,temperature,mu,PASSING_T);
+          mu            = avg_molar_mass(kk,J,I);
+          RHO2(K,J,I)   = return_density(fpara,pressure,temperature,mu,PASSING_T);
         }
       }
       /* No need to apply bc_lateral() here. */
@@ -3644,13 +3829,11 @@ void store_pgrad_vars(planetspec  *planet,
    * Calculate the geopotentials, PHI3 and PHI2, the Montgomery potential, MONT2,
    * and geopotential heights, Z3 and Z2.
    *
-   * NOTE: There is no map factor in the hydrostatic integration. For a good
-   *       reference on this subtle issue, see 
+   * NOTE: There is no map factor in the hydrostatic integration.
+   *       For a good reference on this subtle issue, see: 
    *  Ambaum MHP, 2008, General relationships between pressure, weight and mass of a hydrostatic fluid,
    *    Proc. R. Soc. A, 464 no. 2092, 943--950, doi:10.1098/rspa.2007.0148.
    */
-
-  g0_inv = 1./grid.g[2*KHI+1][2*(grid.nj/2)+1];
 
   /*
    * Integrate hydrostatic balance to get MONT2, PHI3 and PHI2.
@@ -3673,7 +3856,7 @@ void store_pgrad_vars(planetspec  *planet,
       if (grid.coord_type == COORD_ISENTROPIC) {
         for (J = JLOPAD; J <= JHIPAD; J++) {
           for (I = ILOPAD; I <= IHIPAD; I++) {
-            fpara       = get_var(planet,FPARA_INDEX,NO_PHASE,grid.it_h,2*K+1,J,I);
+            fpara       = get_var(FPARA_INDEX,NO_PHASE,grid.it_h,2*K+1,J,I);
             PHI3(K,J,I) = MONT1D(J)-planet->cp*T3(K,J,I);
           }
         }
@@ -3707,64 +3890,29 @@ void store_pgrad_vars(planetspec  *planet,
     epic_error(dbmsname,Message);
   }
 
+  dry_molar_mass = R_GAS/planet->rgas;
+
   switch(grid.coord_type) {
     case COORD_ISENTROPIC:
-      for (J = JLOPAD; J <= JHIPAD; J++) {
-        for (I = ILOPAD; I <= IHIPAD; I++) {
-          for (K = KHI; K >= KLO; K--) {
-            /*
-             * See Konor and Arakawa (1997), eqn. (3.3), and the accompanying discussion.
-             */
-            PHI3(K-1,J,I) = PHI3(K,J,I)+(EXNER2(K,J,I)-EXNER3(K-1,J,I))*THETA(K-1,J,I)
-                                       +(EXNER3(K,J,I)-EXNER2(K,  J,I))*THETA(K,  J,I);
-
-            PHI2(K,J,I) = PHI3(K-1,J,I)-(EXNER2(K,J,I)-EXNER3(K-1,J,I))*THETA(K-1,J,I);
-          }
-          /* 
-           * Do a linear extension above the model for PHI2.
-           */
-          PHI2(KLO-1,J,I) = 2.*PHI3(KLO-1,J,I)-PHI2(KLO,J,I);
-        }
-      }
-    break;
-
+    case COORD_HYBRID:
     case COORD_ISOBARIC:
       for (J = JLOPAD; J <= JHIPAD; J++) {
         for (I = ILOPAD; I <= IHIPAD; I++) {
           for (K = KHI; K >= KLO; K--) {
+            kk = 2*K+1;
             /*
-             * Avoid a computational mode by using centered differencing.
              * See Konor and Arakawa (1997), eqn. (3.3), and the accompanying discussion.
              *
-             * NOTE: Versions of hydrostatic balance that explicitly contain the density tend to not
-             *       behave as well as the version dphi/dexner = -theta.
+             * NOTE: Virtual potential temperature, THETA_V = THETA*(dry molar mass)/(avg. molar mass), is needed
+             *       when there are condensables.
              */
-            PHI3(K-1,J,I) = PHI3(K,J,I)+(EXNER3(K,J,I)-EXNER3(K-1,J,I))*THETA2(K,J,I);
-
+            PHI3(K-1,J,I) = PHI3(K,J,I)+(EXNER2(K,J,I)-EXNER3(K-1,J,I))*THETA(K-1,J,I)*dry_molar_mass/avg_molar_mass(kk-2,J,I)
+                                       +(EXNER3(K,J,I)-EXNER2(K,  J,I))*THETA(K,  J,I)*dry_molar_mass/avg_molar_mass(kk,  J,I);
             /*
-             * Use the same equation as in the COORD_HYBRID case.
+             * NOTE: Using the arithmetic average for PHI2 works better than using one or the other of
+             *       the two terms in the PHI3 integration above.
              */
-            PHI2(K,J,I) = PHI3(K-1,J,I)-(EXNER2(K,J,I)-EXNER3(K-1,J,I))*THETA(K-1,J,I);
-          }
-          /* 
-           * Do a linear extension above the model for PHI2.
-           */
-          PHI2(KLO-1,J,I) = 2.*PHI3(KLO-1,J,I)-PHI2(KLO,J,I);
-        }
-      }
-    break;
-
-    case COORD_HYBRID:
-      for (J = JLOPAD; J <= JHIPAD; J++) {
-        for (I = ILOPAD; I <= IHIPAD; I++) {
-          for (K = KHI; K >= KLO; K--) {
-            /*
-             * See Konor and Arakawa (1997), eqn. (3.3), and the accompanying discussion.
-             */
-            PHI3(K-1,J,I) = PHI3(K,J,I)+(EXNER2(K,J,I)-EXNER3(K-1,J,I))*THETA(K-1,J,I)
-                                       +(EXNER3(K,J,I)-EXNER2(K,  J,I))*THETA(K,  J,I);
-
-            PHI2(K,J,I) = PHI3(K-1,J,I)-(EXNER2(K,J,I)-EXNER3(K-1,J,I))*THETA(K-1,J,I);
+            PHI2(K,J,I) = .5*(PHI3(K,J,I)+PHI3(K-1,J,I));
           }
           /* 
            * Do a linear extension above the model for PHI2.
@@ -3786,12 +3934,12 @@ void store_pgrad_vars(planetspec  *planet,
   for (J = JLOPAD; J <= JHIPAD; J++) {
     for (I = ILOPAD; I <= IHIPAD; I++) {
       for (K = KLO-1; K <= KHI; K++) {
-        fpara        = get_var(planet,FPARA_INDEX,NO_PHASE,grid.it_h,2*K,J,I);
+        fpara        = get_var(FPARA_INDEX,NO_PHASE,grid.it_h,2*K,J,I);
         MONT2(K,J,I) = PHI2(K,J,I)+planet->cp*T2(K,J,I);
       }
       for (K = KLOPAD; K <= KHIPAD; K++) {
-        Z2(K,J,I) = PHI2(K,J,I)*g0_inv;
-        Z3(K,J,I) = PHI3(K,J,I)*g0_inv;
+        Z2(K,J,I) = PHI2(K,J,I)/planet->g0;
+        Z3(K,J,I) = PHI3(K,J,I)/planet->g0;
       }
     }
   }
@@ -3833,13 +3981,13 @@ void store_pgrad_vars(planetspec  *planet,
  * NOTE: This function must be called from all nodes.
  */
 
-void store_diag(planetspec *planet) 
+void store_diag(void) 
 {
   register int
     K,J,I,
     kk,
     shift;
-  EPIC_FLOAT
+  double
    *div;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -3887,15 +4035,15 @@ void store_diag(planetspec *planet)
 
   /*
    * Calculate Richardson number array.
-   * If not finite, set to FLOAT_MAX.
+   * If not finite, set to DBL_MAX.
    */
   for (J = JLO; J <= JHI; J++) {
     for (I = ILO; I <= IHI; I++) {
       for (K = KLO; K <= KHI; K++) {
         kk         = 2*K;
-        RI2(K,J,I) = get_richardson(planet,kk,J,I);
+        RI2(K,J,I) = get_richardson(kk,J,I);
         if (!isfinite(RI2(K,J,I))) {
-          RI2(K,J,I) = FLOAT_MAX;
+          RI2(K,J,I) = DBL_MAX;
         }
       }   
     }
@@ -3908,7 +4056,7 @@ void store_diag(planetspec *planet)
    */
   if (strcmp(grid.turbulence_scheme,"on")               == 0 ||
       strcmp(grid.turbulence_scheme,"on_vertical_only") == 0)  {
-    set_diffusion_coef(planet);
+    set_diffusion_coef();
   }
   else if (strcmp(grid.turbulence_scheme,"off") == 0) {
     ;
@@ -3930,15 +4078,15 @@ void store_diag(planetspec *planet)
  * UU, VV, and DI, are assumed to be 2D arrays on the staggered C grid.
  */
 
-void divergence(int         kk,
-                EPIC_FLOAT *uu,
-                EPIC_FLOAT *vv,
-                EPIC_FLOAT *di)
+void divergence(int     kk,
+                double *uu,
+                double *vv,
+                double *di)
 {
   int
     J,I,
     jj;
-  EPIC_FLOAT
+  double
     m_2j_inv,m_2jp2_inv,
     n_2jp1,n_2jp1_inv,
     mn_2jp1;
@@ -3997,34 +4145,27 @@ void divergence(int         kk,
  *       We may wish to implement ON_THETA in the future.
  */
 
-void vorticity(int         surface_type,
-               int         type,
-               int         kk,
-               EPIC_FLOAT *uu,
-               EPIC_FLOAT *vv,
-               EPIC_FLOAT *hh,
-               EPIC_FLOAT *pv2d)
+void vorticity(int     surface_type,
+               int     type,
+               int     kk,
+               double *uu,
+               double *vv,
+               double *hh,
+               double *pv2d)
 {
   register int
     J,I;
-  register EPIC_FLOAT
+  register double
     f_2j,m_2j,n_2j,mn_pv,
     m_2jm1_inv,m_2jp1_inv,
     mn_2jm1_inv,mn_2jp1_inv,
     pv_pole,pvbot,pvtop;
-  EPIC_FLOAT
+  double
     ze,zetabot,zetatop,
     h_pv;
 #if defined(EPIC_MPI)
-  EPIC_FLOAT
+  double
     mpi_tmp;
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
 #endif
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -4104,7 +4245,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
       mpi_tmp = zetabot;
-      MPI_Allreduce(&mpi_tmp,&zetabot,1,float_type,MPI_SUM,para.comm_JLO);
+      MPI_Allreduce(&mpi_tmp,&zetabot,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
       zetabot /= grid.ni;
@@ -4124,7 +4265,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
         mpi_tmp = h_pv;
-        MPI_Allreduce(&mpi_tmp,&h_pv,1,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(&mpi_tmp,&h_pv,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
         h_pv  /= grid.ni;
@@ -4151,10 +4292,10 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
       mpi_tmp = ze;
-      MPI_Allreduce(&mpi_tmp,&ze,1,float_type,MPI_SUM,para.comm_JLO);
+      MPI_Allreduce(&mpi_tmp,&ze,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
-      ze *= grid.mn[kk][2*(J+1)]/(grid.m[kk][2*J+1]*(EPIC_FLOAT)grid.ni);
+      ze *= grid.mn[kk][2*(J+1)]/(grid.m[kk][2*J+1]*(double)grid.ni);
 
       if (type == RELATIVE) {
         pv_pole = ze;
@@ -4170,7 +4311,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
         mpi_tmp = h_pv;
-        MPI_Allreduce(&mpi_tmp,&h_pv,1,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(&mpi_tmp,&h_pv,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
         h_pv    /= grid.ni;
@@ -4200,10 +4341,10 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
         mpi_tmp = ze;
-        MPI_Allreduce(&mpi_tmp,&ze,1,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(&mpi_tmp,&ze,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
-        ze *= grid.mn[kk][0]/((grid.m[kk][1])*(EPIC_FLOAT)grid.ni); 
+        ze *= grid.mn[kk][0]/((grid.m[kk][1])*(double)grid.ni); 
 
         if (type == RELATIVE) {
           pv_pole = ze;
@@ -4219,7 +4360,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
           mpi_tmp = h_pv;
-          MPI_Allreduce(&mpi_tmp,&h_pv,1,float_type,MPI_SUM,para.comm_JLO);
+          MPI_Allreduce(&mpi_tmp,&h_pv,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
           h_pv    /= grid.ni;
@@ -4261,7 +4402,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
           mpi_tmp = zetabot;
-          MPI_Allreduce(&mpi_tmp,&zetabot,1,float_type,MPI_SUM,para.comm_JLO);
+          MPI_Allreduce(&mpi_tmp,&zetabot,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
           zetabot /= grid.ni;
@@ -4282,7 +4423,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
             mpi_tmp = h_pv;
-            MPI_Allreduce(&mpi_tmp,&h_pv,1,float_type,MPI_SUM,para.comm_JLO);
+            MPI_Allreduce(&mpi_tmp,&h_pv,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
             h_pv  /= grid.ni;
@@ -4313,10 +4454,10 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
         mpi_tmp = ze;
-        MPI_Allreduce(&mpi_tmp,&ze,1,float_type,MPI_SUM,para.comm_JLO);
+        MPI_Allreduce(&mpi_tmp,&ze,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
-        ze *= grid.mn[kk][2*(J+1)]/(grid.m[kk][2*J+1]*(EPIC_FLOAT)grid.ni);
+        ze *= grid.mn[kk][2*(J+1)]/(grid.m[kk][2*J+1]*(double)grid.ni);
 
         if (type == RELATIVE) {
           pv_pole = ze;
@@ -4332,7 +4473,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
           mpi_tmp = h_pv;
-          MPI_Allreduce(&mpi_tmp,&h_pv,1,float_type,MPI_SUM,para.comm_JLO);
+          MPI_Allreduce(&mpi_tmp,&h_pv,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
           h_pv    /= grid.ni;
@@ -4376,7 +4517,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
           mpi_tmp = zetatop;
-          MPI_Allreduce(&mpi_tmp,&zetatop,1,float_type,MPI_SUM,para.comm_JLO);
+          MPI_Allreduce(&mpi_tmp,&zetatop,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
           zetatop /= grid.ni;
@@ -4397,7 +4538,7 @@ void vorticity(int         surface_type,
 
 #if defined(EPIC_MPI)
             mpi_tmp = h_pv;
-            MPI_Allreduce(&mpi_tmp,&h_pv,1,float_type,MPI_SUM,para.comm_JLO);
+            MPI_Allreduce(&mpi_tmp,&h_pv,1,MPI_DOUBLE,MPI_SUM,para.comm_JLO);
 #endif
 
             h_pv  /= grid.ni;
@@ -4439,22 +4580,21 @@ void vorticity(int         surface_type,
  */
 #include <epic_pv_schemes.h>
 
-void phi_from_u(planetspec *planet,
-                int         kk,
-                EPIC_FLOAT *u1d,
-                EPIC_FLOAT *phi1d,
-                int         j0,
-                EPIC_FLOAT  phi0)
+void phi_from_u(int     kk,
+                double *u1d,
+                double *phi1d,
+                int     j0,
+                double  phi0)
 {
   register int
     K,J,I;
-  EPIC_FLOAT
+  double
     kin,kin0;
-  register EPIC_FLOAT
+  register double
     uu;
   static int
     initialized=FALSE;
-  static EPIC_FLOAT
+  static double
     *u2d,
     *v2d,
     *phi2d,
@@ -4462,15 +4602,6 @@ void phi_from_u(planetspec *planet,
     *pvhudy,
     *bern,
     *sendbuf;
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -4489,13 +4620,13 @@ void phi_from_u(planetspec *planet,
     }
 
     /* Allocate memory. */
-    udy     = fvector(0,grid.nj+1,dbmsname);
-    pvhudy  = fvector(0,grid.nj+1,dbmsname);
-    bern    = fvector(0,grid.nj+1,dbmsname);
-    sendbuf = fvector(0,grid.nj+1,dbmsname);
-    u2d     = fvector(0,Nelem2d-1,dbmsname);
-    v2d     = fvector(0,Nelem2d-1,dbmsname);
-    phi2d   = fvector(0,Nelem2d-1,dbmsname);
+    udy     = dvector(0,grid.nj+1,dbmsname);
+    pvhudy  = dvector(0,grid.nj+1,dbmsname);
+    bern    = dvector(0,grid.nj+1,dbmsname);
+    sendbuf = dvector(0,grid.nj+1,dbmsname);
+    u2d     = dvector(0,Nelem2d-1,dbmsname);
+    v2d     = dvector(0,Nelem2d-1,dbmsname);
+    phi2d   = dvector(0,Nelem2d-1,dbmsname);
 
     initialized = TRUE;
   }
@@ -4523,13 +4654,13 @@ void phi_from_u(planetspec *planet,
   kin0 = 0.;
   if (ILO == grid.ilo) {
     if (j0 >= JLO && j0 <= JHI) {
-      kin0 = get_kin(planet,u2d,v2d,kk,j0,grid.ilo);
+      kin0 = get_kin(u2d,v2d,kk,j0,grid.ilo);
     }
 
     /*
      * Calculate udy.
      */
-    memset(udy,0,(grid.nj+2)*sizeof(EPIC_FLOAT));
+    memset(udy,0,(grid.nj+2)*sizeof(double));
     for (J = JLOPAD; J <= JHI; J++) {
       udy[J] = U1D(J)/grid.n[kk][2*J+1];
     }
@@ -4537,7 +4668,7 @@ void phi_from_u(planetspec *planet,
     /*
      * Calculate (zeta+f)*u*dy = pvhudy.
      */
-    memset(pvhudy,0,(grid.nj+2)*sizeof(EPIC_FLOAT));
+    memset(pvhudy,0,(grid.nj+2)*sizeof(double));
     I = grid.ilo;
     for (J = JFIRST; J <= JHI; J++) {
       /* 
@@ -4556,13 +4687,13 @@ void phi_from_u(planetspec *planet,
    * Broadcast kin0, which is the value at J=j0, I=grid.ilo.
    */
   sendbuf[0] = kin0;
-  MPI_Allreduce(sendbuf,&kin0,1,float_type,MPI_SUM,para.comm);
+  MPI_Allreduce(sendbuf,&kin0,1,MPI_DOUBLE,MPI_SUM,para.comm);
 
   /*
    *  Fill in pvhudy for each node:
    */ 
-  memcpy(sendbuf,pvhudy,(grid.nj+2)*sizeof(EPIC_FLOAT));
-  MPI_Allreduce(sendbuf,pvhudy,grid.nj+2,float_type,MPI_SUM,para.comm);
+  memcpy(sendbuf,pvhudy,(grid.nj+2)*sizeof(double));
+  MPI_Allreduce(sendbuf,pvhudy,grid.nj+2,MPI_DOUBLE,MPI_SUM,para.comm);
 #endif
 
   /*
@@ -4584,7 +4715,7 @@ void phi_from_u(planetspec *planet,
    * Store in PHI2D, so that bc_lateral() may be applied.
    */
   for (J = JLO; J <= JHI; J++) {
-    kin          = get_kin(planet,u2d,v2d,kk,J,ILO);
+    kin          = get_kin(u2d,v2d,kk,J,ILO);
     PHI2D(J,ILO) = bern[J]-kin;
   }
   /* Need to apply bc_lateral() here. */
@@ -4611,22 +4742,21 @@ void phi_from_u(planetspec *planet,
  */
 #include <epic_pv_schemes.h>
 
-void mont_from_u(planetspec *planet,
-                 int         kk,
-                 EPIC_FLOAT *u1d,
-                 EPIC_FLOAT *mont1d,
-                 int         j0,
-                 EPIC_FLOAT  mont0)
+void mont_from_u(int     kk,
+                 double *u1d,
+                 double *mont1d,
+                 int     j0,
+                 double  mont0)
 {
   register int
     K,J,I;
-  EPIC_FLOAT
+  double
     kin,kin0;
-  register EPIC_FLOAT
+  register double
     uu;
   static int
     initialized=FALSE;
-  static EPIC_FLOAT
+  static double
     *u2d,
     *v2d,
     *mont2d,
@@ -4634,15 +4764,6 @@ void mont_from_u(planetspec *planet,
     *pvhudy,
     *bern,
     *sendbuf;
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -4661,13 +4782,13 @@ void mont_from_u(planetspec *planet,
     }
 
     /* Allocate memory. */
-    udy      = fvector(0,grid.nj+1,dbmsname);
-    pvhudy   = fvector(0,grid.nj+1,dbmsname);
-    bern     = fvector(0,grid.nj+1,dbmsname);
-    sendbuf  = fvector(0,grid.nj+1,dbmsname);
-    u2d      = fvector(0,Nelem2d-1,dbmsname);
-    v2d      = fvector(0,Nelem2d-1,dbmsname);
-    mont2d   = fvector(0,Nelem2d-1,dbmsname);
+    udy      = dvector(0,grid.nj+1,dbmsname);
+    pvhudy   = dvector(0,grid.nj+1,dbmsname);
+    bern     = dvector(0,grid.nj+1,dbmsname);
+    sendbuf  = dvector(0,grid.nj+1,dbmsname);
+    u2d      = dvector(0,Nelem2d-1,dbmsname);
+    v2d      = dvector(0,Nelem2d-1,dbmsname);
+    mont2d   = dvector(0,Nelem2d-1,dbmsname);
 
     initialized = TRUE;
   }
@@ -4695,13 +4816,13 @@ void mont_from_u(planetspec *planet,
   kin0 = 0.;
   if (ILO == grid.ilo) {
     if (j0 >= JLO && j0 <= JHI) {
-      kin0 = get_kin(planet,u2d,v2d,kk,j0,grid.ilo);
+      kin0 = get_kin(u2d,v2d,kk,j0,grid.ilo);
     }
 
     /*
      * Calculate udy.
      */
-    memset(udy,0,(grid.nj+2)*sizeof(EPIC_FLOAT));
+    memset(udy,0,(grid.nj+2)*sizeof(double));
     for (J = JLOPAD; J <= JHI; J++) {
       udy[J] = U1D(J)/grid.n[kk][2*J+1];
     }
@@ -4709,7 +4830,7 @@ void mont_from_u(planetspec *planet,
     /*
      * Calculate (zeta+f)*u*dy = pvhudy.
      */
-    memset(pvhudy,0,(grid.nj+2)*sizeof(EPIC_FLOAT));
+    memset(pvhudy,0,(grid.nj+2)*sizeof(double));
     I = grid.ilo;
     for (J = JFIRST; J <= JHI; J++) {
       /* 
@@ -4728,13 +4849,13 @@ void mont_from_u(planetspec *planet,
    * Broadcast kin0, which is the value at J=j0, I=grid.ilo.
    */
   sendbuf[0] = kin0;
-  MPI_Allreduce(sendbuf,&kin0,1,float_type,MPI_SUM,para.comm);
+  MPI_Allreduce(sendbuf,&kin0,1,MPI_DOUBLE,MPI_SUM,para.comm);
 
   /*
    *  Fill in pvhudy for each node:
    */ 
-  memcpy(sendbuf,pvhudy,(grid.nj+2)*sizeof(EPIC_FLOAT));
-  MPI_Allreduce(sendbuf,pvhudy,grid.nj+2,float_type,MPI_SUM,para.comm);
+  memcpy(sendbuf,pvhudy,(grid.nj+2)*sizeof(double));
+  MPI_Allreduce(sendbuf,pvhudy,grid.nj+2,MPI_DOUBLE,MPI_SUM,para.comm);
 #endif
 
   /*
@@ -4756,7 +4877,7 @@ void mont_from_u(planetspec *planet,
    * Store in MONT2D, so that bc_lateral() may be applied.
    */
   for (J = JLO; J <= JHI; J++) {
-    kin           = get_kin(planet,u2d,v2d,kk,J,ILO);
+    kin           = get_kin(u2d,v2d,kk,J,ILO);
     MONT2D(J,ILO) = bern[J]-kin;
   }
   /* Need to apply bc_lateral() here. */
@@ -4782,14 +4903,13 @@ void mont_from_u(planetspec *planet,
  * We use the WMO definition because microphysical equations are usually
  * written in terms of mixing ratio rather than partial pressure. 
  */
-void relative_humidity(planetspec *planet,
-                       int         is,
-                       EPIC_FLOAT *rh,
-                       int         K)
+void relative_humidity(int     is,
+                       double *rh,
+                       int     K)
 {
   register int
     J,I;
-  EPIC_FLOAT
+  double
     pp,psat;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -4817,7 +4937,7 @@ void relative_humidity(planetspec *planet,
    * Return 0. if the species is not on.
    */
   if (!var.species[is].on) {
-    memset(rh,0,Nelem2d*sizeof(EPIC_FLOAT));
+    memset(rh,0,Nelem2d*sizeof(double));
     return;
   }
 
@@ -4837,7 +4957,7 @@ void relative_humidity(planetspec *planet,
        * Start with the "old school" definition of RH as the ratio of
        * partial pressure to saturation pressure.
        */
-      pp      = get_p(planet,is,2*K+1,J,I);
+      pp      = get_p(is,2*K+1,J,I);
       psat    = var.species[is].sat_vapor_p(T3(K,J,I));
       RH(J,I) = pp/psat;
 
@@ -4862,16 +4982,15 @@ void relative_humidity(planetspec *planet,
  * Use a forward timestep to integrate rates.
  */
 
-void source_sink(planetspec  *planet,
-                 EPIC_FLOAT **Buff2D)
+void source_sink(void)
 {
   register int
     K,J,I;
-  register EPIC_FLOAT
+  register double
     dfpdt,
     fpara,pressure,temperature,
     time_fp_inv;
-  EPIC_FLOAT
+  double
     fgibb,fpe,uoup;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -4883,16 +5002,16 @@ void source_sink(planetspec  *planet,
 
   if (var.fpara.on) {
     /*
-     * Advance FPARA, 
+     * Advance FPARA
      */
-    for (K = KLO; K <= KHI; K++) {
+    for (K = KLO; K < KHI; K++) {
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
           fpara       = FPARA(K,J,I);
           pressure    = P3(   K,J,I);
           temperature = T3(   K,J,I);
 
-          return_enthalpy(planet,fpara,pressure,temperature,&fgibb,&fpe,&uoup);
+          return_enthalpy(fpara,pressure,temperature,&fgibb,&fpe,&uoup);
 
           /*
            * The ortho-para conversion rate [1/s] is from Huestis (2008, Planet. Space Sci. 56, 1733--1743), 
@@ -4915,12 +5034,21 @@ void source_sink(planetspec  *planet,
   /* 
    * Add sources and sinks from microphysical processes.
    *
-   * The function cloud_microphysics() assumes that the vapor, liquid, and solid
-   * phases of each active species is turned on in epic_initial.c.
+   * The function cloud_microphysics() assumes the relevant phases of each active species
+   * are turned on in epic_initial.c.
+   *
+   * Get moist convective fluxes before theta is updated.
+   *
+   * Calling moist_convection() before cloud_microphysics() makes sure that the vapor change from convection is
+   * accounted for by the cloud formation and precipitation processes.
    *
    */
-  if (grid.cloud_microphysics == ACTIVE) {
-    cloud_microphysics(planet,Buff2D);
+  if (grid.moist_convection != OFF) {
+    moist_convection();
+  }
+
+  if (grid.cloud_microphysics != OFF) {
+    cloud_microphysics();
   }
 
   /*
@@ -4936,8 +5064,13 @@ void source_sink(planetspec  *planet,
           /*
            * Apply heating term.
            */
-          for (K = KLO; K <= KHI; K++) {
+          for (K = KLO; K < KHI; K++) {
             THETA(K,J,I) += DT*HEAT3(K,J,I)/EXNER3(K,J,I);
+          }
+          if(grid.moist_convection != OFF) {
+            for (K = KLO; K < KHI; K++) {
+              THETA(K,J,I) += DT*HEAT_MC(K,J,I)/EXNER3(K,J,I);
+            }
           }
           /*
            * Extrapolate THETA to the top of the model.
@@ -4954,8 +5087,13 @@ void source_sink(planetspec  *planet,
           /*
            * Apply heating term.
            */
-          for (K = KLO; K <= KHI; K++) {
+          for (K = grid.k_sigma; K < KHI; K++) {
             THETA(K,J,I) += DT*HEAT3(K,J,I)/EXNER3(K,J,I);
+          }
+          if(grid.moist_convection != OFF) {
+            for (K = grid.k_sigma; K < KHI; K++) {
+              THETA(K,J,I) += DT*HEAT_MC(K,J,I)/EXNER3(K,J,I);
+            }
           }
         }
         /* No need to apply bc_lateral() here. */
@@ -4976,18 +5114,20 @@ void source_sink(planetspec  *planet,
  * NOTE: Latent heating from clouds is handled outside this function.
  */
 
-void calc_heating(planetspec *planet)
+void calc_heating(void)
 {
   register int
     K,J,I;
-  register EPIC_FLOAT
+  register double
     cprh2,
     fpara,pressure,temperature,
     time_fp_inv,
     dfpdt;
-  EPIC_FLOAT
+  double
     fgibb,fpe,uoup,
     theta_o,theta_p;
+  boolean
+    perturbation = FALSE;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -4999,13 +5139,13 @@ void calc_heating(planetspec *planet)
   /*
    * Zero HEAT array.
    */
-  memset(var.heat3.value,0,Nelem3d*sizeof(EPIC_FLOAT));
+  memset(var.heat3.value,0,Nelem3d*sizeof(double));
 
   /*
    * Add radiative heating/cooling to HEAT3.
    * The scheme used is specified by grid.radiation_scheme.
    */
-  radiative_heating(planet,EPIC_APPLY);
+  radiative_heating(EPIC_APPLY);
 
   /*
    * Add ortho-para hydrogen heating to HEAT3.
@@ -5019,7 +5159,7 @@ void calc_heating(planetspec *planet)
           pressure    = P3(    K,J,I);
           temperature = T3(    K,J,I);
 
-          return_enthalpy(planet,fpara,pressure,temperature,&fgibb,&fpe,&uoup);
+          return_enthalpy(fpara,pressure,temperature,&fgibb,&fpe,&uoup);
 
           /*
            * The ortho-para conversion rate [1/s] is from Huestis (2008, Planet. Space Sci. 56, 1733--1743), 
@@ -5036,12 +5176,19 @@ void calc_heating(planetspec *planet)
            * Call return_theta() to get theta_o,theta_p. 
            * These only depend on p,T.
            */
-          return_theta(planet,fpara,pressure,temperature,&theta_o,&theta_p);
+          return_theta(fpara,pressure,temperature,&theta_o,&theta_p);
 
           HEAT3(K,J,I) += (planet->x_h2)*(uoup+cprh2*temperature)*log(theta_p/theta_o)*dfpdt;  
         }
       }
     }
+  }
+
+  if (perturbation) {
+    /*
+     * Add perturbation heating. This function is in epic_sensible_heating.c
+     */
+    perturbation_heating();
   }
 
   /*
@@ -5065,15 +5212,15 @@ void calc_heating(planetspec *planet)
  *       numerically stable.
  */
 
-int cfl_dt(planetspec *planet)
+int cfl_dt(void)
 {
   register int
     K,J,I,
     min_cfl_dt;
-  register EPIC_FLOAT
+  register double
     u,v,w,cs,
     dx,dy,dz;
-  EPIC_FLOAT
+  double
     cflx,cfly,cflz,
     cfl_dt,
     tmp;
@@ -5081,13 +5228,6 @@ int cfl_dt(planetspec *planet)
 #if defined(EPIC_MPI)
   int
     itmp;
-# if EPIC_PRECISION == DOUBLE_PRECISION
-    MPI_Datatype
-      float_type = MPI_DOUBLE;
-# else
-    MPI_Datatype
-      float_type = MPI_FLOAT;
-# endif
 #endif
 
   /* 
@@ -5106,7 +5246,7 @@ int cfl_dt(planetspec *planet)
   /*
    * Vertical direction.
    */
-  cflz = FLOAT_MAX;
+  cflz = DBL_MAX;
   for (K = KLO; K <= KHI; K++) {
     dz = grid.dsgth[2*K];
     for (J = JLO; J <= JHI; J++) {
@@ -5130,13 +5270,13 @@ int cfl_dt(planetspec *planet)
 #if defined(EPIC_MPI)
   /* determine global minimum */
   tmp = cflz;
-  MPI_Allreduce(&tmp,&cflz,1,float_type,MPI_MIN,para.comm);
+  MPI_Allreduce(&tmp,&cflz,1,MPI_DOUBLE,MPI_MIN,para.comm);
 #endif
 
   /*
    * Meridional direction.
    */
-  cfly = FLOAT_MAX;
+  cfly = DBL_MAX;
   for (J = JFIRST; J <= JHI; J++) {
     for (I = ILO; I <= IHI; I++) {
       for (K = KLO; K <= KHI; K++) {
@@ -5161,13 +5301,13 @@ int cfl_dt(planetspec *planet)
 #if defined(EPIC_MPI)
   /* determine global minimum */
   tmp = cfly;
-  MPI_Allreduce(&tmp,&cfly,1,float_type,MPI_MIN,para.comm);
+  MPI_Allreduce(&tmp,&cfly,1,MPI_DOUBLE,MPI_MIN,para.comm);
 #endif
 
   /*
    * Zonal direction.
    */
-  cflx = FLOAT_MAX;
+  cflx = DBL_MAX;
   for (J = JLO; J <= JHI; J++) {
     if (fabs(grid.lat[2*J+1]) <= LAT0) {
       for (I = ILO; I <= IHI; I++) {
@@ -5194,7 +5334,7 @@ int cfl_dt(planetspec *planet)
 #if defined(EPIC_MPI)
   /* determine global minimum */
   tmp = cflx;
-  MPI_Allreduce(&tmp,&cflx,1,float_type,MPI_MIN,para.comm);
+  MPI_Allreduce(&tmp,&cflx,1,MPI_DOUBLE,MPI_MIN,para.comm);
 #endif
 
   cfl_dt = MIN(cflx,cfly);
@@ -5230,20 +5370,21 @@ int time_mod(int *time,
 
 /*
  * Computes average molar mass at position kk/2,j,i.
+ *
+ * See Dowling notes, 7-17-24.
  */
 
-EPIC_FLOAT avg_molar_mass(planetspec *planet,
-                          int         kk,
-                          int         J,
-                          int         I) 
+double avg_molar_mass(int kk,
+                      int J,
+                      int I) 
 {
   register int
     K,
-    iq;
-  const EPIC_FLOAT
+    is,iq;
+  const double
     mu_dry = R_GAS/planet->rgas;
-  register EPIC_FLOAT
-    ans;
+  register double
+    numerator,denominator,ans;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -5252,12 +5393,15 @@ EPIC_FLOAT avg_molar_mass(planetspec *planet,
   static char
     dbmsname[]="avg_molar_mass";
 
-  if (kk%2 == 0) {
+  if (grid.nq == 0) {
+    return mu_dry;
+  }
+  else if (kk%2 == 0) {
     /* 
      * Layer value.
      */
-    ans = .5*(avg_molar_mass(planet,kk-1,J,I)+
-              avg_molar_mass(planet,kk+1,J,I));
+    ans = .5*(avg_molar_mass(kk-1,J,I)+
+              avg_molar_mass(kk+1,J,I));
     return ans;
   }
   else {
@@ -5265,10 +5409,29 @@ EPIC_FLOAT avg_molar_mass(planetspec *planet,
      * Interface value.
      */
     K = (kk-1)/2;
-    ans = mu_dry;
+
+    /*
+     * Note: The numerator is summed over all phases of all species, because
+     *       the total density refers to all the mass in the grid box.
+     *       In contrast, the denominator is summed over the vapors only,
+     *       because the total pressure is a sum of the partial pressures of
+     *       the vapors (the partial pressures of the condensed phases are all
+     *       taken to be zero).
+     */
+    numerator = 1.;
     for (iq = 0; iq < grid.nq; iq++) {
-      ans += X(grid.is[iq],grid.ip[iq],K,J,I)*(var.species[grid.is[iq]].molar_mass-mu_dry);
+      numerator += Q(grid.is[iq],grid.ip[iq],K,J,I);
     }
+
+    denominator = 1/mu_dry;
+    for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+      if (var.species[is].on) {
+        denominator += Q(is,VAPOR,K,J,I)/var.species[is].molar_mass;
+      }
+    }
+
+    ans = numerator/denominator;
+
     return ans;
   }
 }
@@ -5278,18 +5441,27 @@ EPIC_FLOAT avg_molar_mass(planetspec *planet,
 /*====================== sync_x_to_q() =======================================*/
 
 /*
- * Synchronize all number fractions, X_i, to mass mixing ratios, Q_i.
+ * Synchronize number fraction, X, to mass mixing ratio, Q.
+ *
+ * The input pointer x refers to X(K,J,I) in the calling function; it is 
+ * number fraction [n_i/n_total] or mole fraction, which for ideal gases is
+ * also the volume mixing ratio.
+ *
+ * NOTE: The letter x is traditionally used for solids and liquids, and y for
+ *       gases, but we use x for all three phases.
  *
  * NOTE: Assumes the bookkeeping arrays grid.is[] and grid.ip[] have been set up.
  */
 
-void sync_x_to_q(planetspec *planet)
+void sync_x_to_q(int     is,
+                 int     ip,
+                 double *x)
 {
   int
     K,J,I,iq;
-  const EPIC_FLOAT
+  const double
     mu_dry_inv = planet->rgas/R_GAS;
-  register EPIC_FLOAT
+  register double
     sum;
 
   for (K = KLOPAD; K <= KHIPAD; K++) {
@@ -5299,9 +5471,7 @@ void sync_x_to_q(planetspec *planet)
         for (iq = 0; iq < grid.nq; iq++) {
           sum += Q(grid.is[iq],grid.ip[iq],K,J,I)/var.species[grid.is[iq]].molar_mass;
         }
-        for (iq = 0; iq < grid.nq; iq++) {
-          X(grid.is[iq],grid.ip[iq],K,J,I) = Q(grid.is[iq],grid.ip[iq],K,J,I)/(var.species[grid.is[iq]].molar_mass*sum);
-        }
+        X(K,J,I) = Q(is,ip,K,J,I)/(var.species[is].molar_mass*sum);
       }
     }
   }
@@ -5318,9 +5488,9 @@ void sync_x_to_q(planetspec *planet)
  * Returns the molar mass (molecular weight) for the indicated substance.
  * Units are kg/kmol, which is the same as g/mol.
  */
-EPIC_FLOAT molar_mass(int index)
+double molar_mass(int index)
 {
-  register EPIC_FLOAT 
+  register double 
     mu;
   register int
     i,ii;
@@ -5366,19 +5536,18 @@ EPIC_FLOAT molar_mass(int index)
  * Perry's Chemical Engineers' Handbook (1997), Table 5-14 and 5-16.
  */
 
-EPIC_FLOAT mass_diffusivity(planetspec *planet,
-                            int         vapor_index,
-                            EPIC_FLOAT  temperature,
-                            EPIC_FLOAT  pressure)
+double mass_diffusivity(int    vapor_index,
+                        double temperature,
+                        double pressure)
 {
-  static EPIC_FLOAT
+  static double
     sumv_h2,sumv_he,
     sumv[LAST_INDEX+1];
-  const EPIC_FLOAT
+  const double
     one_third = 1./3.;
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     diff,tmp,sqrt_mab;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -5514,7 +5683,7 @@ void timeplane_bookkeeping(void)
   }
   else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
     grid.it_uv = IT_ZERO;
-    if (U(IT_MINUS1,KLO,JLO,ILO) == FLOAT_MAX) {
+    if (U(IT_MINUS1,KLO,JLO,ILO) == DBL_MAX) {
       /* 
        * First timestep is a forward (Euler) step.
        */
@@ -5742,10 +5911,10 @@ void check_nan(char *message)
  * Calculate u(p,lat) for Venus model, where lat is in degrees.
  */
 
-EPIC_FLOAT u_venus(EPIC_FLOAT p,
-                   EPIC_FLOAT lat)
+double u_venus(double p,
+               double lat)
 {
-  EPIC_FLOAT
+  double
     tmp,
     u,
     u0;
@@ -5759,7 +5928,7 @@ EPIC_FLOAT u_venus(EPIC_FLOAT p,
 
   u0  = -117.374;
   tmp = cos(lat*DEG);
-  u   = u_amp(planet,p)*u0*tmp*tmp;
+  u   = u_amp(p,lat)*u0*tmp*tmp;
 
   return u;
 }
@@ -5772,21 +5941,21 @@ EPIC_FLOAT u_venus(EPIC_FLOAT p,
  * Set u(p,lat) for Earth, where lat is in degrees.
  */
 
-EPIC_FLOAT u_earth(EPIC_FLOAT p,
-                   EPIC_FLOAT lat)
+double u_earth(double p,
+               double lat)
 {
   int 
     j;
   static int
     ndat,
     initialized = FALSE;
-  EPIC_FLOAT 
+  double 
     u,
     lat_d;
-  EPIC_FLOAT
+  double
     *latdat,
     *udat;
-  static float_triplet
+  static double_triplet
     *u_table;
   char
     header[N_STR];
@@ -5820,18 +5989,12 @@ EPIC_FLOAT u_earth(EPIC_FLOAT p,
     }
 
     /* Allocate memory. */
-    latdat  = fvector( 0,ndat-1,dbmsname);
-    udat    = fvector( 0,ndat-1,dbmsname);
-    u_table = ftriplet(0,ndat-1,dbmsname);
+    latdat  = dvector( 0,ndat-1,dbmsname);
+    udat    = dvector( 0,ndat-1,dbmsname);
+    u_table = dtriplet(0,ndat-1,dbmsname);
 
     for (j = 0; j < ndat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(u_dat,"%lf %lf",latdat+j,udat+j);
-#else
-      fscanf(u_dat,"%f %f",latdat+j,udat+j);
-#endif
-
     }
     fclose(u_dat);
 
@@ -5841,8 +6004,8 @@ EPIC_FLOAT u_earth(EPIC_FLOAT p,
     }
 
     /* Free allocated memory. */
-    free_fvector(latdat,0,ndat-1,dbmsname);
-    free_fvector(udat,  0,ndat-1,dbmsname);
+    free_dvector(latdat,0,ndat-1,dbmsname);
+    free_dvector(udat,  0,ndat-1,dbmsname);
 
     spline_pchip(ndat,u_table);
 
@@ -5853,7 +6016,7 @@ EPIC_FLOAT u_earth(EPIC_FLOAT p,
   j = find_place_in_table(ndat,u_table,lat,&lat_d);
   u = splint_pchip(lat,u_table+j,lat_d);
 
-  return u_amp(planet,p)*u;
+  return u_amp(p,lat)*u;
 }
 
 /*======================= end of u_earth() ==================================*/
@@ -5864,12 +6027,12 @@ EPIC_FLOAT u_earth(EPIC_FLOAT p,
  * Set u(p,lat) for Mars, where lat is in degrees.
  */
 
-EPIC_FLOAT u_mars(EPIC_FLOAT p,
-                  EPIC_FLOAT lat)
+double u_mars(double p,
+              double lat)
 {
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     u;
  
   if (!initialized){
@@ -5890,21 +6053,21 @@ EPIC_FLOAT u_mars(EPIC_FLOAT p,
  *  Calculate u(p,lat) for Jupiter, where lat is in degrees.
  */
 
-EPIC_FLOAT u_jupiter(EPIC_FLOAT p,
-                     EPIC_FLOAT lat)
+double u_jupiter(double p,
+                 double lat)
 {
   int 
     j;
   static int
     ndat,
     initialized = FALSE;
-  EPIC_FLOAT 
-    u,
+  double 
+    u, um, du, p0,
     lat_d;
-  EPIC_FLOAT
+  double
     *latdat,
     *udat;
-  static float_triplet
+  static double_triplet
     *u_table;
   char
     header[N_STR];
@@ -5924,7 +6087,10 @@ EPIC_FLOAT u_jupiter(EPIC_FLOAT p,
     u_dat = fopen("./u_vs_lat.Jupiter","r");
     if (!u_dat) {
       u_dat = fopen(EPIC_PATH"/data/Jupiter/u_vs_lat.Jupiter","r");
-    }
+	  fprintf(stdout, "Loading u_vs_lat.jupiter from data folder\n");
+    } else {
+	  fprintf(stdout, "Loading u_vs_lat.jupiter from local folder\n");
+	}
     if (!u_dat) {
       sprintf(Message,"Failed to open file %s",EPIC_PATH"/data/Jupiter/u_vs_lat.Jupiter");
       epic_error(dbmsname,Message);
@@ -5936,18 +6102,12 @@ EPIC_FLOAT u_jupiter(EPIC_FLOAT p,
     fscanf(u_dat,"%d",&ndat);
 
     /* Allocate memory. */
-    latdat  = fvector( 0,ndat-1,dbmsname);
-    udat    = fvector( 0,ndat-1,dbmsname);
-    u_table = ftriplet(0,ndat-1,dbmsname);
+    latdat  = dvector( 0,ndat-1,dbmsname);
+    udat    = dvector( 0,ndat-1,dbmsname);
+    u_table = dtriplet(0,ndat-1,dbmsname);
 
     for (j = 0; j < ndat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(u_dat,"%lf %lf",latdat+j,udat+j);
-#else
-      fscanf(u_dat,"%f %f",latdat+j,udat+j);
-#endif
-
     }
     fclose(u_dat);
 
@@ -5957,10 +6117,18 @@ EPIC_FLOAT u_jupiter(EPIC_FLOAT p,
     }
 
     /* Free allocated memory. */
-    free_fvector(latdat,0,ndat-1,dbmsname);
-    free_fvector(udat,  0,ndat-1,dbmsname);
+    free_dvector(latdat,0,ndat-1,dbmsname);
+    free_dvector(udat,  0,ndat-1,dbmsname);
 
     spline_pchip(ndat,u_table);
+  	
+      if(grid.cloud_top_mode == USE_BELT_ZONE) {
+		fprintf(stdout, "Using Belt-Zone contrast to derive cloud top heights\n");
+	} else if(grid.cloud_top_mode == USE_IF_889NM) {
+		fprintf(stdout, "Using I/F at 889nm to derive cloud top heights\n");
+	} else {
+		fprintf(stdout, "Setting p0=680mb\n");
+    }
 
     initialized = TRUE;
   }
@@ -5968,10 +6136,133 @@ EPIC_FLOAT u_jupiter(EPIC_FLOAT p,
   
   j = find_place_in_table(ndat,u_table,lat,&lat_d);
   u = splint_pchip(lat,u_table+j,lat_d);
+  
+    if(grid.cloud_top_mode == USE_BELT_ZONE) {
+    /* RS: 1/4/2023
+     * scale the pressure so that the zonal wind is set at 400mb instead of 680mb 
+     */
 
-  return u_amp(planet,p)*u;
+  	j = find_place_in_table(ndat,u_table,lat-0.05,&lat_d);
+	if(j > 0) {
+		um = splint_pchip(lat-0.05, u_table+j, lat_d);
+	} else {
+		um = 0.;
+	}
+	du = u - um;
+
+
+    if( (lat > 0) & (du > 0) ) {
+		p0 = 400.;
+    } else if( (lat > 0) & (du < 0) ) {
+		p0 = 1100.;
+	} else if ( (lat < 0) & (du > 0) ) {
+		p0 = 1100.;
+	} else if ( (lat < 0) & (du < 0) ) {
+		p0 = 400.;
+	} else {
+		p0 = 680.;
+	}
+  } else if(grid.cloud_top_mode == USE_IF_889NM) {
+	p0 = cloud_top_jupiter(lat);
+	p = p * (680. / p0);
+  }
+
+  return u_amp(p,lat)*u;
 }
 
+double cloud_top_jupiter(double lat) {
+  int 
+	  j;
+  static int
+    ndat,
+    initialized = FALSE;
+  double
+    *latdat,
+    *ifdat;
+  static double_triplet
+    *if_table;
+  char
+    header[N_STR];
+  FILE
+    *if_dat;
+
+  double
+	  iof, iof_n, p0, lat_d;
+    
+  /* 
+   * The following are part of DEBUG_MILESTONE(.) statements: 
+   */
+  int
+    idbms=0;
+  static char
+    dbmsname[]="cloud_top_jupiter";
+  
+  if (!initialized) {
+    /* Look in local directory first. */
+    if_dat = fopen("./i_f.jupiter","r");
+    if (!if_dat) {
+      if_dat = fopen(EPIC_PATH"/data/Jupiter/i_f.Jupiter","r");
+	  fprintf(stdout, "Loading i_f.jupiter from data folder\n");
+    } else {
+	  fprintf(stdout, "Loading i_f.jupiter from local folder\n");
+	}
+    if (!if_dat) {
+      sprintf(Message,"Failed to open file %s",EPIC_PATH"/data/Jupiter/i_f.Jupiter");
+      epic_error(dbmsname,Message);
+    }
+    /* Skip 6-line header. */
+    for (j = 0; j < 2; j++) {
+      fgets(header,N_STR,if_dat);
+    }
+    fscanf(if_dat,"%d",&ndat);
+
+    /* Allocate memory. */
+    latdat  = dvector( 0,ndat-1,dbmsname);
+    ifdat    = dvector( 0,ndat-1,dbmsname);
+    if_table = dtriplet(0,ndat-1,dbmsname);
+
+    for (j = 0; j < ndat; j++) {
+
+#if EPIC_PRECISION == DOUBLE_PRECISION
+      fscanf(if_dat,"%lf %le",latdat+j,ifdat+j);
+#else
+      fscanf(if_dat,"%f %e",latdat+j,ifdat+j);
+#endif
+
+    }
+    fclose(if_dat);
+
+    for (j = 0; j < ndat; j++) {
+      if_table[j].x = latdat[j];
+      if_table[j].y = ifdat[j];
+    }
+
+    /* Free allocated memory. */
+    free_dvector(latdat,0,ndat-1,dbmsname);
+    free_dvector(ifdat,  0,ndat-1,dbmsname);
+
+    spline_pchip(ndat,if_table);
+
+    initialized = TRUE;
+  }
+
+  j = find_place_in_table(ndat,if_table,lat,&lat_d);
+  // set I/F of 0.09 to 400mb and 0.05 to 1000mb
+  // we will interpolate in log space
+  iof = splint_pchip(lat,if_table+j,lat_d);
+  iof_n = (grid.if_400mb - iof)/(grid.if_400mb - grid.if_1000mb);
+  p0 = log(400.) + iof_n*(log(1000.) - log(400.));
+
+  if (fabs(lat) > 55) {
+	p0 = fmax(p0, log(680));
+  }
+  
+  p0 = exp(p0);
+
+  // fprintf(stdout, "%.3f %.3f %.3f\n", iof, iof_n, p0);
+
+  return p0;
+}
 /*======================= end of u_jupiter() ================================*/
 
 /*======================= u_saturn() ========================================*/
@@ -5980,21 +6271,21 @@ EPIC_FLOAT u_jupiter(EPIC_FLOAT p,
  *  Calculate u(p,lat) for Saturn, where lat is in degrees.
  */
 
-EPIC_FLOAT u_saturn(EPIC_FLOAT p,
-                    EPIC_FLOAT lat)
+double u_saturn(double p,
+                double lat)
 {
   int 
     j;
   static int
     ndat,
     initialized = FALSE;
-  EPIC_FLOAT 
+  double 
     u,
     lat_d;
-  EPIC_FLOAT
+  double
     *latdat,
     *udat;
-  static float_triplet
+  static double_triplet
     *u_table;
   char
     header[N_STR];
@@ -6025,18 +6316,12 @@ EPIC_FLOAT u_saturn(EPIC_FLOAT p,
     fscanf(u_dat,"%d",&ndat);
 
     /* Allocate memory. */
-    latdat  = fvector( 0,ndat-1,dbmsname);
-    udat    = fvector( 0,ndat-1,dbmsname);
-    u_table = ftriplet(0,ndat-1,dbmsname);
+    latdat  = dvector( 0,ndat-1,dbmsname);
+    udat    = dvector( 0,ndat-1,dbmsname);
+    u_table = dtriplet(0,ndat-1,dbmsname);
 
     for (j = 0; j < ndat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(u_dat,"%lf %lf",latdat+j,udat+j);
-#else
-      fscanf(u_dat,"%f %f",latdat+j,udat+j);
-#endif
-
     }
     fclose(u_dat);
 
@@ -6046,8 +6331,8 @@ EPIC_FLOAT u_saturn(EPIC_FLOAT p,
     }
 
     /* Free allocated memory. */
-    free_fvector(latdat,0,ndat-1,dbmsname);
-    free_fvector(udat,  0,ndat-1,dbmsname);
+    free_dvector(latdat,0,ndat-1,dbmsname);
+    free_dvector(udat,  0,ndat-1,dbmsname);
 
     spline_pchip(ndat,u_table);
 
@@ -6058,7 +6343,7 @@ EPIC_FLOAT u_saturn(EPIC_FLOAT p,
   j = find_place_in_table(ndat,u_table,lat,&lat_d);
   u = splint_pchip(lat,u_table+j,lat_d);
 
-  return u_amp(planet,p)*u;
+  return u_amp(p,lat)*u;
 }
 
 /*======================= end of u_saturn() =================================*/
@@ -6069,12 +6354,12 @@ EPIC_FLOAT u_saturn(EPIC_FLOAT p,
  * Set u(p,lat) for Titan, where lat is in degrees.
  */
 
-EPIC_FLOAT u_titan(EPIC_FLOAT p,
-                   EPIC_FLOAT lat)
+double u_titan(double p,
+               double lat)
 {
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     u;
  
   if (!initialized){
@@ -6099,20 +6384,20 @@ EPIC_FLOAT u_titan(EPIC_FLOAT p,
  *  by Michael Sussman.
  */
 
-EPIC_FLOAT u_uranus(EPIC_FLOAT p,
-                    EPIC_FLOAT lat)
+double u_uranus(double p,
+                double lat)
 {
   static int
     ndat,
     initialized = FALSE;
   int
     j;
-  EPIC_FLOAT
+  double
     u,
     lat_d,
    *latdat,
    *udat;
-  static float_triplet
+  static double_triplet
     *u_table;
   char
     header[N_STR];
@@ -6143,18 +6428,12 @@ EPIC_FLOAT u_uranus(EPIC_FLOAT p,
     fscanf(u_dat,"%d",&ndat);
 
     /* Allocate memory. */
-    latdat  = fvector( 0,ndat-1,dbmsname);
-    udat    = fvector( 0,ndat-1,dbmsname);
-    u_table = ftriplet(0,ndat-1,dbmsname);
+    latdat  = dvector( 0,ndat-1,dbmsname);
+    udat    = dvector( 0,ndat-1,dbmsname);
+    u_table = dtriplet(0,ndat-1,dbmsname);
 
     for (j = 0; j < ndat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(u_dat,"%lf %lf",latdat+j,udat+j);
-#else
-      fscanf(u_dat,"%f %f",latdat+j,udat+j);
-#endif
-
     }
     fclose(u_dat);
 
@@ -6164,8 +6443,8 @@ EPIC_FLOAT u_uranus(EPIC_FLOAT p,
     }
 
     /* Free allocated memory. */
-    free_fvector(latdat,0,ndat-1,dbmsname);
-    free_fvector(udat,  0,ndat-1,dbmsname);
+    free_dvector(latdat,0,ndat-1,dbmsname);
+    free_dvector(udat,  0,ndat-1,dbmsname);
 
     spline_pchip(ndat,u_table);
 
@@ -6176,7 +6455,7 @@ EPIC_FLOAT u_uranus(EPIC_FLOAT p,
   j = find_place_in_table(ndat,u_table,lat,&lat_d);
   u = splint_pchip(lat,u_table+j,lat_d);
 
-  return u_amp(planet,p)*u;
+  return u_amp(p,lat)*u;
 }
 
 /*======================= end of u_uranus() =================================*/
@@ -6187,20 +6466,20 @@ EPIC_FLOAT u_uranus(EPIC_FLOAT p,
  * Calculate Neptune u(p,lat), where lat is in degrees.
  */
 
-EPIC_FLOAT u_neptune(EPIC_FLOAT p,
-                     EPIC_FLOAT lat)
+double u_neptune(double p,
+                 double lat)
 {
   static int
     ndat,
     initialized = FALSE;
   int
     j;
-  EPIC_FLOAT   
+  double   
     u,
     lat_d,
    *latdat,
    *udat;
-  static float_triplet
+  static double_triplet
     *u_table;
   char
     header[N_STR];
@@ -6231,18 +6510,12 @@ EPIC_FLOAT u_neptune(EPIC_FLOAT p,
     fscanf(u_dat,"%d",&ndat);
 
     /* Allocate memory. */
-    latdat  = fvector( 0,ndat-1,dbmsname);
-    udat    = fvector( 0,ndat-1,dbmsname);
-    u_table = ftriplet(0,ndat-1,dbmsname);
+    latdat  = dvector( 0,ndat-1,dbmsname);
+    udat    = dvector( 0,ndat-1,dbmsname);
+    u_table = dtriplet(0,ndat-1,dbmsname);
 
     for (j = 0; j < ndat; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(u_dat,"%lf %lf",latdat+j,udat+j);
-#else
-      fscanf(u_dat,"%f %f",latdat+j,udat+j);
-#endif
-
     }
     fclose(u_dat);
 
@@ -6252,8 +6525,8 @@ EPIC_FLOAT u_neptune(EPIC_FLOAT p,
     }
 
     /* Free allocated memory. */
-    free_fvector(latdat,0,ndat-1,dbmsname);
-    free_fvector(udat,  0,ndat-1,dbmsname);
+    free_dvector(latdat,0,ndat-1,dbmsname);
+    free_dvector(udat,  0,ndat-1,dbmsname);
 
     spline_pchip(ndat,u_table);
 
@@ -6264,20 +6537,20 @@ EPIC_FLOAT u_neptune(EPIC_FLOAT p,
   j = find_place_in_table(ndat,u_table,lat,&lat_d);
   u = splint_pchip(lat,u_table+j,lat_d);
 
-  return u_amp(planet,p)*u;
+  return u_amp(p,lat)*u;
 }
 
 /*======================= end of u_neptune() ================================*/
 
 /*======================= u_triton() ========================================*/
 
-EPIC_FLOAT u_triton(EPIC_FLOAT p,
-                    EPIC_FLOAT lat)
+double u_triton(double p,
+                double lat)
 {
-  EPIC_FLOAT
+  double
     u;
 
-  u = u_amp(planet,p)*cos(lat*DEG);
+  u = u_amp(p,lat)*cos(lat*DEG);
 
   return u;
 }
@@ -6286,12 +6559,12 @@ EPIC_FLOAT u_triton(EPIC_FLOAT p,
 
 /*======================= u_pluto() =========================================*/
 
-EPIC_FLOAT u_pluto(EPIC_FLOAT p,
-                   EPIC_FLOAT lat)
+double u_pluto(double p,
+               double lat)
 {
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     u;
  
   if (!initialized){
@@ -6308,12 +6581,12 @@ EPIC_FLOAT u_pluto(EPIC_FLOAT p,
 
 /*======================= u_hot_jupiter() ===================================*/
 
-EPIC_FLOAT u_hot_jupiter(EPIC_FLOAT p,
-                         EPIC_FLOAT lat)
+double u_hot_jupiter(double p,
+                     double lat)
 {
   static int
     initialized = FALSE;
-   EPIC_FLOAT
+   double
     u;
 
   if (!initialized) {
@@ -6330,10 +6603,10 @@ EPIC_FLOAT u_hot_jupiter(EPIC_FLOAT p,
 
 /*======================= u_null() ==========================================*/
 
-EPIC_FLOAT u_null(EPIC_FLOAT p,
-                  EPIC_FLOAT lat)
+double u_null(double p,
+              double lat)
 {
-  EPIC_FLOAT
+  double
     u;
  
   u = 0.;
@@ -6357,10 +6630,10 @@ EPIC_FLOAT u_null(EPIC_FLOAT p,
  * NOTE: The case grid.du_vert == 0. returns the pure barotropic value, 1.
  */
 
-EPIC_FLOAT u_amp(planetspec *planet,
-                 EPIC_FLOAT  p)
+double u_amp(double p,
+             double lat)
 {
-  EPIC_FLOAT
+  double
     p0,u;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -6393,10 +6666,10 @@ EPIC_FLOAT u_amp(planetspec *planet,
          *              normalized at 680 hPa and scaled by grid.du_vert.
          */
         if (p <= p0) {
-          return galileo_u(p);
+          return galileo_u(p, lat);
         }
         else {
-          return grid.du_vert*(galileo_u(p)-1.)+1.;
+          return grid.du_vert*(galileo_u(p, lat)-1.)+1.;
         }
       break;
       case SATURN_INDEX:
@@ -6419,7 +6692,7 @@ EPIC_FLOAT u_amp(planetspec *planet,
 
 /*====================== pioneer_venus_u() ==================================*/
 
-EPIC_FLOAT pioneer_venus_u(EPIC_FLOAT pressure)
+double pioneer_venus_u(double pressure)
 {
   char   
     header[N_STR],
@@ -6429,14 +6702,14 @@ EPIC_FLOAT pioneer_venus_u(EPIC_FLOAT pressure)
   static int
     nup,       
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     neg_log_p,
     u,
     p_up_d;
-  EPIC_FLOAT
+  double
     *pdat,
     *udat;
-  static float_triplet
+  static double_triplet
     *up_table; 
   FILE
     *u_vs_p; 
@@ -6471,18 +6744,13 @@ EPIC_FLOAT pioneer_venus_u(EPIC_FLOAT pressure)
     fscanf(u_vs_p,"%d",&nup);  
 
     /* Allocate memory. */
-    pdat     = fvector( 0,nup-1,dbmsname);
-    udat     = fvector( 0,nup-1,dbmsname);
-    up_table = ftriplet(0,nup-1,dbmsname);
+    pdat     = dvector( 0,nup-1,dbmsname);
+    udat     = dvector( 0,nup-1,dbmsname);
+    up_table = dtriplet(0,nup-1,dbmsname);
 
     /* In order of increasing sigmatheta. */
     for (nn = nup-1; nn >= 0; nn--) { 
-
-#if EPIC_PRECISION == DOUBLE_PRECISION 
       fscanf(u_vs_p,"%lf %lf",pdat+nn,udat+nn);
-#else
-      fscanf(u_vs_p,"%f %f",  pdat+nn,udat+nn);
-#endif
 
       /* convert from hPa to Pa */
       pdat[nn] *= 100.;
@@ -6498,8 +6766,8 @@ EPIC_FLOAT pioneer_venus_u(EPIC_FLOAT pressure)
       up_table[nn].y = udat[nn];
     }
     /* Free allocated memory. */
-    free_fvector(pdat,0,nup-1,dbmsname);
-    free_fvector(udat,0,nup-1,dbmsname);
+    free_dvector(pdat,0,nup-1,dbmsname);
+    free_dvector(udat,0,nup-1,dbmsname);
 
     spline_pchip(nup,up_table);
 
@@ -6531,27 +6799,29 @@ EPIC_FLOAT pioneer_venus_u(EPIC_FLOAT pressure)
 
 /*====================== galileo_u() ========================================*/
 
-EPIC_FLOAT galileo_u(EPIC_FLOAT pressure) 
+double galileo_u(double pressure, double lat) 
 {
   char   
     header[N_STR],
     infile[N_STR];
   int
-    nn;
+    nn, j;
   static int
     initialized=FALSE,
-    nup;
-  EPIC_FLOAT
-    neg_log_p,neg_log_p0,
+    nup, ndat;
+  double
+    p0, neg_log_p,neg_log_p0,
     u,u0,
-    p_up_d;
-  EPIC_FLOAT
+    p_up_d,
+    *latdat,
+    *mdat, m, iof_n, lat_d;
+  double
     *pdat,
     *udat;
-  static float_triplet
-    *up_table;
+  static double_triplet
+    *up_table, *m_table;
   FILE
-    *u_vs_p;
+    *u_vs_p, *m_dat;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -6582,18 +6852,13 @@ EPIC_FLOAT galileo_u(EPIC_FLOAT pressure)
     }
 
     /* Allocate memory: */
-    pdat     = fvector( 0,nup-1,dbmsname);
-    udat     = fvector( 0,nup-1,dbmsname);
-    up_table = ftriplet(0,nup-1,dbmsname);
+    pdat     = dvector( 0,nup-1,dbmsname);
+    udat     = dvector( 0,nup-1,dbmsname);
+    up_table = dtriplet(0,nup-1,dbmsname);
 
     /* In order of increasing sigmatheta. */
     for (nn = nup-1; nn >= 0;  nn--) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
       fscanf(u_vs_p, "%*f %*f %lf %lf",pdat+nn,udat+nn);
-#else
-      fscanf(u_vs_p, "%*f %*f %f %f",pdat+nn,udat+nn);
-#endif
 
       /* Convert from bar to Pa. */
       pdat[nn] *= 1.e+5;
@@ -6606,10 +6871,55 @@ EPIC_FLOAT galileo_u(EPIC_FLOAT pressure)
       up_table[nn].y = udat[nn];
     }
     /* Free allocated memory. */
-    free_fvector(pdat,0,nup-1,dbmsname);
-    free_fvector(udat,0,nup-1,dbmsname);
+    free_dvector(pdat,0,nup-1,dbmsname);
+    free_dvector(udat,0,nup-1,dbmsname);
 
     spline_pchip(nup,up_table);
+    
+      /* Look in local directory first. */
+    if(grid.wind_decay_m_const == WIND_DECAY_SLOPE_VARYING) {
+      m_dat = fopen("./m_lat.jupiter","r");
+      if (!m_dat) {
+        m_dat = fopen(EPIC_PATH"/data/Jupiter/m_lat.jupiter","r");
+        fprintf(stdout, "Loading m_lat.jupiter from data folder\n");
+      } else {
+        fprintf(stdout, "Loading m_lat.jupiter from local folder\n");
+      }
+      if (!m_dat) {
+        sprintf(Message,"Failed to open file %s",EPIC_PATH"/data/Jupiter/m_lat.jupiter");
+        epic_error(dbmsname,Message);
+      }
+      /* Skip 1-line header. */
+      fgets(header,N_STR,m_dat);
+      fscanf(m_dat,"%d",&ndat);
+
+      /* Allocate memory. */
+      latdat  = dvector( 0,ndat-1,dbmsname);
+      mdat    = dvector( 0,ndat-1,dbmsname);
+      m_table = dtriplet(0,ndat-1,dbmsname);
+
+      for (j = 0; j < ndat; j++) {
+
+#if EPIC_PRECISION == DOUBLE_PRECISION
+        fscanf(m_dat,"%lf %le",latdat+j,mdat+j);
+#else
+        fscanf(if_dat,"%f %e",latdat+j,ifdat+j);
+#endif
+
+      }
+      fclose(m_dat);
+
+      for (j = 0; j < ndat; j++) {
+        m_table[j].x = latdat[j];
+        m_table[j].y = mdat[j];
+      }
+
+      /* Free allocated memory. */
+      free_dvector(latdat,0,ndat-1,dbmsname);
+      free_dvector(mdat,  0,ndat-1,dbmsname);
+
+      spline_pchip(ndat,m_table);
+    }
 
     initialized = TRUE;
   }
@@ -6618,6 +6928,7 @@ EPIC_FLOAT galileo_u(EPIC_FLOAT pressure)
   /*
    *  Interpolate to get zonal wind:
    */
+  p0 = 680 * 100.;
   neg_log_p  = -log(pressure);
   neg_log_p0 = -log(680.*100.);
 
@@ -6631,7 +6942,16 @@ EPIC_FLOAT galileo_u(EPIC_FLOAT pressure)
      * Thermal-wind decay determined by
      * Gierasch et al (1986, Icarus 67, 456-483).
      */
-    u = 1.0 + (1.0/2.4) * log(pressure/(680.*100.));
+    if(grid.wind_decay_m_const == WIND_DECAY_SLOPE_CONSTANT) {
+      m = 1. / 2.4;
+    } else if (grid.wind_decay_m_const == WIND_DECAY_SLOPE_VARYING) {
+      j = find_place_in_table(ndat,m_table,lat,&lat_d);
+      m = splint_pchip(lat,m_table+j,lat_d);
+    } else {
+        sprintf(Message,"%d not a valid option", grid.wind_decay_m_const);
+        epic_error(dbmsname,Message);
+    }
+    u = 1.0 + m * log(pressure/p0);
     if (u < 0.) {
       u = 0.;
     }
@@ -6669,18 +6989,18 @@ EPIC_FLOAT galileo_u(EPIC_FLOAT pressure)
  * Truncates to yield u >= 0.;
  * Assumes no shear for pressures deeper than p1.
  */
-EPIC_FLOAT cassini_cirs_u(EPIC_FLOAT pressure)
+double cassini_cirs_u(double pressure)
 {
-  EPIC_FLOAT
+  double
     u;
-  const EPIC_FLOAT
+  const double
     u0    =  290.,
     dudh0 =   12.6,
     dudh1 =   43.,
     p0    =  100.*100.,
     p_ref =  500.*100.,
     p1    = 1000.*100.;
-  static EPIC_FLOAT
+  static double
     u_ref;
   static int
     initialized = FALSE;
@@ -6716,17 +7036,17 @@ EPIC_FLOAT cassini_cirs_u(EPIC_FLOAT pressure)
  * theta, sigmatheta, pbot and ptop.
  */
 
-EPIC_FLOAT p_sigmatheta(EPIC_FLOAT  theta,
-                        EPIC_FLOAT  sigmatheta,
-                        EPIC_FLOAT  pbot,
-                        EPIC_FLOAT  hi_p,
-                        EPIC_FLOAT  lo_p)
+double p_sigmatheta(double  theta,
+                    double  sigmatheta,
+                    double  pbot,
+                    double  hi_p,
+                    double  lo_p)
 {
   int
     error_flag;
-  const EPIC_FLOAT
+  const double
     sgtol = pow(machine_epsilon(),2./3.);
-  EPIC_FLOAT
+  double
     sg_root,
     p;
   /* 
@@ -6774,9 +7094,9 @@ EPIC_FLOAT p_sigmatheta(EPIC_FLOAT  theta,
 
 /*======================= sgth_minus_sgth() =================================*/
 
-EPIC_FLOAT sgth_minus_sgth(EPIC_FLOAT sigma)
+double sgth_minus_sgth(double sigma)
 {
-  EPIC_FLOAT
+  double
     theta,sigmatheta;
 
   theta      = SGTHMSGTH_theta;
@@ -6796,7 +7116,7 @@ EPIC_FLOAT sgth_minus_sgth(EPIC_FLOAT sigma)
  * The Palotai & Dowling cloud microphysics scheme uses five phases for each species.
  *
  */
-void turn_on_phases(planetspec *planet)
+void turn_on_phases(void)
 {
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -6806,47 +7126,136 @@ void turn_on_phases(planetspec *planet)
   static char
     dbmsname[]="turn_on_phases";
 
-  if (grid.cloud_microphysics != OFF) {
-    switch(planet->index) {
-      case JUPITER_INDEX:
-      case SATURN_INDEX:
-        var.species[CH_4_INDEX].phase[VAPOR ].on = TRUE;
-        var.species[CH_4_INDEX].phase[LIQUID].on = FALSE;
-        var.species[CH_4_INDEX].phase[ICE   ].on = FALSE;
-        var.species[CH_4_INDEX].phase[RAIN  ].on = FALSE;
-        var.species[CH_4_INDEX].phase[SNOW  ].on = FALSE;
+  switch(planet->index) {
+    case JUPITER_INDEX:
+    case SATURN_INDEX:
+      var.species[CH_4_INDEX].phase[VAPOR ].on = TRUE;
+      var.species[CH_4_INDEX].phase[LIQUID].on = FALSE;
+      var.species[CH_4_INDEX].phase[ICE   ].on = FALSE;
+      var.species[CH_4_INDEX].phase[RAIN  ].on = FALSE;
+      var.species[CH_4_INDEX].phase[SNOW  ].on = FALSE;
 
-        var.species[NH_3_INDEX].phase[VAPOR ].on = TRUE;
+      var.species[NH_3_INDEX].phase[VAPOR].on = TRUE;
+
+      var.species[H_2S_INDEX].phase[VAPOR].on = TRUE;
+
+      var.species[NH_4SH_INDEX].phase[VAPOR].on = TRUE;
+
+      var.species[H_2O_INDEX].phase[VAPOR].on = TRUE;
+
+      if (grid.cloud_microphysics == ACTIVE) {
         var.species[NH_3_INDEX].phase[LIQUID].on = TRUE;
         var.species[NH_3_INDEX].phase[ICE   ].on = TRUE;
         var.species[NH_3_INDEX].phase[RAIN  ].on = TRUE;
         var.species[NH_3_INDEX].phase[SNOW  ].on = TRUE;
 
-        var.species[H_2O_INDEX].phase[VAPOR ].on = TRUE;
+        var.species[H_2S_INDEX].phase[LIQUID].on = TRUE;
+        var.species[H_2S_INDEX].phase[ICE   ].on = TRUE;
+        var.species[H_2S_INDEX].phase[RAIN  ].on = TRUE;
+        var.species[H_2S_INDEX].phase[SNOW  ].on = TRUE;
+
+        var.species[NH_4SH_INDEX].phase[LIQUID].on = TRUE;
+        var.species[NH_4SH_INDEX].phase[ICE   ].on = TRUE;
+        var.species[NH_4SH_INDEX].phase[RAIN  ].on = TRUE;
+        var.species[NH_4SH_INDEX].phase[SNOW  ].on = TRUE;
+
         var.species[H_2O_INDEX].phase[LIQUID].on = TRUE;
         var.species[H_2O_INDEX].phase[ICE   ].on = TRUE;
         var.species[H_2O_INDEX].phase[RAIN  ].on = TRUE;
         var.species[H_2O_INDEX].phase[SNOW  ].on = TRUE;
-      break;
-      case URANUS_INDEX:
-      case NEPTUNE_INDEX:
-        var.species[CH_4_INDEX].phase[VAPOR ].on = TRUE;
+      }
+      else if (grid.cloud_microphysics == PASSIVE) {
+        var.species[NH_3_INDEX].phase[LIQUID].on = FALSE;
+        var.species[NH_3_INDEX].phase[ICE   ].on = FALSE;
+        var.species[NH_3_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[NH_3_INDEX].phase[SNOW  ].on = FALSE;
+
+        var.species[H_2S_INDEX].phase[LIQUID].on = FALSE;
+        var.species[H_2S_INDEX].phase[ICE   ].on = FALSE;
+        var.species[H_2S_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[H_2S_INDEX].phase[SNOW  ].on = FALSE;
+
+        var.species[NH_4SH_INDEX].phase[LIQUID].on = FALSE;
+        var.species[NH_4SH_INDEX].phase[ICE   ].on = FALSE;
+        var.species[NH_4SH_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[NH_4SH_INDEX].phase[SNOW  ].on = FALSE;
+
+        var.species[H_2O_INDEX].phase[LIQUID].on = FALSE;
+        var.species[H_2O_INDEX].phase[ICE   ].on = FALSE;
+        var.species[H_2O_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[H_2O_INDEX].phase[SNOW  ].on = FALSE;
+      }
+    break;
+
+    case URANUS_INDEX:
+    case NEPTUNE_INDEX:
+      var.species[CH_4_INDEX].phase[VAPOR ].on = TRUE;
+
+      var.species[NH_3_INDEX].phase[VAPOR].on = TRUE;
+
+      var.species[H_2S_INDEX].phase[VAPOR].on = TRUE;
+
+      var.species[NH_4SH_INDEX].phase[VAPOR].on = TRUE;
+
+      var.species[H_2O_INDEX].phase[VAPOR].on = TRUE;
+
+      if (grid.cloud_microphysics == ACTIVE) {
         var.species[CH_4_INDEX].phase[LIQUID].on = TRUE;
         var.species[CH_4_INDEX].phase[ICE   ].on = TRUE;
         var.species[CH_4_INDEX].phase[RAIN  ].on = TRUE;
         var.species[CH_4_INDEX].phase[SNOW  ].on = TRUE;
 
-        var.species[H_2O_INDEX].phase[VAPOR ].on = TRUE;
+        var.species[NH_3_INDEX].phase[LIQUID].on = TRUE;
+        var.species[NH_3_INDEX].phase[ICE   ].on = TRUE;
+        var.species[NH_3_INDEX].phase[RAIN  ].on = TRUE;
+        var.species[NH_3_INDEX].phase[SNOW  ].on = TRUE;
+
+        var.species[H_2S_INDEX].phase[LIQUID].on = TRUE;
+        var.species[H_2S_INDEX].phase[ICE   ].on = TRUE;
+        var.species[H_2S_INDEX].phase[RAIN  ].on = TRUE;
+        var.species[H_2S_INDEX].phase[SNOW  ].on = TRUE;
+
+        var.species[NH_4SH_INDEX].phase[LIQUID].on = TRUE;
+        var.species[NH_4SH_INDEX].phase[ICE   ].on = TRUE;
+        var.species[NH_4SH_INDEX].phase[RAIN  ].on = TRUE;
+        var.species[NH_4SH_INDEX].phase[SNOW  ].on = TRUE;
+
         var.species[H_2O_INDEX].phase[LIQUID].on = TRUE;
         var.species[H_2O_INDEX].phase[ICE   ].on = TRUE;
         var.species[H_2O_INDEX].phase[RAIN  ].on = TRUE;
         var.species[H_2O_INDEX].phase[SNOW  ].on = TRUE;
-      break;
-      default:
-        sprintf(Message,"need to implement cloud phases for planet->index=%d",planet->index);
-        epic_error(dbmsname,Message);
-      break;
-    }
+      }
+      else if (grid.cloud_microphysics == PASSIVE) {
+        var.species[CH_4_INDEX].phase[LIQUID].on = FALSE;
+        var.species[CH_4_INDEX].phase[ICE   ].on = FALSE;
+        var.species[CH_4_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[CH_4_INDEX].phase[SNOW  ].on = FALSE;
+
+        var.species[NH_3_INDEX].phase[LIQUID].on = FALSE;
+        var.species[NH_3_INDEX].phase[ICE   ].on = FALSE;
+        var.species[NH_3_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[NH_3_INDEX].phase[SNOW  ].on = FALSE;
+
+        var.species[H_2S_INDEX].phase[LIQUID].on = FALSE;
+        var.species[H_2S_INDEX].phase[ICE   ].on = FALSE;
+        var.species[H_2S_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[H_2S_INDEX].phase[SNOW  ].on = FALSE;
+
+        var.species[NH_4SH_INDEX].phase[LIQUID].on = FALSE;
+        var.species[NH_4SH_INDEX].phase[ICE   ].on = FALSE;
+        var.species[NH_4SH_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[NH_4SH_INDEX].phase[SNOW  ].on = FALSE;
+
+        var.species[H_2O_INDEX].phase[LIQUID].on = FALSE;
+        var.species[H_2O_INDEX].phase[ICE   ].on = FALSE;
+        var.species[H_2O_INDEX].phase[RAIN  ].on = FALSE;
+        var.species[H_2O_INDEX].phase[SNOW  ].on = FALSE;
+      }
+    break;
+    default:
+      sprintf(Message,"need to implement cloud phases for planet->index=%d",planet->index);
+      epic_error(dbmsname,Message);
+    break;
   }
 
   var.species[C_2H_2_INDEX].phase[VAPOR ].on = TRUE;

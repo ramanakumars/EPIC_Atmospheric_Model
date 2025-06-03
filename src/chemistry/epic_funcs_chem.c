@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2018 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -25,7 +26,7 @@
  *  Timothy E. Dowling                                                 *
  *                                                                     *
  *  Chemistry functions that do not reference EPIC model variables     *
- *  by name or index (may reference planetspec).                       *
+ *  by name or index (may reference the global pointer planet).        *
  *                                                                     *
  *  This file includes the following:                                  *
  *                                                                     *
@@ -192,9 +193,9 @@ void parse_species_name(char   *name,
 
 #define MAX_CHEM_PAIRS 8
 
-EPIC_FLOAT b_vir(char       *chem_a,
-                 char       *chem_b,
-                 EPIC_FLOAT  temperature) 
+double b_vir(char   *chem_a,
+             char   *chem_b,
+             double  temperature) 
 {
   char
     header[N_STR],
@@ -208,12 +209,12 @@ EPIC_FLOAT b_vir(char       *chem_a,
   static int
     ndat[MAX_CHEM_PAIRS],
     count=0;
-  EPIC_FLOAT 
+  double 
     b,t_d,
     *buffer;
-  static float_triplet
+  static double_triplet
     *b_table[MAX_CHEM_PAIRS];
-  static EPIC_FLOAT
+  static double
     first_dbdt[MAX_CHEM_PAIRS],
     last_dbdt[ MAX_CHEM_PAIRS];
   FILE
@@ -277,16 +278,11 @@ EPIC_FLOAT b_vir(char       *chem_a,
         /* 
          * Allocate memory: 
          */
-        b_table[count] = ftriplet(0,ndat[count]-1,dbmsname);
+        b_table[count] = dtriplet(0,ndat[count]-1,dbmsname);
 
         /* Input B(T): */
         for (j = 0; j < ndat[count]; j++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
           fscanf(input,"%lf %lf %*f",&b_table[count][j].x,&b_table[count][j].y);
-#else
-          fscanf(input,"%f %f %*f",&b_table[count][j].x,&b_table[count][j].y);
-#endif
 
           /* Convert for pressure expansion in mks units: */
           b_table[count][j].y /= 1.e+3*R_GAS*b_table[count][j].x;
@@ -302,9 +298,9 @@ EPIC_FLOAT b_vir(char       *chem_a,
         /*
          * Allocate memory.
          */
-        b_table[count] = ftriplet(0,ndat[count]-1,dbmsname);
+        b_table[count] = dtriplet(0,ndat[count]-1,dbmsname);
         for (j = 0; j < ndat[count]; j++) {
-          b_table[count][j].x = (EPIC_FLOAT)(j+1)*100.;
+          b_table[count][j].x = (double)(j+1)*100.;
           b_table[count][j].y = 0.;
         }
       }
@@ -316,22 +312,18 @@ EPIC_FLOAT b_vir(char       *chem_a,
     MPI_Bcast(list[count-1],            8,MPI_CHAR,  NODE0,para.comm);
     MPI_Bcast(ndat+(count-1),           1,MPI_INT,   NODE0,para.comm);
     /* pack buffer */
-    buffer = fvector(0,2*ndat[count-1]-1,dbmsname);
+    buffer = dvector(0,2*ndat[count-1]-1,dbmsname);
     for (j = 0; j < ndat[count-1]; j++) {
       buffer[j              ] = b_table[count-1][j].x;
       buffer[j+ndat[count-1]] = b_table[count-1][j].y;
     }
-#  if EPIC_PRECISION == DOUBLE_PRECISION
      MPI_Bcast(buffer,2*ndat[count-1],MPI_DOUBLE,NODE0,para.comm);
-#  else
-     MPI_Bcast(buffer,2*ndat[count-1],MPI_FLOAT,NODE0,para.comm);
-#  endif
     /* unpack buffer */
     for (j = 0; j < ndat[count-1]; j++) {
       b_table[count-1][j].x = buffer[j              ];
       b_table[count-1][j].y = buffer[j+ndat[count-1]];
     }
-    free_fvector(buffer,0,2*ndat[count-1]-1,dbmsname);
+    free_dvector(buffer,0,2*ndat[count-1]-1,dbmsname);
 #endif
 
     /* Set endpoint slopes: */
@@ -373,13 +365,13 @@ EPIC_FLOAT b_vir(char       *chem_a,
 /*
  * Returns B1 = T dB/dT.
  */
-EPIC_FLOAT b1_vir(char       *chem_a,
-                  char       *chem_b,
-                  EPIC_FLOAT  temperature)
+double b1_vir(char   *chem_a,
+              char   *chem_b,
+              double  temperature)
 {
-  EPIC_FLOAT
+  double
     b1,tt;
-  static EPIC_FLOAT
+  static double
     dt=1.;
 
   tt = temperature/dt;
@@ -396,13 +388,13 @@ EPIC_FLOAT b1_vir(char       *chem_a,
 /*
  * Returns B2 = T^2 (d/dT)^2 B.
  */
-EPIC_FLOAT b2_vir(char       *chem_a,
-                  char       *chem_b,
-                  EPIC_FLOAT  temperature)
+double b2_vir(char   *chem_a,
+              char   *chem_b,
+              double  temperature)
 {
-  EPIC_FLOAT
+  double
     b2,tt;
-  static EPIC_FLOAT
+  static double
     dt=1.;
 
   tt = temperature/dt;
@@ -420,17 +412,16 @@ EPIC_FLOAT b2_vir(char       *chem_a,
  * Returns sum of 2nd virial coefficient, or related function,
  * with quadratic mole-fraction weighting appropriate to specified planet.
  */
-EPIC_FLOAT sum_xx(planetspec *planet,
-                  EPIC_FLOAT (*b_func)(char *,
+double sum_xx(double (*b_func)(char *,
                                char *,
-                               EPIC_FLOAT),
-                  EPIC_FLOAT   temperature)
+                               double),
+              double   temperature)
 {
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
     b_sum,x_sum;
-  static EPIC_FLOAT
+  static double
     x_H_2,x_He;
 
   if (strcmp(grid.eos,"ideal") == 0) {

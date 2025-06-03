@@ -2,7 +2,8 @@
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 2013  Thomas Greathouse, Timothy Dowling          *
+ * Copyright (C) 2024-2025 Thomas Greathouse, Ramanakumar Sankar   *
+ * Copyright (C) 2013-2023 Thomas Greathouse, Timothy Dowling      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -217,10 +218,9 @@ typedef struct {
  * Longwave functions *
  *--------------------*/
 
-void rt_longwave(planetspec *planet,
-                 EPIC_FLOAT *heating,
-                 int         i_stride,
-                 int         action);
+void rt_longwave(double *heating,
+                 int     i_stride,
+                 int     action);
 
 void init_rt_longwave(rt_band      *fir,
                       rt_band      *midir,
@@ -230,14 +230,12 @@ void free_rt_longwave(rt_band      *fir,
                       rt_band      *midir,
                       disort_state *ds);
 
-void fir_opacity(planetspec   *planet,
-                 int           J,
+void fir_opacity(int           J,
                  int           I,
                  rt_band      *fir,
                  disort_state *ds);
 
-void midir_opacity(planetspec   *planet,
-                   int           J,
+void midir_opacity(int           J,
                    int           I,
                    rt_band      *midir,
                    disort_state *ds);
@@ -246,8 +244,7 @@ void midir_opacity(planetspec   *planet,
  * Shortwave functions *
  *---------------------*/
 
-void rt_shortwave(planetspec *planet,
-                  EPIC_FLOAT *heating,
+void rt_shortwave(double     *heating,
                   int         i_stride,
                   int         action);
 
@@ -261,27 +258,24 @@ void free_rt_shortwave(rt_band      *nir,
                        rt_band      *uv,
                        disort_state *ds);
 
-void nir_opacity(planetspec   *planet,
-                 int           J,
+void nir_opacity(int           J,
                  int           I,
                  rt_band      *nir,
                  disort_state *ds);
 
-void vis_opacity(planetspec   *planet,
-                 int           J,
+void vis_opacity(int           J,
                  int           I,
                  rt_band      *vis,
                  disort_state *ds);
 
-void uv_opacity(planetspec   *planet,
-                int           J,
+void uv_opacity(int           J,
                 int           I,
                 rt_band      *uv,
                 disort_state *ds);
 
 void cross_section_rayleigh(rt_band *band);
 
-EPIC_FLOAT solar_irradiance(EPIC_FLOAT lambda);
+double solar_irradiance(double lambda);
 
 void beer_law_only(disort_state  *ds,
                    disort_output *out,
@@ -291,9 +285,8 @@ void beer_law_only(disort_state  *ds,
  * Planetary functions *
  *---------------------*/
 
-double ring_shadow(planetspec *planet,
-                   double      lat,
-                   double      subsolar_lat);
+double ring_shadow(double lat,
+                   double subsolar_lat);
 
 /* * * * * * * * end of rt_heating.h * * * * * * * * * * * * * * * */
 #endif

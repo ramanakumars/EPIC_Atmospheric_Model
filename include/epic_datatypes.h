@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2023 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 2013-2023 Timothy Dowling                         *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -32,6 +33,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "epic_microphysics.h"
+#include <time.h>
 
 #if defined(EPIC_MPI)
 #  include "mpi.h"
@@ -39,31 +41,12 @@
 #endif
 
 /*
- * Set floating-point precision.
- */
-#define SINGLE_PRECISION 4
-#define DOUBLE_PRECISION 8
-
-/*
  * Array types
  */
-#define EPIC_FLOAT_ARRAY      1
-#define FLOAT_TRIPLET_ARRAY   2
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
-#  define EPIC_FLOAT double
-#  define FLOAT_MAX  DBL_MAX
-#  define FLOAT_MIN  DBL_MIN
-#elif EPIC_PRECISION == SINGLE_PRECISION
-#  define EPIC_FLOAT float
-#  define FLOAT_MAX  FLT_MAX
-#  define FLOAT_MIN  FLT_MIN
-#else
-#  error Unrecognized value for EPIC_PRECISION environment variable.
-#endif
+#define DOUBLE_ARRAY         1
+#define DOUBLE_TRIPLET_ARRAY 2
 
 #define VAR_NM_SZ 64
-
 
 /*
  * System index, ordered by mass, then by special cases (benchmarks).
@@ -181,17 +164,24 @@
 #define DIFFUSION_COEF_MASS_INDEX  (LAST_PROG+34)
 
 /*
+ * Moist convection variables.
+ */
+#define HEAT_MC_INDEX              (LAST_PROG+35)
+#define CLOUD_BASE_INDEX           (LAST_PROG+36)
+
+/*
  * 3D parameters.
  */
 
 /*
  * 2D parameters.
  */
-#define PHI_SURFACE_INDEX          (LAST_PROG+35)
-#define GRAVITY2_INDEX             (LAST_PROG+36)
-#define PBOT_INDEX                 (LAST_PROG+37)
+#define PHI_SURFACE_INDEX          (LAST_PROG+37)
+#define GRAVITY2_INDEX             (LAST_PROG+38)
+#define U_SPINUP_INDEX             (LAST_PROG+39)
+#define PBOT_INDEX                 (LAST_PROG+40)
 
-#define LAST_INDEX                 (LAST_PROG+37)
+#define LAST_INDEX                 (LAST_PROG+40)
 
 #define FILE_STR 256
 #define GEOM_STR        16   /* geometry string length                          */
@@ -208,28 +198,29 @@
 #define N_STR        256
 #define MAX_NU_ORDER 8
 
+#define WIND_SHEAR_PROBE 1
+#define WIND_SHEAR_FUNCTION 2
+
+#define WIND_DECAY_SLOPE_CONSTANT 1
+#define WIND_DECAY_SLOPE_VARYING 2
+
 /*
  * Data structures.
  */
 typedef struct {
-  EPIC_FLOAT
+  double
     x,y;
 } complex;
 
 typedef struct {
-  EPIC_FLOAT
+  double
     x,y;
-} float_pair;
+} double_pair;
 
 typedef struct {
-  EPIC_FLOAT
+  double
     x,y,z;
-} float_triplet;
-
-typedef struct {
-  EPIC_FLOAT
-    e,w,n,s;
-} float_quartet;
+} double_triplet;
 
 /*
  *  See epic_globals.c for details on planetspec members.
@@ -241,7 +232,7 @@ typedef struct {
     name[32],               /* name of planet                                     */
     type[16],               /* gas-giant or terrestrial                           */
     orbital_epoch[8];       /* Epoch for Keplerian orbital elements               */
-  EPIC_FLOAT  
+  double  
     re,                     /* equatorial radius, m                               */
     rp,                     /* polar radius, m                                    */
     obliquity,              /* angle between rotational and orbital axes [deg]    */
@@ -253,6 +244,7 @@ typedef struct {
     rgas,                   /* gas constant                                       */
     p0,                     /* ref. surface pressure [Pa], for potential temp.    */
     kappa,                  /* rgas/cp                                            */
+    g0,                     /* standard gravity for geopotential height [m/s^2]   */
     GM,                     /* gravitational constant times total mass [m^3/s^2]  */
     J2,                     /* gravitational zonal harmonic                       */
     x_h2,                   /* number fraction of molecular hydrogen              */
@@ -269,8 +261,8 @@ typedef struct {
     kinvisc,                /* typical laminar kinematic viscosity [m^2/s]        */
     dynvisc,                /* typical laminar dynamic viscosity [kg/m/s]         */
     k_a;                    /* thermal conductivity of dry air [J/m/s/K]          */
-  EPIC_FLOAT
-    (*u)(EPIC_FLOAT p, EPIC_FLOAT lat); /* zonal-wind profile                     */
+  double
+    (*u)(double p, double lat); /* zonal-wind profile                     */
   microphysics_spec
     cloud[MAX_NUM_SPECIES]; /* Top structure for cloud microphysics parameters    */
 } planetspec;
@@ -289,7 +281,7 @@ typedef struct {
     extract_append[N_STR];
   int
     coord_type;
-  EPIC_FLOAT
+  double
     epic_version,
     globe_lonbot,
     globe_lontop,
@@ -297,7 +289,7 @@ typedef struct {
     globe_lattop;
   char
     f_plane_map[GEOM_STR];
-  EPIC_FLOAT
+  double
     f_plane_lat0,
     f_plane_half_width;
   int
@@ -314,7 +306,7 @@ typedef struct {
     jlast,                         /* used to handle staggered C-grid                    */
     ilo,                           /* low-end index for i, typically 1                   */
     we_num_nodes;                  /* number of nodes on computer running the model      */
-  EPIC_FLOAT 
+  double 
     dln,                           /* longitudinal grid spacing, deg                     */
     dlt,                           /* latitudinal  grid spacing, deg                     */
     sgth_bot,                      /* sigmatheta for bottom of model                     */
@@ -331,23 +323,41 @@ typedef struct {
     sigma_sigma;                   /* sigma value below which vert. coord. is f(sigma)   */
   int
     k_sponge,                      /* number of top sponge layers                        */
+    n_bot_drag,                    /* number of bottom drag layers                       */
     j_sponge,                      /* number of lateral sponge layers                    */
     k_sigma,                       /* top layer in pure-sigma region (g_sigma = 0)       */
     newt_cool_adjust,              /* 1 sets layer avg of Newtonian cooling to zero      */
     cloud_microphysics,            /* ACTIVE enables microphysics (phase changes, etc.)  */
+    moist_convection,              /* ACTIVE enables moist-convective                    */ 
+    max_mc_it,                     /* parameterization and set number of RAS iterations  */
+    first_RAS_upd,                 /* flag to indicate if RAS has been called before     */
+    wind_shear_mode,               /* wind shear mode (probe vs function, for Jupiter)   */
+    wind_decay_m_const,            /* flag for constant slope or varying with lat        */
+    cloud_top_mode,                /* cloud top pressure initialization (for Jupiter)    */
+    relax_vapor;                   /* relax vapor to initial state                       */
+  int
     include_nontrad_accel,         /* TRUE includes non-trad Coriolis, spherical accels. */
     radiation_index,               /* index to distinguish radiation schemes             */
     zonal_average_rt,              /* TRUE zonally averages radiative transfer heating   */
-    extract_species_fraction_type; /* mass mixing ratio or mole fraction                 */
-  EPIC_FLOAT
-    du_vert;                       /* used in u_amp() to set vert. profile of zonal wind */
+    extract_species_fraction_type, /* mass mixing ratio or mole fraction                 */
+    mc_diag_extract_sum;           /* cwf, pbase_mc, lambda_mc, mb_mc, and/or dAdt       */
+  double
+    du_vert,                       /* used in u_amp() to set vert. profile of zonal wind */
+    du_vert_m,                     /* vertical wind shear scaling (Garcia-Melendo++ 2005)*/
+    du_vert_pend,                  /* pressure at which to transition to zero shear      */
+    tau_relax,                     /* relaxation timescale for RAS moist convection      */
+    if_400mb, if_1000mb,           /* for i/f initialization I/F for 400mb and 1000mb    */
+    cool_rate, heat_rate,          /* top cool rate and bottom heating rate [K/s]        */
+    cool_bot_pressure,             /* bottom pressure for the cooling region [Pa]        */
+    heat_top_pressure,             /* top pressure for the heating region [Pa]           */
+    relax_vapor_timescale;         /* timescale overwhich to relax vapor [s]             */
   char
     eos[8];                        /* equation of state: "ideal", "virial"               */
   int    
     aux_a,                         /* for any use                                        */
     aux_b,                         /* for any use                                        */
     aux_c;                         /* for any use                                        */
-  EPIC_FLOAT 
+  double 
     aux_fa,                        /* for any use                                        */
     aux_fb,                        /* for any use                                        */
     aux_fc;                        /* for any use                                        */
@@ -357,7 +367,7 @@ typedef struct {
     *ip;                           /* array of active phase indices                      */
   double                           /* double to improve diag. theta calculation          */
     *sigmatheta;                   /* hybrid sigma-theta array                           */ 
-  EPIC_FLOAT
+  double
     *p_ref,                        /* typical pressure values, kk index                  */
     *t_ref,                        /* typical temperature values, kk index               */
     *rho_ref,                      /* typical density values [kg/m^3], kk index          */
@@ -365,7 +375,7 @@ typedef struct {
     *h_min,                        /* minimum layer thickness parameter                  */
     *re,                           /* equatorial radius of bottom interface of layer K   */
     *rp;                           /* polar radius of bottom interface of layer K        */
-  EPIC_FLOAT
+  double
     **rln,                         /* longitudinal map factor, r                         */
     **rlt,                         /* latitudinal map factor, R                          */
     **m,                           /* longitudinal map factor, 1/dx = 1/(r*dln*DEG)      */
@@ -383,7 +393,7 @@ typedef struct {
     is_spole,                      /* south pole flag                                    */
     is_npole,                      /* north pole flag                                    */
     nu_order;                      /* Hyperviscosity order                               */
-  EPIC_FLOAT 
+  double 
     ab[3],                         /* Adams-Bashforth coefficients                       */
     nudiv_nondim,                  /* Divergence damping coefficient, nondimensional     */
     nu_nondim;                     /* Non-dimensional hyperviscosity coefficient         */
@@ -419,7 +429,7 @@ typedef struct {
     infile_history[128];
   int
    *MY;
-  EPIC_FLOAT
+  double
    *lon,
    *lat,
    *sigma,
@@ -451,7 +461,7 @@ typedef struct {
     ntime;
   int
    *MY;
-  EPIC_FLOAT
+  double
    *lon,
    *lat,
    *ak,          /* emars uses a hybrid sigma-p coordinate               */
@@ -468,40 +478,13 @@ typedef struct {
    *theta;
 } emars_gridspec;
 
-
-/*
- * Structure to hold Weizmann Institute gas-giant .nc file information.
- * This is used when running "change -weizmann".
- */
-typedef struct {
-  int
-    nk,
-    nj,
-    ni,
-    ntime;
-  char
-    title[64],
-    infile_history[128];
-  EPIC_FLOAT
-   *lon,
-   *lat,
-   *p,
-   *time,
-   *temp,
-   *u,
-   *v,
-   *rho,
-   *theta;
-} weizmann_gridspec;
-
-
 /*
  * The thermospec structure is used in the thermodynamics routines
  * that have been adapted from Peter Gierasch's original Fortran routines.
  */
 
-#define MDIM_THERMO   128
-#define NDIM_THERMO    16
+#define MDIM_THERMO   512
+#define NDIM_THERMO    64
 
 #define THLO_THERMO    20.
 #define THHI_THERMO   600.
@@ -512,7 +495,7 @@ typedef struct {
 #define CPR3            3.5       /* nondim low T ref. cp for non H_2,He component */
 
 typedef struct {
-  EPIC_FLOAT
+  double
     t_grid[MDIM_THERMO],
     theta_grid[MDIM_THERMO],
     array[5][MDIM_THERMO],
@@ -564,11 +547,6 @@ typedef struct {
 
 #define LAST_PHASE   4
 
-#define FIRST_NONPRECIP  VAPOR
-#define LAST_NONPRECIP   SOLID
-#define FIRST_PRECIP     RAIN
-#define LAST_PRECIP      SNOW
-
 #define MAX_NUM_PHASES (LAST_PHASE-FIRST_PHASE+1)
 
 typedef struct {
@@ -580,23 +558,24 @@ typedef struct {
      * NOTE: Many textbooks use "q" for specific humidity [density_i/density_total]
      *       and "w" for mass mixing ratio, but w is also vertical velocity.
      *
-     * x is number fraction [n_i/n_total], aka mole fraction or amount fraction
-     * (and for ideal gases, the volume mixing ratio)
-     * NOTE: The letter x is traditionally used for solids and liquids, and y for gases,
-     *       but we use x for all three phases.
+     * dqdt is tendency of q.
      */
-  EPIC_FLOAT
+  double
     *q,
-    *x;
+    *dqdt;
   id_information
-    info[2];
+    /*
+     * The 3 are MASS, MOLAR, and TEND, where MASS and TEND correspond to q and dqdt.
+     * NOTE: The array pointer for MOLAR is specified locally when needed, not here.
+     */
+    info[3];
 } phasespec;
 
 typedef struct {
   int
     on,
     extract_on;
-  EPIC_FLOAT
+  double
     *value,
     *tendency;
   id_information
@@ -608,7 +587,7 @@ typedef struct {
   int
     on,
     extract_on;
-  EPIC_FLOAT
+  double
     *value;
   char
     advection_scheme[N_STR];
@@ -620,7 +599,7 @@ typedef struct {
   int
     on,
     extract_on;
-  EPIC_FLOAT
+  double
     *value;
   id_information
     info[1];
@@ -638,18 +617,26 @@ typedef struct {
     HITRAN_index;
   phasespec
     phase[MAX_NUM_PHASES];
-  EPIC_FLOAT
+  diagnostic_variable
+    cwf,         /* cloud work function for relaxed Arakawa-Schubert (RAS) scheme */
+    pbase_mc,  	 /* convective cloud base pressure                                */
+    lambda_mc,   /* entrainment parameter for RAS                                 */
+    mb_mc,       /* cloud base mass flux for RAS                                  */
+    dAdt;        /* rate of change of CWF                                         */
+  double
     molar_mass,
     triple_pt_t,
     triple_pt_p,
+    critical_pt_t,
+    critical_pt_p,
     Lf,
     Lv,
     Ls;    
-  EPIC_FLOAT
-    (*enthalpy_change)(int        init_phase,
-                       int        final_phase,
-                       EPIC_FLOAT temperature),
-    (*sat_vapor_p)(EPIC_FLOAT temperature);
+  double
+    (*enthalpy_change)(int    init_phase,
+                       int    final_phase,
+                       double temperature),
+    (*sat_vapor_p)(double temperature);
   char
     advection_scheme[N_STR];
   id_information
@@ -657,7 +644,7 @@ typedef struct {
 } species_variable;
 
 typedef struct {
-  EPIC_FLOAT
+  double
     value;
   id_information
     info;
@@ -674,7 +661,7 @@ typedef struct {
     start_time,
     model_time;
   size_t
-    extract_num, extract_time_index;
+    extract_time_index;
   wind_variable
     u,
     v;
@@ -697,7 +684,7 @@ typedef struct {
    * The following variables are diagnostic, meaning they are calculated
    * from the prognostic variables.
    */
-  EPIC_FLOAT
+  double
     *pdat,                /* Pressure in sounding profile T(p), e.g. from t_vs_p.jupiter    */
     *tdat,                /* Temperature in sounding profile T(p), e.g. from t_vs_p.jupiter */
     *dtdat;               /* Temperature difference, used in some Newtonian cooling schemes */
@@ -731,16 +718,19 @@ typedef struct {
     diffusion_coef_uv,    /* turbulence-model diffusion coefficient for (u,v), in layer     */
     diffusion_coef_theta, /* turbulence-model diffusion coefficient for theta, on interface */
     diffusion_coef_mass,  /* turbulence-model diffusion coefficient for mass, in layer      */
+    heat_mc,              /* moist convection heating                                       */
+    cloud_base,           /* cloud base location for each species marked by its index       */
     phi_surface,          /* geopotential at bottom of model                                */
     gravity2,             /* gravity as a function of layer and latitude [m/s^2]            */
+    u_spinup,             /* Rayleigh-drag zonal wind                                 [m/s] */
     pbot;                 /* pressure at bottom of gas giant, used as a boundary condition  */
-  float_triplet
+  double_triplet
     *t_cool_table;        /* Profile for time constant used in Newtonian cooling            */
   time_variable
     l_s;                  /* planetocentric solar longitude [deg]                           */ 
   id_information
     info[1];              /* used for the common time dimension                             */ 
-  EPIC_FLOAT
+  double
     fpara_rate_scaling;   /* Nominal = 1.0                                                  */
 } variablespec;
 
@@ -794,6 +784,11 @@ typedef struct {
     start_date_input_type,
     newt_cool_adjust,
     cloud_microphysics,
+    moist_convection,
+    max_mc_it,
+    grid_wind_shear_mode,
+    grid_wind_decay_m_const,
+    grid_cloud_top_mode,
     on[LAST_SPECIES+1],
     spacing_type,
     coord_type,
@@ -802,13 +797,16 @@ typedef struct {
     zonal_average_rt,
     nu_order,
     k_sponge,
+    n_bot_drag,
+    grid_relax_vapor,
     j_sponge,
-    extract_species_fraction_type;
+    extract_species_fraction_type,
+    mc_diag_extract_sum;
   time_t
     start_time;
   struct tm
     UTC_start;
-  EPIC_FLOAT
+  double
     globe_lonbot,  /* keep globe_lonbot as first floating-point variable */
     globe_lontop,globe_latbot,globe_lattop,
     f_plane_lat0,f_plane_half_width,
@@ -816,12 +814,19 @@ typedef struct {
     ptop,pbot,p_sigma,
     thetatop,thetabot,
     nudiv_nondim,
-    u_scale,du_vert,
+    u_scale,du_vert,du_vert_m,du_vert_pend,
     mole_fraction[LAST_SPECIES+1],
     mole_fraction_over_solar[LAST_SPECIES+1],
+    vmr_slope[LAST_SPECIES+1],vmr_pcrit[LAST_SPECIES+1],
     rh_max[LAST_SPECIES+1],
     nu_nondim,
-    fpara_rate_scaling;
+    fpara_rate_scaling,
+    tau_relax,          /* relaxation timescale [sec] for moist convection scheme */
+    grid_if_400mb, grid_if_1000mb, // I/F values for 400mb and 1000 mb
+    cool_rate, heat_rate, /* top cool rate and bottom heating rate [K/day]      */
+    cool_bot_pressure,    /* bottom pressure for the cooling region [hPa]       */
+    heat_top_pressure,    /* top pressure for the heating region [hPa]          */
+    grid_relax_vapor_timescale;
 } init_defaultspec;
 
 /*
@@ -834,10 +839,27 @@ typedef struct {
     outfile[N_STR],
     extract_str[N_STR],
     openmars_infile[N_STR],
-    emars_infile[N_STR],
-    weizmann_infile[N_STR];
+    emars_infile[N_STR];
   int
-    uv_timestep_scheme;
+    radiation_scheme,
+    cloud_microphysics,
+    uv_timestep_scheme,
+    reinit_cloud,
+    moist_convection,
+    dt,
+    grid_relax_vapor,
+    max_mc_it;
+  double tau_relax,
+    mole_fraction[LAST_SPECIES+1],
+    mole_fraction_over_solar[LAST_SPECIES+1],
+    vmr_slope[LAST_SPECIES+1],
+    vmr_pcrit[LAST_SPECIES+1],
+    rh_max[LAST_SPECIES+1],
+    cool_rate, heat_rate, /* top cool rate and bottom heating rate [K/day]      */
+    cool_bot_pressure,    /* bottom pressure for the cooling region [hPa]       */
+    heat_top_pressure,    /* top pressure for the heating region [hPa]          */
+    grid_relax_vapor_timescale;
+
 } change_defaultspec;
 
 #define LAST_ATOMIC_NUMBER 103
@@ -848,7 +870,7 @@ typedef struct {
   char
     symbol[4],
     name[16];
-  EPIC_FLOAT
+  double
     molar_mass,
     solar_abundance;
 } chem_element;

@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -28,56 +29,56 @@
  *                                                                 *
  *    Use -spots spots.dat to add vortices                         *
  *        -waves waves.dat to add waves                            *
- *    These can both be done at the same time.                     *
+ *        -heat  spots.dat to add thermal perturbation             *
+ *    These can all be done at the same time.                      *
  *                                                                 *
  *  Options for converting data to isentropic coordinates:         *
  *                                                                 *
  *    Use -openmars to process an OpenMARS file                    *
  *    Use -emars to process an EMARS file                          *
- *    Use -weizmann to process a gas-giant Weizmann Institute file *
  *                                                                 *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-
+#include <epic_datatypes.h>
 #include <epic.h>
+
+
+int MODIFY = 1;
 
 /*
  * Local function prototypes:
  */
-void add_spots(planetspec  *planet,
-               char        *spots_file,
-               EPIC_FLOAT  *pert,
-               EPIC_FLOAT **Buff2D);
+void add_spots(char    *spots_file,
+               double  *pert);
 
-void add_waves(planetspec  *planet,
-               char        *waves_file,
-               EPIC_FLOAT  *pert,
-               EPIC_FLOAT **Buff2D);
+void add_waves(char     *waves_file,
+               double   *pert);
 
-void modify_progs_from_pert(planetspec *planet,
-                            EPIC_FLOAT *pert);
+void add_heat(char *heat_file);
+
+void modify_progs_from_pert(double *pert);
 
 int number_objects_in_file(char *objects_file);
 
-void read_spots_file(char       *spots_file,
-                     EPIC_FLOAT *ampspot,
-                     EPIC_FLOAT *lonspot,
-                     EPIC_FLOAT *latspot,
-                     EPIC_FLOAT *pspot,
-                     EPIC_FLOAT *aspot,
-                     EPIC_FLOAT *bspot,
-                     EPIC_FLOAT *cspot_up,
-                     EPIC_FLOAT *cspot_down,
-                     int         adjust_amplitude);
+void read_spots_file(char   *spots_file,
+                     double *ampspot,
+                     double *lonspot,
+                     double *latspot,
+                     double *pspot,
+                     double *aspot,
+                     double *bspot,
+                     double *cspot_up,
+                     double *cspot_down,
+                     int     adjust_amplitude);
 
-void read_waves_file(char       *waves_file,
-                     EPIC_FLOAT *latwave,
-                     EPIC_FLOAT *ampwave,
-                     EPIC_FLOAT *wnwave,
-                     EPIC_FLOAT *pwave,
-                     EPIC_FLOAT *cwave,
-                     EPIC_FLOAT *fwhmwave);
+void read_waves_file(char   *waves_file,
+                     double *latwave,
+                     double *ampwave,
+                     double *wnwave,
+                     double *pwave,
+                     double *cwave,
+                     double *fwhmwave);
 
-void read_defaults(change_defaultspec  *def);
+void read_defaults(change_defaultspec  *def, char *defaults_file);
 
 void write_defaults(change_defaultspec *def);
 
@@ -87,7 +88,6 @@ void write_defaults(change_defaultspec *def);
  *   Input options:
  *     OpenMars Mars data
  *     EMARS Mars data (emars_v1.0_back_*.nc format)
- *     Weizmann-format gas-giant data
  *
  *   The customized data-processing functions are in epic_funcs_init.c,
  *   the associated function prototypes and shift macros are in epic.h,
@@ -109,6 +109,7 @@ int main(int   argc,
   char   
     spots_file[FILE_STR], /*  added-spot locations and sizes         */
     waves_file[FILE_STR], /*  wave perturbation parameters           */
+    heat_file[FILE_STR],  /*  file for thermal perturbation          */
     sflag[80],            /*  string to hold command-line flags      */
     infile[ FILE_STR],
     outfile[FILE_STR],
@@ -118,15 +119,12 @@ int main(int   argc,
     emars_infile[FILE_STR],
     emars_outfile_qb[FILE_STR],
     emars_outfile_uvpt[FILE_STR],
-    weizmann_infile[FILE_STR],
-    weizmann_outfile_qb[FILE_STR],
-    weizmann_outfile_uvpt[FILE_STR],
+    defaults_file[FILE_STR],
     buffer[16];
   int    
     time_index,
     openmars_itime,
     emars_itime,
-    weizmann_itime,
     K,J,I,
     kk,jj,
     is,itmp,
@@ -134,24 +132,25 @@ int main(int   argc,
   int
     spots      = FALSE,
     waves      = FALSE,
+    heat       = FALSE,  /* RS 04/16/2020 adding thermal source */
     stretch_ni = FALSE,
     openmars   = FALSE,
     emars      = FALSE,
-    weizmann   = FALSE;
+    recloud    = FALSE;
   openmars_gridspec
     *openmars_grid;
   emars_gridspec
     *emars_grid;
-  weizmann_gridspec
-    *weizmann_grid;
-  EPIC_FLOAT  
+  double  
     dx0,dt;
-  EPIC_FLOAT
+  double
     *p,*h;
-  static EPIC_FLOAT
+  static double
     *Buff2D[NUM_WORKING_BUFFERS];
   change_defaultspec
     defaults;
+  init_defaultspec
+    defaults_init;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -173,6 +172,8 @@ int main(int   argc,
   /* Start with defaults: */
   sprintf(spots_file,"none");
   sprintf(waves_file,"none");
+  sprintf( heat_file,"none");
+  sprintf(defaults_file,"change_defaults.nc");
   if (argc > 1) {
     /* Read flags: */
     for (count = 1; count < argc; count++) {
@@ -184,6 +185,10 @@ int main(int   argc,
       else if (strcmp(sflag,"-waves") == 0) {
         sscanf(argv[++count],"%s",waves_file);
         waves = TRUE;
+      }
+      else if (strcmp(sflag,"-heat") == 0) {
+        sscanf(argv[++count],"%s",heat_file);
+        heat = TRUE;
       }
       else if (strcmp(sflag,"-stretch_ni") == 0) {
         sscanf(argv[++count],"%d",&stretch_ni);
@@ -213,14 +218,9 @@ int main(int   argc,
 
         emars = TRUE;
       }
-      else if (strcmp(sflag,"-weizmann") == 0) {
-        /*
-         * Weizmann Institute gas-giant data.
-         * Input a Weizmann .nc file and convert to isentropic-coordinate QB* and UVPT* files.
-         */
-        weizmann_grid = (weizmann_gridspec *)calloc(1,sizeof(weizmann_gridspec));
-
-        weizmann = TRUE;
+      else if (strcmp(sflag, "-from_defaults") == 0) {
+        sscanf(argv[++count],"%s",defaults_file);
+        MODIFY = 0;
       }
       else if (strcmp(sflag,"-help") == 0 ||
                strcmp(sflag,"-h")    == 0) {
@@ -238,9 +238,6 @@ int main(int   argc,
   if (openmars || emars) {
     planet = &mars;
   }
-  else if (weizmann) {
-    planet = &jupiter;
-  }
   else {
     /* Allocate memory */
     if((planet=( planetspec *)malloc(sizeof(planetspec))) == 0) {
@@ -255,7 +252,7 @@ int main(int   argc,
   MPI_Comm_set_errhandler(para.comm,MPI_ERRORS_RETURN);
   MPI_Comm_rank(para.comm,&para.iamnode);
   MPI_Comm_size(para.comm,&para.nproc);
-  para.ndim = NINT(log((EPIC_FLOAT)para.nproc)/log(2.));
+  para.ndim = NINT(log((double)para.nproc)/log(2.));
   /*
    * epic_change.c is not set up to be run across multiple processors.
    */
@@ -268,7 +265,7 @@ int main(int   argc,
   /*
    *  Read in default parameter settings:
    */
-  read_defaults(&defaults);
+  read_defaults(&defaults,defaults_file);
 
   /* Time-plane index. */
   time_index = 0;
@@ -280,10 +277,10 @@ int main(int   argc,
     int
       nc_id,nc_err;
 
-    input_string("Input OpenMARS data file [netCDF format]\n",defaults.openmars_infile,openmars_infile);
+    input_string("Input OpenMARS data file [netCDF format]\n",defaults.openmars_infile,openmars_infile,MODIFY);
     openmars_itime = 0;
-    openmars_var_read(planet,openmars_grid,openmars_infile,SIZE_DATA,openmars_itime);
-    openmars_make_arrays(planet,openmars_grid);
+    openmars_var_read(openmars_grid,openmars_infile,SIZE_DATA,openmars_itime);
+    openmars_make_arrays(openmars_grid);
     /*
      * NOTE: For OpenMARS, the portion POST_SIZE_DATA refers to the 1D constant
      *       arrays for the dimensions, but not the 2D and 3D variable fields.  The latter
@@ -291,7 +288,7 @@ int main(int   argc,
      *       partition for OpenMARS is that grid.nj depends on the latitude spacing in OpenMARS,
      *       which comes from the POST_SIZE_DATA segment.
      */
-    openmars_var_read(planet,openmars_grid,openmars_infile,POST_SIZE_DATA,openmars_itime);
+    openmars_var_read(openmars_grid,openmars_infile,POST_SIZE_DATA,openmars_itime);
 
      /*
       * Use an EPIC file, openmars_epic.nc, to establish an appropriate EPIC Mars environment.
@@ -299,7 +296,7 @@ int main(int   argc,
       */
     nc_err = nc_open("./openmars_epic.nc",NC_NOWRITE,&nc_id);
     if (nc_err) {
-      openmars_epic_nc(planet);
+      openmars_epic_nc();
     }
     else {
       /*
@@ -315,10 +312,10 @@ int main(int   argc,
     int
       nc_id,nc_err;
 
-    input_string("Input EMARS data file [netCDF format]\n",defaults.emars_infile,emars_infile);
+    input_string("Input EMARS data file [netCDF format]\n",defaults.emars_infile,emars_infile,MODIFY);
     emars_itime = 0;
-    emars_var_read(planet,emars_grid,emars_infile,SIZE_DATA,emars_itime);
-    emars_make_arrays(planet,emars_grid);
+    emars_var_read(emars_grid,emars_infile,SIZE_DATA,emars_itime);
+    emars_make_arrays(emars_grid);
     /*
      * NOTE: For EMARS, the portion POST_SIZE_DATA refers to the 1D constant
      *       arrays for the dimensions, but not the 2D and 3D variable fields.  The latter
@@ -326,7 +323,7 @@ int main(int   argc,
      *       partition for EMARS is that grid.nj depends on the latitude spacing in EMARS,
      *       which comes from the POST_SIZE_DATA segment.
      */
-    emars_var_read(planet,emars_grid,emars_infile,POST_SIZE_DATA,emars_itime);
+    emars_var_read(emars_grid,emars_infile,POST_SIZE_DATA,emars_itime);
 
      /*
       * Use an EPIC file, emars_epic.nc, to establish an appropriate EPIC Mars environment.
@@ -334,7 +331,7 @@ int main(int   argc,
       */
     nc_err = nc_open("./emars_epic.nc",NC_NOWRITE,&nc_id);
     if (nc_err) {
-      emars_epic_nc(planet);
+      emars_epic_nc();
     }
     else {
       /*
@@ -346,59 +343,24 @@ int main(int   argc,
     sprintf(defaults.infile,"./emars_epic.nc");
     sprintf(infile,"%s",defaults.infile);
   }
-  else if (weizmann) {
-    int
-      nc_id,nc_err;
-
-    input_string("Input Weizmann (gas giant) data file [netCDF format]\n",defaults.weizmann_infile,weizmann_infile);
-    weizmann_itime = 0;
-    weizmann_var_read(planet,weizmann_grid,weizmann_infile,SIZE_DATA,weizmann_itime);
-    weizmann_make_arrays(planet,weizmann_grid);
-    /*
-     * NOTE: For Weizmann data, the portion POST_SIZE_DATA refers to the 1D constant
-     *       arrays for the dimensions, but not the 2D variable fields.  The latter
-     *       portion is referred to by VAR_DATA. The reason for the two-part size-data
-     *       partition for Weizmann is that grid.nj depends on the latitude spacing,
-     *       which comes from the POST_SIZE_DATA segment.
-     */
-    weizmann_var_read(planet,weizmann_grid,weizmann_infile,POST_SIZE_DATA,weizmann_itime);
-
-     /*
-      * Use an EPIC file, weizmann_epic.nc, to establish an appropriate EPIC gas-giant environment.
-      * Check whether weizmann_epic.nc already exists, and if not, create it.
-      */
-    nc_err = nc_open("./weizmann_epic.nc",NC_NOWRITE,&nc_id);
-    if (nc_err) {
-      weizmann_epic_nc(planet);
-    }
-    else {
-      /*
-       * The file weizmann_epic.nc already exists.
-       */
-      nc_close(nc_id);
-    }
-
-    sprintf(defaults.infile,"./weizmann_epic.nc");
-    sprintf(infile,"%s",defaults.infile);
-  }
   else {
-    input_string("Input EPIC file [netCDF format]\n",defaults.infile,infile);
+    input_string("Input EPIC file [netCDF format]\n",defaults.infile,infile,MODIFY);
   }
 
   /* NOTE: time_index is not used for SIZE_DATA */
-  var_read(planet,infile,SIZE_DATA,time_index);
+  var_read(infile,SIZE_DATA,time_index);
 
-  set_var_props(planet);
-  make_arrays(planet);
+  set_var_props();
+  make_arrays();
 
   for (I = 0; I < NUM_WORKING_BUFFERS; I++) {
-    Buff2D[I] = fvector(0,Nelem2d-1,dbmsname);
+    Buff2D[I] = dvector(0,Nelem2d-1,dbmsname);
   }
 
   /*
    * Read in rest of input data.
    */
-  var_read(planet,infile,POST_SIZE_DATA,time_index);
+  var_read(infile,POST_SIZE_DATA,time_index);
 
   /* timeplane_bookkeeping() must come after reading in variables. */
   timeplane_bookkeeping();
@@ -407,8 +369,8 @@ int main(int   argc,
    * Set lon, lat, etc. 
    */
   set_lonlat();
-  set_fmn(planet);
-  set_gravity(planet);
+  set_fmn();
+  set_gravity();
   set_dsgth();
 
   /*
@@ -418,12 +380,12 @@ int main(int   argc,
    *       should not be used otherwise.  Use return_cp() for a given
    *       thermodynamical state.
    */
-  thermo_setup(planet,&planet->cpr);
+  thermo_setup(&planet->cpr);
 
   /* 
    * Store diagnostic variables. 
    */
-  if (!openmars && !emars && !weizmann) {
+  if (!openmars && !emars) {
     fprintf(stdout,"\nCalculating and storing diagnostic variables...");
   }
 
@@ -432,14 +394,14 @@ int main(int   argc,
    */
 
   /* Allocate memory */
-  p = fvector(0,2*grid.nk+1,dbmsname);
-  h = fvector(0,2*grid.nk+1,dbmsname);
+  p = dvector(0,2*grid.nk+1,dbmsname);
+  h = dvector(0,2*grid.nk+1,dbmsname);
 
   for (J = JLO; J <= JHI; J++) {
     jj = 2*J+1;
     for (I = ILO; I <= IHI; I++) {
       for (kk = 1; kk <= 2*KHI+1; kk++) {
-        p[kk] = get_p(planet,P2_INDEX,kk,J,I);
+        p[kk] = get_p(P2_INDEX,kk,J,I);
       }
       calc_h(jj,p,h);
 
@@ -455,17 +417,12 @@ int main(int   argc,
   bc_lateral(var.h.value,THREEDIM);
 
   if (openmars) {
-    openmars_conversion(planet,openmars_grid,openmars_infile,openmars_outfile_qb,openmars_outfile_uvpt,Buff2D);
+    openmars_conversion(openmars_grid,openmars_infile,openmars_outfile_qb,openmars_outfile_uvpt);
 
     goto cleanup;
   }
   else if (emars) {
-    emars_conversion(planet,emars_grid,emars_infile,emars_outfile_qb,emars_outfile_uvpt,Buff2D);
-
-    goto cleanup;
-  }
-  else if (weizmann) {
-    weizmann_conversion(planet,weizmann_grid,weizmann_infile,weizmann_outfile_qb,weizmann_outfile_uvpt,Buff2D);
+    emars_conversion(emars_grid,emars_infile,emars_outfile_qb,emars_outfile_uvpt);
 
     goto cleanup;
   }
@@ -481,85 +438,178 @@ int main(int   argc,
    *       need to calculate PHI3(KHI,J,I) on the grid.thetabot isentropic surface
    *       and call store_pgrad_vars with PASSING_PHI3NK; this is not yet implemented.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
-  store_pgrad_vars(planet,Buff2D,SYNC_DIAGS_ONLY,CALC_PHI3NK);
-  store_diag(planet);
+  set_p2_etc(UPDATE_THETA);
+  store_pgrad_vars(SYNC_DIAGS_ONLY,CALC_PHI3NK);
+  store_diag();
 
   /*
    * Print out a listing of important model parameters.
    */
-  print_model_description(planet);
+  print_model_description();
 
   /* 
    *  Print out vertical information:
    */
-  print_vertical_column(planet,JLO,ILO,"vertical.dat");
+  print_vertical_column(JLO,ILO,"vertical.dat");
 
   /*
    *  Change parameters as instructed.
    */
-  grid.dt = input_int("\nInput timestep\n", grid.dt);
+  grid.dt = input_int("\nInput timestep\n", grid.dt,MODIFY);
 
   /*
    * Inquire about radiation scheme.
    */
-  inquire_radiation_scheme(planet);
+  inquire_radiation_scheme(MODIFY);
+
+  if (strcmp(grid.radiation_scheme, "Global heating-cooling") == 0) {
+    defaults.heat_top_pressure = grid.heat_top_pressure = input_double("Top of the heating region [hPa]\n", defaults.heat_top_pressure, MODIFY);
+    defaults.cool_bot_pressure = grid.cool_bot_pressure = input_double("Bottom of the cooling region [hPa]\n", defaults.cool_bot_pressure, MODIFY);
+    defaults.heat_rate = grid.heat_rate = input_double("Heating rate at the bottom [K/day]\n", defaults.heat_rate, MODIFY);
+    defaults.cool_rate = grid.cool_rate = input_double("Cooling rate at the top [K/day]\n", defaults.cool_rate, MODIFY);
+    
+    // convert to appropriate units
+    grid.heat_top_pressure = grid.heat_top_pressure * 100.;
+    grid.cool_bot_pressure = grid.cool_bot_pressure * 100.;
+    grid.heat_rate = grid.heat_rate / 86400.;
+    grid.cool_rate = grid.cool_rate / 86400.;
+  }
+
 
   if (var.fpara.on) {
     /*
      * Inquire about fpara_rate_scaling.
      */
     sprintf(Message,"Input ortho-para H2 conversion rate scaling [nominal is 1.0]:\n");
-    var.fpara_rate_scaling = input_float(Message,var.fpara_rate_scaling);
+    var.fpara_rate_scaling = input_double(Message,var.fpara_rate_scaling,MODIFY);
   }
 
   /*
    * Inquire whether to change the status of cloud microphysics.
    */
   if (grid.cloud_microphysics != OFF) {
-    sprintf(Message,"Cloud microphysics: %2d => active  (latent heat, phase changes, precipitation), or \n"
-                    "                    %2d => passive (advection only)\n"
-                    "                    %2d => steady  (maintains starting condition)\n",ACTIVE,PASSIVE,STEADY);
-    grid.cloud_microphysics = input_int(Message,grid.cloud_microphysics);
+    sprintf(Message,"Cloud microphysics: %2d => off \n"
+                    "                    %2d => active  (latent heat, phase changes, precipitation) \n"
+                    "                    %2d => passive (advection only)\n",
+                    OFF,ACTIVE,PASSIVE);
+    grid.cloud_microphysics = input_int(Message,grid.cloud_microphysics,MODIFY);
+
+    /* 
+     * Check if vapor needs to be trimmed or re-initialized.
+     */
+    defaults.reinit_cloud = input_int("Re-initialize vapor? (0 = no, 1 = trim excess, 2 = re-initialize):\n",recloud,MODIFY);
+    switch(defaults.reinit_cloud) {
+      case 0:
+        fprintf(stdout,"Not modifying vapor.\n");
+      break;
+
+      case 1:
+        fprintf(stdout,"Trimming supersaturated vapor.\n");
+        change_species(&defaults,USE_PROMPTS,CHANGEMODE); 
+      break;
+
+      case 2:
+        fprintf(stdout,"Re-initializing vapor. \n");
+        change_species(&defaults,USE_PROMPTS,INITMODE); 
+      break;
+
+      default:
+        sprintf(Message,"Unrecognized recloud input, defaulting to 0 = no.");
+        epic_warning(dbmsname,Message);
+        fprintf(stdout,"Not modifying vapor.\n");
+      break;
+    }
+    
+    if (grid.moist_convection == NOT_SET || grid.moist_convection == OFF) {
+      grid.moist_convection = OFF;
+    }
+    sprintf(Message,"Moist convective scheme: %2d => off \n"
+                    "                         %2d => on (Sud & Walker, 1999) \n"
+		    "                         %2d => passive (calculate diagnostic variables only) \n",
+                    OFF,ACTIVE,PASSIVE);
+    grid.moist_convection = input_int(Message,grid.moist_convection,MODIFY);
+
+    if( grid.moist_convection == ACTIVE) {
+      sprintf(Message,"Max number of iterations: \n");
+      grid.max_mc_it = input_int(Message,grid.max_mc_it,MODIFY);
+
+      sprintf(Message,"Relaxation timescale: \n");
+      grid.tau_relax = input_double(Message,grid.tau_relax,MODIFY);
+
+      /* 
+       * Reset the counter to state that RAS will be calculated for the first time.
+       */
+      grid.first_RAS_upd = 1;
+    }
+    else {
+      grid.moist_convection = OFF;
+      grid.max_mc_it        = 0;
+      grid.tau_relax        = 0.;
+    }
   }
 
+  /* for relaxing the vapor back to the initial state */
+  if(grid.cloud_microphysics != OFF) {
+    if (defaults.grid_relax_vapor == NOT_SET ||
+        defaults.grid_relax_vapor == OFF) {
+      defaults.grid_relax_vapor = OFF;
+    }
+    sprintf(Message,"Relax vapor profile to initial state : %2d => on, or \n"
+                    "                                       %2d => off\n", ON, OFF);
+    defaults.grid_relax_vapor = grid.relax_vapor = input_int(Message,defaults.grid_relax_vapor,1);
+
+    if(grid.relax_vapor == ACTIVE) {
+        sprintf(Message,"Timescale [days] : \n");
+        defaults.grid_relax_vapor_timescale = grid.relax_vapor_timescale = input_int(Message,defaults.grid_relax_vapor_timescale,1);
+        grid.relax_vapor_timescale *= 24. * 3600.;
+    }
+  } else {
+      defaults.grid_relax_vapor = OFF;
+      grid.relax_vapor_timescale *= 0.;
+  }
+
+
   /*
-   * Set sponges:
+   * Set sponges, drag layers:
    */
-  grid.k_sponge = input_int("Input k_sponge (-1 = no effect):\n",grid.k_sponge);
-  grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical):\n",grid.j_sponge);
+  grid.k_sponge   = input_int("Input k_sponge (-1 = no effect,MODIFY):\n",
+                              grid.k_sponge,MODIFY);
+  grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect,MODIFY):\n",
+                              grid.n_bot_drag,MODIFY);
+  grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical,MODIFY):\n",
+                            grid.j_sponge,MODIFY);
 
   /*
    * Revisit hyperviscosity coefficients (since dt may have changed).
    */
-  set_hyperviscosity();
+  set_hyperviscosity(MODIFY);
   
   /*
    * Add perturbations if requested, in the form of spots (vortices) and/or waves.
    */
   if (spots || waves) {
-    EPIC_FLOAT
+    double
       *pert;
 
     /* 
      * Allocate memory for perturbation streamfunction
      */
-    pert = fvector(0,Nelem3d-1,dbmsname);
+    pert = dvector(0,Nelem3d-1,dbmsname);
 
     if (spots) {
-      add_spots(planet,spots_file,pert,Buff2D);
+      add_spots(spots_file,pert);
     }
 
     if (waves) {
-      add_waves(planet,waves_file,pert,Buff2D);
+      add_waves(waves_file,pert);
     }
 
-    modify_progs_from_pert(planet,pert);
+    modify_progs_from_pert(pert);
 
     /*
      * Free allocated memory.
      */
-    free_fvector(pert,0,Nelem3d-1,dbmsname);
+    free_dvector(pert,0,Nelem3d-1,dbmsname);
 
     /*
      * Update most commonly used diagnostic variables, in case they are needed.
@@ -568,9 +618,16 @@ int main(int   argc,
      *       need to calculate PHI3(KHI,J,I) on the grid.thetabot isentropic surface
      *       and call store_pgrad_vars with PASSING_PHI3NK; this is not yet implemented.
      */
-    set_p2_etc(planet,UPDATE_THETA,Buff2D);
-    store_pgrad_vars(planet,Buff2D,SYNC_DIAGS_ONLY,CALC_PHI3NK);
-    store_diag(planet);
+    set_p2_etc(UPDATE_THETA);
+    store_pgrad_vars(SYNC_DIAGS_ONLY,CALC_PHI3NK);
+    store_diag();
+  }
+
+  /*
+   * Add thermal perturbation if requested:
+   */
+  if (heat) {
+    add_heat(heat_file);
   }
 
   /*
@@ -583,45 +640,43 @@ int main(int   argc,
       strcat(defaults.extract_str,buffer);
     }
   }
-  prompt_extract_on(defaults.extract_str,&grid.extract_species_fraction_type);
+  prompt_extract_on(defaults.extract_str,&grid.extract_species_fraction_type,&grid.mc_diag_extract_sum,MODIFY);
 
   /*
    * Write epic.nc file.
    */
-  input_string("Name of output file\n",defaults.outfile,outfile);
-  var_write(planet,outfile,ALL_DATA,time_index,stretch_ni);
+  input_string("Name of output file\n",defaults.outfile,outfile,MODIFY);
+  var_write(outfile,ALL_DATA,time_index,stretch_ni);
 
   /*---------------*
    * Cleanup block *
    *---------------*/
   cleanup:
 
-  /* Write defaults file: */
-  write_defaults(&defaults);
+  /* Write defaults file if we are not using a defaults input: */
+  if(!MODIFY) {
+    write_defaults(&defaults);
+  }
 
   /*
    * Free dynamically allocated memory.
    */
-  free_fvector(p,0,2*grid.nk+1,dbmsname);
-  free_fvector(h,0,2*grid.nk+1,dbmsname);
+  free_dvector(p,0,2*grid.nk+1,dbmsname);
+  free_dvector(h,0,2*grid.nk+1,dbmsname);
 
-  free_arrays(planet);
-  free_var_props(planet);
+  free_arrays();
+  free_var_props();
 
   if (openmars) {
-    openmars_free_arrays(planet,openmars_grid);
+    openmars_free_arrays(openmars_grid);
     free(openmars_grid);
   }
   else if (emars) {
-    emars_free_arrays(planet,emars_grid);
+    emars_free_arrays(emars_grid);
     free(emars_grid);
   }
-  else if (weizmann) {
-    weizmann_free_arrays(planet,weizmann_grid);
-    free(weizmann_grid);
-  }
 
-  if (openmars || emars || weizmann) {
+  if (openmars || emars) {
     /*
      * No need to free planet structure, since it
      * was not dynamically allocated.
@@ -633,7 +688,7 @@ int main(int   argc,
   }
 
   for (I = 0; I < NUM_WORKING_BUFFERS; I++) {
-    free_fvector(Buff2D[I],0,Nelem2d-1,dbmsname);
+    free_dvector(Buff2D[I],0,Nelem2d-1,dbmsname);
   }
 
   return 0;
@@ -669,10 +724,8 @@ int main(int   argc,
  */
 #define SPOT_PERT  GAUSSIAN_ELLIPSOID
 
-void add_spots(planetspec  *planet,
-               char        *spots_file,
-               EPIC_FLOAT  *pert,
-               EPIC_FLOAT **Buff2D)
+void add_spots(char    *spots_file,
+               double  *pert)
 {
   register int
     K,J,I,
@@ -680,15 +733,14 @@ void add_spots(planetspec  *planet,
     ispot;
   int
     nspots = 0;
-  EPIC_FLOAT
+  double
     rr,xspot,yspot,zspot,
     lon_width,lon_half_width,
     pressure;
-  EPIC_FLOAT
+  double
     *lonspot,*latspot,*pspot,
     *aspot,*bspot,*cspot_up,*cspot_down,*ampspot;
-  char
-    buffer[FILE_STR];
+
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -718,14 +770,14 @@ void add_spots(planetspec  *planet,
   /* 
    * Allocate memory:
    */
-  lonspot      = fvector(0,nspots-1,dbmsname);
-  latspot      = fvector(0,nspots-1,dbmsname);
-  pspot        = fvector(0,nspots-1,dbmsname);
-  aspot        = fvector(0,nspots-1,dbmsname);
-  bspot        = fvector(0,nspots-1,dbmsname);
-  cspot_up     = fvector(0,nspots-1,dbmsname);
-  cspot_down   = fvector(0,nspots-1,dbmsname);
-  ampspot      = fvector(0,nspots-1,dbmsname);
+  lonspot      = dvector(0,nspots-1,dbmsname);
+  latspot      = dvector(0,nspots-1,dbmsname);
+  pspot        = dvector(0,nspots-1,dbmsname);
+  aspot        = dvector(0,nspots-1,dbmsname);
+  bspot        = dvector(0,nspots-1,dbmsname);
+  cspot_up     = dvector(0,nspots-1,dbmsname);
+  cspot_down   = dvector(0,nspots-1,dbmsname);
+  ampspot      = dvector(0,nspots-1,dbmsname);
 
   /* 
    * Read in vortex information: 
@@ -777,17 +829,15 @@ void add_spots(planetspec  *planet,
   /* Need to apply bc_lateral() here. */
   bc_lateral(pert,THREEDIM);
 
-  fprintf(stdout,"done.\n"); fflush(stdout);
-
   /* Free allocated memory: */
-  free_fvector(ampspot,     0,nspots-1, dbmsname);
-  free_fvector(cspot_down,  0,nspots-1, dbmsname);
-  free_fvector(cspot_up,    0,nspots-1, dbmsname);
-  free_fvector(bspot,       0,nspots-1, dbmsname);
-  free_fvector(aspot,       0,nspots-1, dbmsname);
-  free_fvector(pspot,       0,nspots-1, dbmsname);
-  free_fvector(latspot,     0,nspots-1, dbmsname);
-  free_fvector(lonspot,     0,nspots-1, dbmsname);
+  free_dvector(ampspot,   0,nspots-1,dbmsname);
+  free_dvector(cspot_down,0,nspots-1,dbmsname);
+  free_dvector(cspot_up,  0,nspots-1,dbmsname);
+  free_dvector(bspot,     0,nspots-1,dbmsname);
+  free_dvector(aspot,     0,nspots-1,dbmsname);
+  free_dvector(pspot,     0,nspots-1,dbmsname);
+  free_dvector(latspot,   0,nspots-1,dbmsname);
+  free_dvector(lonspot,   0,nspots-1,dbmsname);
 
   return;
 }
@@ -821,10 +871,8 @@ void add_spots(planetspec  *planet,
  * NOTE: Not MPI ready. 
  */
 
-void add_waves(planetspec  *planet,
-               char        *waves_file,
-               EPIC_FLOAT  *pert,
-               EPIC_FLOAT **Buff2D)
+void add_waves(char   *waves_file,
+               double *pert)
 {
   int
     K,J,I,
@@ -839,17 +887,14 @@ void add_waves(planetspec  *planet,
     rlt,rln,rr,
     phase_offset,
     coef;
-  EPIC_FLOAT
+  double
    *latwave,
    *ampwave,
    *wnwave,
    *pwave,
    *cwave,
    *fwhmwave;
-  char
-    buffer[FILE_STR];
-  FILE
-   *waves;
+
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -878,12 +923,12 @@ void add_waves(planetspec  *planet,
   /* 
    * Allocate memory:
    */
-  latwave  = fvector(0,nwaves-1,dbmsname);
-  ampwave  = fvector(0,nwaves-1,dbmsname);
-  wnwave   = fvector(0,nwaves-1,dbmsname);
-  pwave    = fvector(0,nwaves-1,dbmsname);
-  cwave    = fvector(0,nwaves-1,dbmsname);
-  fwhmwave = fvector(0,nwaves-1,dbmsname);
+  latwave  = dvector(0,nwaves-1,dbmsname);
+  ampwave  = dvector(0,nwaves-1,dbmsname);
+  wnwave   = dvector(0,nwaves-1,dbmsname);
+  pwave    = dvector(0,nwaves-1,dbmsname);
+  cwave    = dvector(0,nwaves-1,dbmsname);
+  fwhmwave = dvector(0,nwaves-1,dbmsname);
 
   /*
    * Read wave information:
@@ -936,18 +981,16 @@ void add_waves(planetspec  *planet,
   }
   /* Need to apply bc_lateral() here. */
   bc_lateral(pert,THREEDIM);
-
-  fprintf(stdout,"done.\n"); fflush(stdout);
 	
   /* 
    * Free allocated memory:
    */
-  free_fvector(latwave, 0,nwaves-1, dbmsname);
-  free_fvector(ampwave, 0,nwaves-1, dbmsname);
-  free_fvector(wnwave,  0,nwaves-1, dbmsname);
-  free_fvector(pwave,   0,nwaves-1, dbmsname);
-  free_fvector(cwave,   0,nwaves-1, dbmsname);
-  free_fvector(fwhmwave,0,nwaves-1, dbmsname);
+  free_dvector(latwave, 0,nwaves-1,dbmsname);
+  free_dvector(ampwave, 0,nwaves-1,dbmsname);
+  free_dvector(wnwave,  0,nwaves-1,dbmsname);
+  free_dvector(pwave,   0,nwaves-1,dbmsname);
+  free_dvector(cwave,   0,nwaves-1,dbmsname);
+  free_dvector(fwhmwave,0,nwaves-1,dbmsname);
 	
   return;
 }
@@ -979,15 +1022,14 @@ void add_waves(planetspec  *planet,
 #undef  LAT_MIN
 #define LAT_MIN 5.0
 
-void modify_progs_from_pert(planetspec *planet,
-                            EPIC_FLOAT *pert)
+void modify_progs_from_pert(double *pert)
 {
-  EPIC_FLOAT
+  double
    *ug,*vg,
    *zetag,*king,
    *dtemp,
    *p_hybrid,*theta_hybrid,*theta_sigma;
-  EPIC_FLOAT
+  double
     fpara,rgas,sigma,
     pbot,gsg,xi2,xi4,
     theta_ortho,theta_para;
@@ -1003,16 +1045,16 @@ void modify_progs_from_pert(planetspec *planet,
     dbmsname[]="modify_progs_from_pert";
 
   /* Allocate memory */
-  ug    = fvector(0,Nelem3d-1,dbmsname);
-  vg    = fvector(0,Nelem3d-1,dbmsname);
-  dtemp = fvector(0,Nelem3d-1,dbmsname);
+  ug    = dvector(0,Nelem3d-1,dbmsname);
+  vg    = dvector(0,Nelem3d-1,dbmsname);
+  dtemp = dvector(0,Nelem3d-1,dbmsname);
 
-  zetag = fvector(0,Nelem2d-1,dbmsname);
-  king  = fvector(0,Nelem2d-1,dbmsname);
+  zetag = dvector(0,Nelem2d-1,dbmsname);
+  king  = dvector(0,Nelem2d-1,dbmsname);
 
-  p_hybrid     = fvector(0,KHI,dbmsname);
-  theta_hybrid = fvector(0,KHI,dbmsname);
-  theta_sigma  = fvector(0,KHI,dbmsname);
+  p_hybrid     = dvector(0,KHI,dbmsname);
+  theta_hybrid = dvector(0,KHI,dbmsname);
+  theta_sigma  = dvector(0,KHI,dbmsname);
 
   /*
    * Estimate the geostrophic wind (UG,VG) of the perturbed system.
@@ -1086,7 +1128,7 @@ void modify_progs_from_pert(planetspec *planet,
             /*
              * Form the independent variable, xi, by blending from the pressure region to the theta region.
              */
-            rgas         = R_GAS/avg_molar_mass(planet,2*K+1,J,I);
+            rgas         = R_GAS/avg_molar_mass(2*K+1,J,I);
 
             sigma        = get_sigma(pbot,P2(K,J,I));
             gsg          = (double)g_sigma(sigma);
@@ -1121,14 +1163,14 @@ void modify_progs_from_pert(planetspec *planet,
             /*
              * NOTE: Assuming the density doesn't change.
              */
-            P3(K,J,I) = p_from_t_rho_mu(planet,T3(K,J,I),RHO3(K,J,I),avg_molar_mass(planet,2*K+1,J,I));
+            P3(K,J,I) = p_from_t_rho_mu(T3(K,J,I),RHO3(K,J,I),avg_molar_mass(2*K+1,J,I));
 
             /*
              * Use diagnostic value for THETA.
              */
             sigma        = get_sigma(pbot,P3(K,J,I));
             gsg          = (double)g_sigma(sigma);
-            THETA(K,J,I) = (EPIC_FLOAT)(((double)grid.sigmatheta[2*K+1]-(double)f_sigma(sigma))/gsg);
+            THETA(K,J,I) = (double)(((double)grid.sigmatheta[2*K+1]-(double)f_sigma(sigma))/gsg);
           }
           for (K = grid.k_sigma; K < KHI; K++) {
             T3(K,J,I) += DTEMP(K,J,I);
@@ -1144,12 +1186,12 @@ void modify_progs_from_pert(planetspec *planet,
             /*
              * NOTE: Assuming the density doesn't change.
              */
-            P3(K,J,I) = p_from_t_rho_mu(planet,T3(K,J,I),RHO3(K,J,I),avg_molar_mass(planet,2*K+1,J,I));
+            P3(K,J,I) = p_from_t_rho_mu(T3(K,J,I),RHO3(K,J,I),avg_molar_mass(2*K+1,J,I));
 
             /*
              * Use thermodynamic value for THETA.
              */
-            THETA(K,J,I) = return_theta(planet,fpara,P3(K,J,I),T3(K,J,I),&theta_ortho,&theta_para);
+            THETA(K,J,I) = return_theta(fpara,P3(K,J,I),T3(K,J,I),&theta_ortho,&theta_para);
           }
         }
       }
@@ -1158,7 +1200,7 @@ void modify_progs_from_pert(planetspec *planet,
       for (J = JLOPAD; J <= JHIPAD; J++) {
         for (I = ILOPAD; I <= IHIPAD; I++) {
           for (K = KLO; K < KHI; K++) {
-            rgas          = R_GAS/avg_molar_mass(planet,2*K+1,J,I);
+            rgas          = R_GAS/avg_molar_mass(2*K+1,J,I);
 
             DTEMP(K,J,I)  = (PERT(K,J,I)-PERT(K+1,J,I))/(rgas*log(P2(K+1,J,I)/P2(K,J,I)));
             T3(K,J,I)    += DTEMP(K,J,I);
@@ -1171,7 +1213,7 @@ void modify_progs_from_pert(planetspec *planet,
               FPARA(K,J,I) = return_fpe(T3(K,J,I));
             }
 
-            THETA(K,J,I)  = return_theta(planet,fpara,P3(K,J,I),T3(K,J,I),&theta_ortho,&theta_para);
+            THETA(K,J,I)  = return_theta(fpara,P3(K,J,I),T3(K,J,I),&theta_ortho,&theta_para);
           }
         }
       }
@@ -1194,7 +1236,7 @@ void modify_progs_from_pert(planetspec *planet,
             /*
              * NOTE: Assuming the density doesn't change.
              */
-            P3(K,J,I) = p_from_t_rho_mu(planet,T3(K,J,I),RHO3(K,J,I),avg_molar_mass(planet,2*K+1,J,I));
+            P3(K,J,I) = p_from_t_rho_mu(T3(K,J,I),RHO3(K,J,I),avg_molar_mass(2*K+1,J,I));
           }
         }
       }
@@ -1240,7 +1282,7 @@ void modify_progs_from_pert(planetspec *planet,
     vorticity(ON_SIGMATHETA,RELATIVE,2*K,ug+(K-Kshift)*Nelem2d,vg+(K-Kshift)*Nelem2d,NULL,zetag);
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
-        KING(J,I) = get_kin(planet,ug+(K-Kshift)*Nelem2d,vg+(K-Kshift)*Nelem2d,kk,J,I);
+        KING(J,I) = get_kin(ug+(K-Kshift)*Nelem2d,vg+(K-Kshift)*Nelem2d,kk,J,I);
       }
     }
     /* Need to apply bc_lateral() here. */
@@ -1267,21 +1309,165 @@ void modify_progs_from_pert(planetspec *planet,
   }
 
   /* Free allocated memory. */
-  free_fvector(ug,   0,Nelem3d-1,dbmsname);
-  free_fvector(vg,   0,Nelem3d-1,dbmsname);
-  free_fvector(dtemp,0,Nelem3d-1,dbmsname);
+  free_dvector(ug,   0,Nelem3d-1,dbmsname);
+  free_dvector(vg,   0,Nelem3d-1,dbmsname);
+  free_dvector(dtemp,0,Nelem3d-1,dbmsname);
 
-  free_fvector(zetag,0,Nelem2d-1,dbmsname);
-  free_fvector(king, 0,Nelem2d-1,dbmsname);
+  free_dvector(zetag,0,Nelem2d-1,dbmsname);
+  free_dvector(king, 0,Nelem2d-1,dbmsname);
 
-  free_fvector(p_hybrid,    0,KHI,dbmsname);
-  free_fvector(theta_hybrid,0,KHI,dbmsname);
-  free_fvector(theta_sigma, 0,KHI,dbmsname);
+  free_dvector(p_hybrid,    0,KHI,dbmsname);
+  free_dvector(theta_hybrid,0,KHI,dbmsname);
+  free_dvector(theta_sigma, 0,KHI,dbmsname);
+
+  fprintf(stdout,"done \n"); fflush(stdout);
 
   return;
 }
 
 /*======================= end of modify_progs_from_pert() ===================*/
+
+/*======================= add_heat() ========================================*/
+
+/*
+ * Use the same file format as add_spots() to add a gaussian perturbation
+ * to potential temperature, with ampspot interpreted as [K].
+ *
+ * Example heat.dat file:
+ * ---------------------------------------------------------------------------------------
+ *  Number of spots: 2
+ *  lon[deg] lat[deg] press[hPa]  a[deg] b[deg] c_up[scale_hts] c_down[scale_hts] amp[K]
+ *   30.      -33.     680.       3.0    2.5        2.5               3.0          -1.
+ *   60.      -33.5    680.       3.0    2.5        2.5               3.0           2.
+ * ---------------------------------------------------------------------------------------
+ */
+
+void add_heat(char *heat_file)
+{
+  register int
+    K,J,I,
+    kk,jj,
+    ispot;
+  int
+    nspots = 0;
+  double
+    rr,xspot,yspot,zspot,
+    lon_width,lon_half_width,
+    pressure;
+  double
+    *lonspot,*latspot,*pspot,
+    *aspot,*bspot,*cspot_up,*cspot_down,*ampspot;
+
+  /*
+   * The following are part of DEBUG_MILESTONE(.) statements:
+   */
+  int
+    idbms=0;
+  static char
+    dbmsname[]="add_heat";
+
+  if (strcmp(heat_file,"none") == 0) {
+    /* Return if there is nothing to do: */
+    return;
+  }
+
+  /*
+   * Error if called for the pure isentropic-coordinate model.
+   */
+  if (grid.coord_type == COORD_ISENTROPIC) {
+    sprintf(Message,"not implemented for grid.coord_type == COORD_ISENTROPIC");
+    epic_error(dbmsname,Message);
+  }
+
+  /* Read perturbation description file: */
+  lon_width      = grid.globe_lontop-grid.globe_lonbot;
+  lon_half_width = .5*lon_width;
+
+  nspots = number_objects_in_file(heat_file);
+
+  if (nspots == 1) {
+    fprintf(stdout,"Generating heat spot..."); fflush(stdout);
+  }
+  else {
+    fprintf(stdout,"Generating heat spots..."); fflush(stdout);
+  }
+
+  /* 
+   * Allocate memory:
+   */
+  lonspot      = dvector(0,nspots-1,dbmsname);
+  latspot      = dvector(0,nspots-1,dbmsname);
+  pspot        = dvector(0,nspots-1,dbmsname);
+  aspot        = dvector(0,nspots-1,dbmsname);
+  bspot        = dvector(0,nspots-1,dbmsname);
+  cspot_up     = dvector(0,nspots-1,dbmsname);
+  cspot_down   = dvector(0,nspots-1,dbmsname);
+  ampspot      = dvector(0,nspots-1,dbmsname);
+
+  /* 
+   * Read in heat spot information: 
+   */
+  read_spots_file(heat_file,ampspot,lonspot,latspot,pspot,
+                  aspot,bspot,cspot_up,cspot_down,DONT_ADJUST_AMPLITUDE);
+
+  /*
+   * Apply perturbation to THETA in the non-isentropic-coordinate part of the model.
+   */
+  for (K = grid.k_sigma; K <= KHI; K++) {
+    for (J = JLO; J <= JHI; J++) {
+      for (I = ILO; I <= IHI; I++) {
+        pressure = P3(K,J,I);
+        for (ispot = 0; ispot < nspots; ispot++) {
+           /* Account for periodicity in x-direction: */
+           xspot  = (grid.lon[2*I+1]-lonspot[ispot]);
+          if (xspot > lon_half_width) {
+            xspot -= lon_width;
+          } else if (xspot < -lon_half_width) {
+            xspot += lon_width;
+          }
+          xspot /= aspot[ispot];
+
+          yspot  = (grid.lat[2*J+1]-latspot[ispot])/bspot[ispot];
+
+          rr = xspot*xspot+yspot*yspot;
+          if (pressure <= pspot[ispot]) {
+            zspot = -log(pressure/pspot[ispot])/cspot_up[ispot];
+          }
+          else{
+            zspot =  log(pressure/pspot[ispot])/cspot_down[ispot];
+          }
+          rr += zspot*zspot;
+
+          THETA(K,J,I) += ampspot[ispot]*exp(-rr);
+        }
+      }
+    }
+  }
+
+  /*
+   * NOTE: Only the prognostic variables are important in the output from change,
+   *       but in case any diagnostic variables closely associated with THETA may
+   *       affect the prognostic variables after add_heat():
+   *
+   * Update P2, THETA2, etc.
+   */
+  set_p2_etc(UPDATE_THETA);
+
+  /* Free allocated memory: */
+  free_dvector(ampspot,   0,nspots-1,dbmsname);
+  free_dvector(cspot_down,0,nspots-1,dbmsname);
+  free_dvector(cspot_up,  0,nspots-1,dbmsname);
+  free_dvector(bspot,     0,nspots-1,dbmsname);
+  free_dvector(aspot,     0,nspots-1,dbmsname);
+  free_dvector(pspot,     0,nspots-1,dbmsname);
+  free_dvector(latspot,   0,nspots-1,dbmsname);
+  free_dvector(lonspot,   0,nspots-1,dbmsname);
+ 
+  fprintf(stdout,"done \n"); fflush(stdout);
+
+  return;
+}
+/*======================= end of add_heat() =================================*/
 
 /*====================== number_objects_in_file() ===========================*/
 
@@ -1329,22 +1515,22 @@ int number_objects_in_file(char *objects_file)
 
 /*====================== read_spots_file() ==================================*/
 
-void read_spots_file(char       *spots_file,
-                     EPIC_FLOAT *ampspot,
-                     EPIC_FLOAT *lonspot,
-                     EPIC_FLOAT *latspot,
-                     EPIC_FLOAT *pspot,
-                     EPIC_FLOAT *aspot,
-                     EPIC_FLOAT *bspot,
-                     EPIC_FLOAT *cspot_up,
-                     EPIC_FLOAT *cspot_down,
-                     int         adjust_amplitude)
+void read_spots_file(char   *spots_file,
+                     double *ampspot,
+                     double *lonspot,
+                     double *latspot,
+                     double *pspot,
+                     double *aspot,
+                     double *bspot,
+                     double *cspot_up,
+                     double *cspot_down,
+                     int     adjust_amplitude)
 {
   register int 
     ispot;
   int
     nspots=0;
-  EPIC_FLOAT
+  double
     fspot,
     factor;
   char
@@ -1371,19 +1557,12 @@ void read_spots_file(char       *spots_file,
 
   fgets(buffer,FILE_STR,spots);
   for (ispot = 0; ispot < nspots; ispot++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     fscanf(spots,"%lf %lf %lf %lf %lf %lf %lf %lf",
            lonspot+ispot,latspot+ispot,pspot+ispot,
            aspot+ispot,bspot+ispot,cspot_up+ispot,cspot_down+ispot,ampspot+ispot);
-#else
-    fscanf(spots,"%f %f %f %f %f %f %f %f",
-           lonspot+ispot,latspot+ispot,pspot+ispot,
-           aspot+ispot,bspot+ispot,cspot_up+ispot,cspot_down+ispot,ampspot+ispot);
-#endif
+
     /* Convert pspot from hPa to Pa: */
     pspot[ispot] *= 100.;
-
 
     /* 
      * Convert ampspot to amp for mont.  The parameter 'factor' 
@@ -1408,20 +1587,20 @@ void read_spots_file(char       *spots_file,
 
 /*====================== read_waves_file() ==================================*/
 
-void read_waves_file(char       *waves_file,
-                     EPIC_FLOAT *latwave,
-                     EPIC_FLOAT *ampwave,
-                     EPIC_FLOAT *wnwave,
-                     EPIC_FLOAT *pwave,
-                     EPIC_FLOAT *cwave,
-                     EPIC_FLOAT *fwhmwave)
+void read_waves_file(char   *waves_file,
+                     double *latwave,
+                     double *ampwave,
+                     double *wnwave,
+                     double *pwave,
+                     double *cwave,
+                     double *fwhmwave)
 {
   register int 
     iwave;
   int
     kkbot,
     nwaves = 0;
-  EPIC_FLOAT
+  double
     coef,rlt;
   char
     *char_pt,
@@ -1458,14 +1637,8 @@ void read_waves_file(char       *waves_file,
 
   fgets(buffer,FILE_STR,waves);
   for (iwave = 0; iwave < nwaves; iwave++) {
-
-#if EPIC_PRECISION == DOUBLE_PRECISION
     fscanf(waves,"%lf %lf %lf %lf %lf %lf",
                  latwave+iwave,ampwave+iwave,wnwave+iwave,pwave+iwave,cwave+iwave,fwhmwave+iwave);
-#else
-    fscanf(waves,"%f %f %f %f %f %f",
-                 latwave+iwave,ampwave+iwave,wnwave+iwave,pwave+iwave,cwave+iwave,fwhmwave+iwave);
-#endif
 		
     /* Convert pwave from hPa (mbar) to Pa: */
     pwave[iwave] *= 100.;
@@ -1485,7 +1658,7 @@ void read_waves_file(char       *waves_file,
 
 /*======================= read_defaults() ===================================*/
 
-void read_defaults(change_defaultspec *def) 
+void read_defaults(change_defaultspec *def, char *defaults_file) 
 {
   int
     nc_id,
@@ -1509,7 +1682,7 @@ void read_defaults(change_defaultspec *def)
   static char
     dbmsname[]="read_defaults";
 
-  nc_err = lookup_netcdf("change_defaults.nc",
+  nc_err = lookup_netcdf(defaults_file,
                          &nc_id,&ngatts,&gattname,&num_progs,&varname);
   if (nc_err == NC_NOERR) {
     READI(&def->uv_timestep_scheme,def_uv_timestep_scheme,1);
@@ -1517,8 +1690,23 @@ void read_defaults(change_defaultspec *def)
     READC(def->outfile,def_outfile,N_STR);
     READC(def->openmars_infile,def_openmars_infile,N_STR);
     READC(def->emars_infile,def_emars_infile,N_STR);
-    READC(def->weizmann_infile,def_weizmann_infile,N_STR);
     READC(def->extract_str,def_extract_str,N_STR);
+
+    READI(&def->moist_convection,def_moist_convection,1);
+    READI(&def->cloud_microphysics,def_cloud_microphysics,1);
+    READI(&def->reinit_cloud,def_reinit_cloud,1);
+    
+    READI(&def->grid_relax_vapor,grid_relax_vapor,1);
+    READD(&def->grid_relax_vapor_timescale,grid_relax_vapor_timescale,1);
+    READD(def->rh_max,def_rh_max,LAST_SPECIES+1);
+
+    READI(&def->max_mc_it,grid_max_mc_it,1);
+    READD(&def->tau_relax,grid_tau_relax,1);
+    
+    READD(&def->heat_rate,grid_heat_rate,1);
+    READD(&def->cool_rate,grid_cool_rate,1);
+    READD(&def->heat_top_pressure,grid_heat_top_pressure,1);
+    READD(&def->cool_bot_pressure,grid_cool_bot_pressure,1);
   }
   else {
     /*
@@ -1530,8 +1718,23 @@ void read_defaults(change_defaultspec *def)
     strcpy(def->outfile,"epic.nc");
     strcpy(def->openmars_infile,"");
     strcpy(def->emars_infile,"");
-    strcpy(def->weizmann_infile,"");
     strcpy(def->extract_str,"");
+
+    def->radiation_scheme               = 0;
+
+    def->moist_convection = 0;
+    def->cloud_microphysics = 0;
+    def->reinit_cloud = 0;
+    def->max_mc_it = 0;
+    def->tau_relax = 0.;
+    
+    def->grid_relax_vapor = OFF;
+    def->grid_relax_vapor_timescale = 5;
+    
+    def->heat_top_pressure  = 20000.; // hPa
+    def->cool_bot_pressure  = 50.;    // hPa
+    def->heat_rate = 0.008; // K/day
+    def->cool_rate = 0.01;  // K/day
   }
 
   return;
@@ -1567,8 +1770,29 @@ void write_defaults(change_defaultspec *def)
   WRITEC(def->outfile,def_outfile,N_STR);
   WRITEC(def->openmars_infile,def_openmars_infile,N_STR);
   WRITEC(def->emars_infile,def_emars_infile,N_STR);
-  WRITEC(def->weizmann_infile,def_weizmann_infile,N_STR);
   WRITEC(def->extract_str,def_extract_str,N_STR);
+  
+  WRITEI(&def->radiation_scheme,def_radiation_scheme,1);
+
+  WRITEI(&def->cloud_microphysics,def_cloud_microphysics,1);
+  WRITEI(&def->moist_convection,def_moist_convection,1);
+  WRITEI(&def->reinit_cloud,def_reinit_cloud,1);
+  WRITED(def->rh_max,def_rh_max,LAST_SPECIES+1);
+
+  WRITEC(def->infile,def_infile,N_STR);
+  WRITEC(def->outfile,def_outfile,N_STR);
+  WRITEC(def->extract_str,def_extract_str,N_STR);
+  
+  WRITED(&def->heat_rate,grid_heat_rate,1);
+  WRITED(&def->cool_rate,grid_cool_rate,1);
+  WRITED(&def->heat_top_pressure,grid_heat_top_pressure,1);
+  WRITED(&def->cool_bot_pressure,grid_cool_bot_pressure,1);
+
+  WRITEI(&def->max_mc_it,grid_max_mc_it,1);
+  WRITED(&def->tau_relax,grid_tau_relax,1);
+  
+  WRITEI(&def->grid_relax_vapor,grid_relax_vapor,1);
+  WRITED(&def->grid_relax_vapor_timescale,grid_relax_vapor_timescale,1);
 
   nc_close(nc_id);
 

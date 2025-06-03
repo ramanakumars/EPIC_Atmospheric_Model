@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
- * Copyright (C) 1998-2009 Timothy E. Dowling                      *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 1998-2023 Timothy Dowling                         *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of the GNU General Public License     *
@@ -35,8 +36,6 @@
  *       but gcc 3.3 has elevated this warning to a compilation error.
  *       As a workaround, we have rewritten these input/output macros to
  *       not use the ## preprocessor operator.
- *
- * NOTE: The precision of floating-point data is given by EPIC_FLOAT
  */
 
 /*
@@ -127,50 +126,7 @@
   }
 
 /*
- * Macro for reading floating-point data (precision controlled by EPIC_PRECISION).
- */
-#if EPIC_PRECISION == DOUBLE_PRECISION
-#  define READF(iname,ename,num) \
-     if (IAMNODE == NODE0) { \
-       nc_err = nc_inq_atttype(nc_id,NC_GLOBAL,#ename,&the_nc_type); \
-       if (nc_err == NC_NOERR) { \
-         if (the_nc_type == NC_DOUBLE) { \
-           nc_get_att_double(nc_id,NC_GLOBAL,#ename,iname); \
-         } \
-         else { \
-           sprintf(Message,"READF, %s, the_nc_type != NC_DOUBLE",#iname); \
-           epic_error(dbmsname,Message); \
-         } \
-       } \
-       else { \
-         sprintf(Message,"READF, %s, %s",#iname,nc_strerror(nc_err)); \
-         epic_error(dbmsname,Message); \
-       } \
-     } \
-     bcast_float(NODE0,iname,(num));
-#else
-#  define READF(iname,ename,num) \
-     if (IAMNODE == NODE0) { \
-       nc_err = nc_inq_atttype(nc_id,NC_GLOBAL,#ename,&the_nc_type); \
-       if (nc_err == NC_NOERR) { \
-         if (the_nc_type == NC_FLOAT) { \
-           nc_get_att_float(nc_id,NC_GLOBAL,#ename,iname); \
-         } \
-         else { \
-           sprintf(Message,"READF, %s, the_nc_type != NC_FLOAT",#iname); \
-           epic_error(dbmsname,Message); \
-         } \
-       } \
-       else { \
-         sprintf(Message,"READF, %s, %s",#iname,nc_strerror(nc_err)); \
-         epic_error(dbmsname,Message); \
-       } \
-     } \
-     bcast_float(NODE0,iname,(num));
-#endif
-
-/*
- * Macro for reading double precision data.
+ * Macro for reading double-precision data.
  */
 #define READD(iname,ename,num) \
    if (IAMNODE == NODE0) { \
@@ -239,30 +195,7 @@
   }
 
 /*
- * Macro for writing floating-point data (precision controlled by EPIC_PRECISION).
- */
-#if EPIC_PRECISION == DOUBLE_PRECISION
-#  define WRITEF(iname,ename,num) \
-     if (IAMNODE == NODE0) { \
-         nc_err = nc_put_att_double(nc_id,NC_GLOBAL,#ename,NC_DOUBLE,(num),iname); \
-       if (nc_err != NC_NOERR) { \
-         sprintf(Message,"WRITEF, %s, %s",#iname,nc_strerror(nc_err)); \
-         epic_error(dbmsname,Message); \
-       } \
-     }
-#else
-#  define WRITEF(iname,ename,num) \
-     if (IAMNODE == NODE0) { \
-         nc_err = nc_put_att_float(nc_id,NC_GLOBAL,#ename,NC_FLOAT,(num),iname); \
-       if (nc_err != NC_NOERR) { \
-         sprintf(Message,"WRITEF, %s, %s",#iname,nc_strerror(nc_err)); \
-         epic_error(dbmsname,Message); \
-       } \
-     }
-#endif
-
-/*
- * Macro for writing double precision data.
+ * Macro for writing double-precision data.
  */
 #define WRITED(iname,ename,num) \
    if (IAMNODE == NODE0) { \

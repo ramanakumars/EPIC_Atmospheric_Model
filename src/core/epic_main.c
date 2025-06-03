@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -25,31 +26,33 @@
  *     Explicit Planetary Isentropic/Isobaric Coordinate (EPIC) Model        *
  *                                                                           *
  *     Model-development contributions from:                                 *
- *         ME  Bradley                                                       *
- *         S   Brueshaber                                                    *
- *         E   Charrette                                                     *
- *         E   Colon                                                         *
- *         T   Dowling                                                       *
- *         K   Emanuel                                                       *
- *         A   Fischer                                                       *
- *         N   Ghurtskaia                                                    *
- *         P   Gierasch                                                      *
- *         T   Greathouse                                                    *
- *         J   Harrington                                                    *
- *         M   Herman                                                        *
- *         A   Herrnstein                                                    *
- *         RP  Lebeau                                                        *
- *         G   Lee                                                           *
- *         J   Matarese                                                      *
- *         R   Morales-Juberias                                              *
- *         J   Moses                                                         *
- *         Cs  Palotai                                                       *
- *         D   Raymond                                                       *
- *         C   Santori                                                       *
- *         K   Sayanagi                                                      *
- *         A   Showman                                                       *
- *         M   Sussman                                                       *
- *         E   Thompson                                                      *
+ *         ME Bradley                                                        *
+ *         S  Brueshaber                                                     *
+ *         E  Charrette                                                      *
+ *         E  Colon                                                          *
+ *         T  Dowling                                                        *
+ *         K  Emanuel                                                        *
+ *         A  Fischer                                                        *
+ *         N  Ghurtskaia                                                     *
+ *         P  Gierasch                                                       *
+ *         T  Greathouse                                                     *
+ *         J  Harrington                                                     *
+ *         M  Herman                                                         *
+ *         A  Herrnstein                                                     *
+ *         RP Lebeau                                                         *
+ *         G  Lee                                                            *
+ *         J  Matarese                                                       *
+ *         S  Mercuri                                                        *
+ *         R  Morales-Juberias                                               *
+ *         J  Moses                                                          *
+ *         Cs Palotai                                                        *
+ *         D  Raymond                                                        *
+ *         R  Sankar                                                         *
+ *         C  Santori                                                        *
+ *         K  Sayanagi                                                       *
+ *         A  Showman                                                        *
+ *         M  Sussman                                                        *
+ *         E  Thompson                                                       *
  *                                                                           *
  *     Flags of EPIC-model developers:                                       *
  *         Basque Country                                                    *
@@ -126,12 +129,12 @@ int main(int   argc,
     nc_err,nc_id;
   static int
     initialized = FALSE;
-  EPIC_FLOAT
+  double
    *p,*h,
     sum;
   unsigned int
     time_index         = 0;
-  static EPIC_FLOAT
+  static double
     *Buff2D[NUM_WORKING_BUFFERS];
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -159,7 +162,6 @@ int main(int   argc,
   grid.itrun             = INT_MAX;
 
   var.extract_time_index = 0;
-  var.extract_num = 0;
 
   grid.extract_append[0] = '\0';
   if (argc == 1) {
@@ -255,10 +257,10 @@ int main(int   argc,
    */
 
   /* NOTE: time_index not used for SIZE_DATA */
-  var_read(planet,infile,SIZE_DATA,time_index);
-  set_var_props(planet);
+  var_read(infile,SIZE_DATA,time_index);
+  set_var_props();
 
-  make_arrays(planet);
+  make_arrays();
 
 #ifdef EPIC_MPI
   /*
@@ -276,14 +278,14 @@ int main(int   argc,
 #endif
 
   for (I = 0; I < NUM_WORKING_BUFFERS; I++) {
-    Buff2D[I] = fvector(0,Nelem2d-1,dbmsname);
+    Buff2D[I] = dvector(0,Nelem2d-1,dbmsname);
   }
 
   /*
    * Time index 0 corresponds to IT_ZERO.
    */
   time_index = 0;
-  var_read(planet,infile,POST_SIZE_DATA,time_index);
+  var_read(infile,POST_SIZE_DATA,time_index);
 
   /* timeplane_bookkeeping() must come after reading in variables. */
   timeplane_bookkeeping();
@@ -292,8 +294,8 @@ int main(int   argc,
    * Set lon, lat, etc. 
    */
   set_lonlat();
-  set_fmn(planet);
-  set_gravity(planet);
+  set_fmn();
+  set_gravity();
   set_dsgth();
 
   /*
@@ -301,18 +303,18 @@ int main(int   argc,
    *
    *  NOTE: the return value cpr is the low-temperature limit of cp/rgas.
    */
-  thermo_setup(planet,&planet->cpr);
+  thermo_setup(&planet->cpr);
 
   /*
    * Reconstitute the prognostic variable H from input P.
    */
-  p = fvector(0,2*grid.nk+1,dbmsname);
-  h = fvector(0,2*grid.nk+1,dbmsname);
+  p = dvector(0,2*grid.nk+1,dbmsname);
+  h = dvector(0,2*grid.nk+1,dbmsname);
   for (J = JLO; J <= JHI; J++) {
     jj = 2*J+1;
     for (I = ILO; I <= IHI; I++) {
       for (kk = 1; kk <= 2*KHI+1; kk++) {
-        p[kk] = get_p(planet,P2_INDEX,kk,J,I);
+        p[kk] = get_p(P2_INDEX,kk,J,I);
       }
       calc_h(jj,p,h);
 
@@ -327,21 +329,20 @@ int main(int   argc,
   }
   bc_lateral(var.h.value,THREEDIM);
 
-  free_fvector(p,0,2*grid.nk+1,dbmsname);
-  free_fvector(h,0,2*grid.nk+1,dbmsname);
+  free_dvector(p,0,2*grid.nk+1,dbmsname);
+  free_dvector(h,0,2*grid.nk+1,dbmsname);
 
   /*
    * Initialize radiative transfer model.
    * The scheme used is specified by grid.radiation_scheme.
    */
-  radiative_heating(planet,EPIC_ALLOC);
+  radiative_heating(EPIC_ALLOC);
 
   /*
    * Synchronize all the diagnostic variables with the prognostic variables
    * (i.e. prime the pump).
    */
-
-  timestep(planet,SYNC_DIAGS_ONLY,Buff2D);
+  timestep(SYNC_DIAGS_ONLY,Buff2D);
 
   /* 
    * cd to infile directory so that saved files go there.
@@ -362,7 +363,7 @@ int main(int   argc,
        * Write EXTRACT_HEADER_DATA to extract file.
        */
       if (grid.extract_append[0] == '\0') {
-        var_write(planet,"extract.nc",EXTRACT_HEADER_DATA,var.extract_time_index,0);
+        var_write("extract.nc",EXTRACT_HEADER_DATA,var.extract_time_index,0);
       }
     }
   }
@@ -380,7 +381,7 @@ int main(int   argc,
        * Time index 0 corresponds to IT_ZERO.
        */
       time_index = 0;
-      var_write(planet,outfile,ALL_DATA,time_index,0);
+      var_write(outfile,ALL_DATA,time_index,0);
 
       /*
        * Check if early stop is requested.
@@ -414,7 +415,7 @@ int main(int   argc,
        * Time index 0 corresponds to IT_ZERO.
        */
       time_index = 0;
-      var_write(planet,outfile,ALL_DATA,time_index,0);
+      var_write(outfile,ALL_DATA,time_index,0);
 
       /*
        * Check if early stop is requested.
@@ -437,6 +438,12 @@ int main(int   argc,
       grid.itrun = grid.itime;
     }
 
+    if ( (grid.itime)%(5) == 0 && grid.itime > 0) {
+      if (IAMNODE == NODE0) { 
+        fprintf(stdout,"EPIC: Completed timestep %06d\n",grid.itime);
+      }
+    } 
+
     if (grid.itime <= grid.itrun) {
       /* 
        * Take a step.
@@ -444,7 +451,7 @@ int main(int   argc,
        * Note: When grid.itime == grid.itrun, this call to timestep() is only to
        *       print out the last extract.nc frame.
        */
-      timestep(planet,STEP_PROGS_AND_SYNC_DIAGS,Buff2D);
+      timestep(STEP_PROGS_AND_SYNC_DIAGS,Buff2D);
     }
     grid.itime++;
   }
@@ -453,17 +460,17 @@ int main(int   argc,
    * Free dynamically allocated memory.
    */
   for (I = 0; I < NUM_WORKING_BUFFERS; I++) {
-    free_fvector(Buff2D[I],0,Nelem2d-1,dbmsname);
+    free_dvector(Buff2D[I],0,Nelem2d-1,dbmsname);
   }
 
   /*
    * Free memory allocated for radiative transfer model.
    * The scheme used is specified by grid.radiation_scheme.
    */
-  radiative_heating(planet,EPIC_FREE);
+  radiative_heating(EPIC_FREE);
 
-  free_arrays(planet); 
-  free_var_props(planet);
+  free_arrays(); 
+  free_var_props();
   free(planet);
 
 #if defined(EPIC_MPI)

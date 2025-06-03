@@ -3,7 +3,8 @@
  * All material in this file is covered by the                     *
  * GNU General Public License.                                     *
  *                                                                 *
- * Copyright (C) 1998-2023 Timothy E. Dowling, except as noted.    *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
+ * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * The fcmp() function is derived from the fcmp() function that is *
  * Copyright (c) 1998-2000 Theodore C. Belding                     *
@@ -38,21 +39,17 @@
  *       reference EPIC variables by name or index, such that they can be    *
  *       used outside the model.                                             *
  *                                                                           *
- *       NOTE: One dependency with the EPIC model is the environment         *
- *             variable EPIC_PRECISION, which specifies the floating-point   *
- *             precision.                                                    *
- *                                                                           *
  *       This file includes the following:                                   *
  *                                                                           *
  *           ivector(),free_ivector()                                        *
- *           fvector(),free_fvector()                                        *
  *           dvector(),free_dvector()                                        *
- *           ftriplet(),free_ftriplet()                                      *
+ *           dtriplet(),free_dtriplet()                                      *
  *           spline(),splint()                                               *
  *           linint()                                                        *
  *           spline_pchip(), splint_pchip()                                  *
  *           pchst()                                                         *
  *           lagrange_interp()                                               *
+ *           inc_gamma_nr()                                                  *
  *           gamma_nr()                                                      *
  *           sech2()                                                         *
  *           exp_integral(), exp_integral_setup()                            *
@@ -198,96 +195,6 @@ void free_ivector(int  *m,
 
 /*======================= end of free_ivector() ================================*/
 
-/*======================= fvector() ============================================*/
-      
-/*
- *  Allocates memory for a 1D FLOAT array 
- *  with range [nl..nh].
- */
-
-#undef  DEBUG 
-
-FLOAT *fvector(int  nl, 
-               int  nh,
-               char *calling_func)
-{
-  unsigned int  
-    len_safe;
-  int           
-    nl_safe, nh_safe;
-  FLOAT         
-    *m;
-  /* 
-   * The following are part of DEBUG_MILESTONE(.) statements: 
-   */
-  int
-    idbms=0;
-  static char
-    dbmsname[]="fvector";
-
-#if defined(DEBUG)
-  fprintf(stderr,"fvector() called by %s \n",calling_func);
-  fflush(stderr);
-#endif
-
-  if (nh < nl) {
-    sprintf(Message,"range (%d,%d)",nl,nh);
-    util_error(dbmsname,Message);
-  }
-
-  nl_safe  = (nl < 0) ? nl : 0;
-  nh_safe  = (nh > 0) ? nh : 0;
-  len_safe = (unsigned)(nh_safe-nl_safe+1);
-
-  m = (FLOAT *)calloc(len_safe,sizeof(FLOAT));
-
-  if (!m) {
-    sprintf(Message,"called by %s, nl=%d,nh=%d,len_safe=%d",calling_func,nl,nh,len_safe);
-    util_error(dbmsname,Message);
-  }
-  m -= nl_safe;
-
-  return m;
-}
-
-/*======================= end of fvector() ====================================*/
-
-/*======================= free_fvector() ======================================*/
-
-#undef  DEBUG
-
-/*
- *  Frees memory allocated by fvector().
- */
-
-void free_fvector(FLOAT *m, 
-                  int     nl, 
-                  int     nh,
-                  char   *calling_func)
-{
-  int  
-    nl_safe;
-
-  if (m) {
-    nl_safe = (nl < 0) ? nl : 0;
-    m += nl_safe;
-    free(m);
-  }
-
-#if defined(DEBUG)
-  if (m) {
-    fprintf(stderr,"free_fvector() called by %s \n",calling_func);
-  }
-  else {
-    fprintf(stderr,"free_fvector() called by %s for NULL pointer\n",calling_func);
-  }
-#endif
-
-  return;
-}
-
-/*======================= end of free_fvector() ===============================*/
-
 /*======================= dvector() ============================================*/
       
 /*
@@ -378,10 +285,10 @@ void free_dvector(double *m,
 
 /*======================= end of free_dvector() ===============================*/
 
-/*======================= ftriplet() ==========================================*/
+/*======================= dtriplet() ==========================================*/
       
 /*
- *  Allocates memory for a 1D float_triplet array 
+ *  Allocates memory for a 1D double_triplet array 
  *  with range [nl..nh].
  */
 
@@ -390,15 +297,15 @@ void free_dvector(double *m,
  */
 #undef  DEBUG 
 
-float_triplet *ftriplet(int  nl, 
-                        int  nh,
-                        char *calling_func)
+double_triplet *dtriplet(int  nl, 
+                         int  nh,
+                         char *calling_func)
 {
   unsigned int  
     len_safe;
   int           
     nl_safe, nh_safe;
-  float_triplet         
+  double_triplet         
     *m;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -406,10 +313,10 @@ float_triplet *ftriplet(int  nl,
   int
     idbms=0;
   static char
-    dbmsname[]="ftriplet";
+    dbmsname[]="dtriplet";
 
 #if defined(DEBUG)
-  fprintf(stderr,"ftriplet() called by %s \n",calling_func);
+  fprintf(stderr,"dtriplet() called by %s \n",calling_func);
   fflush(stderr);
 #endif
 
@@ -422,7 +329,7 @@ float_triplet *ftriplet(int  nl,
   nh_safe  = (nh > 0) ? nh : 0;
   len_safe = (unsigned)(nh_safe-nl_safe+1);
 
-  m = (float_triplet *)calloc(len_safe,sizeof(float_triplet));
+  m = (double_triplet *)calloc(len_safe,sizeof(double_triplet));
 
   if (!m) {
     sprintf(Message,"called by %s",calling_func);
@@ -433,20 +340,20 @@ float_triplet *ftriplet(int  nl,
   return m;
 }
 
-/*======================= end of ftriplet() ===================================*/
+/*======================= end of dtriplet() ===================================*/
 
-/*======================= free_ftriplet() =====================================*/
+/*======================= free_dtriplet() =====================================*/
 
 #undef  DEBUG
 
 /*
- *  Frees memory allocated by ftriplet().
+ *  Frees memory allocated by dtriplet().
  */
 
-void free_ftriplet(float_triplet *m, 
-                  int             nl, 
-                  int             nh,
-                  char           *calling_func)
+void free_dtriplet(double_triplet *m, 
+                   int             nl, 
+                   int             nh,
+                   char           *calling_func)
 {
   int  
     nl_safe;
@@ -459,17 +366,17 @@ void free_ftriplet(float_triplet *m,
 
 #if defined(DEBUG)
   if (m) {
-    fprintf(stderr,"free_ftriplet() called by %s \n",calling_func);
+    fprintf(stderr,"free_dtriplet() called by %s \n",calling_func);
   }
   else {
-    fprintf(stderr,"free_ftriplet() called by %s for NULL pointer\n",calling_func);
+    fprintf(stderr,"free_dtriplet() called by %s for NULL pointer\n",calling_func);
   }
 #endif
 
   return;
 }
 
-/*======================= end of free_ftriplet() ==============================*/
+/*======================= end of free_dtriplet() ==============================*/
 
 /*======================= spline() ============================================*/
 
@@ -480,18 +387,18 @@ void free_ftriplet(float_triplet *m,
  * to avoid numerical instability.
  * Assumes zero-offset arrays.
  *
- * NOTE: We stripe the data into one array with float_triplet to get
+ * NOTE: We stripe the data into one array with double_triplet to get
  *       a cache-aware memory layout.
  */
 
-void spline(int            n,
-            float_triplet *table,
-            FLOAT          y1_bot, 
-            FLOAT          y1_top)
+void spline(int             n,
+            double_triplet *table,
+            double          y1_bot, 
+            double          y1_top)
 {
   int     
     j,jm1,jp1;
-  FLOAT 
+  double 
      dx_a,dx_b,dx_c,  
     *a,
     *b,
@@ -517,11 +424,11 @@ void spline(int            n,
   /*
    * Allocate memory.
    */
-  a  = fvector(0,n-1,dbmsname);
-  b  = fvector(0,n-1,dbmsname);
-  c  = fvector(0,n-1,dbmsname);
-  r  = fvector(0,n-1,dbmsname);
-  y2 = fvector(0,n-1,dbmsname);
+  a  = dvector(0,n-1,dbmsname);
+  b  = dvector(0,n-1,dbmsname);
+  c  = dvector(0,n-1,dbmsname);
+  r  = dvector(0,n-1,dbmsname);
+  y2 = dvector(0,n-1,dbmsname);
 
   for (j = 0; j < n; j++) {
     y2[j] = (table+j)->z;
@@ -608,11 +515,11 @@ void spline(int            n,
   /* 
    * Free allocated memory.
    */
-  free_fvector(y2,0,n-1,dbmsname);
-  free_fvector(r, 0,n-1,dbmsname);
-  free_fvector(c, 0,n-1,dbmsname);
-  free_fvector(b, 0,n-1,dbmsname);
-  free_fvector(a, 0,n-1,dbmsname);
+  free_dvector(y2,0,n-1,dbmsname);
+  free_dvector(r, 0,n-1,dbmsname);
+  free_dvector(c, 0,n-1,dbmsname);
+  free_dvector(b, 0,n-1,dbmsname);
+  free_dvector(a, 0,n-1,dbmsname);
   
   return;
 }
@@ -627,15 +534,15 @@ void spline(int            n,
  *  in the tables, unlike the Numerical Recipes version. 
  *  The function find_place_in_table() may be used to find the position.
  *
- *  NOTE: We stripe the data into one array with float_triplet to get
+ *  NOTE: We stripe the data into one array with double_triplet to get
  *        a cache-aware memory layout.
  */
 
-FLOAT splint(register FLOAT          xx, 
-             register float_triplet *table,
-             register FLOAT          dx)
+double splint(register double          xx, 
+              register double_triplet *table,
+              register double          dx)
 {
-  register FLOAT  
+  register double  
     a, 
     b,
     ans;
@@ -658,11 +565,11 @@ FLOAT splint(register FLOAT          xx,
  * to make it easy to switch between the two.
  */
 
-FLOAT linint(register FLOAT          xx,
-             register float_triplet *table,
-             register FLOAT          dx)
+double linint(register double          xx,
+              register double_triplet *table,
+              register double          dx)
 {
-  FLOAT
+  double
     ans;
 
   ans = table->y + ((table+1)->y - table->y)*(xx - table->x)/dx;
@@ -729,7 +636,7 @@ FLOAT linint(register FLOAT          xx,
  *    Input, int n, the number of data points; n must be at least 2.
  *
  *    Input, 
- *      float_triplet table[n]:
+ *      double_triplet table[n]:
  *      table[n].x are the strictly increasing independent variable values.
  *
  *      table[n].y are the dependent variable values to be interpolated. 
@@ -743,12 +650,12 @@ FLOAT linint(register FLOAT          xx,
  *      Hermite function.
  */
 
-void spline_pchip(int            n,
-                  float_triplet *table)
+void spline_pchip(int             n,
+                  double_triplet *table)
 {
   int
     i,nless1;
-  register FLOAT
+  register double
     del1,del2,
     dmax,dmin,
     drat1,drat2,
@@ -892,12 +799,12 @@ void spline_pchip(int            n,
  *  in spline_pchip() above.
  */
 
-void periodic_spline_pchip(int            n,
-                           float_triplet *table)
+void periodic_spline_pchip(int             n,
+                           double_triplet *table)
 {
   int
     i,nless1;
-  register FLOAT
+  register double
     del1,del2,
     dmax,dmin,
     drat1,drat2,
@@ -1063,10 +970,10 @@ void periodic_spline_pchip(int            n,
  *
  *  Parameters:
  *
- *    Input, FLOAT xx, the position of the interpolation
+ *    Input, double xx, the position of the interpolation
  *
- *    Input, float_triplet *table:
- *       The use of the data type float_triplet facilitates
+ *    Input, double_triplet *table:
+ *       The use of the data type double_triplet facilitates
  *       cache-aware memory allocation. 
  *
  *       NOTE: This function does not search the table,
@@ -1086,11 +993,11 @@ void periodic_spline_pchip(int            n,
  *    Returns the value of the cubic function at the point xx.
  */
 
-FLOAT splint_pchip(FLOAT          xx,
-                   float_triplet *table,
-                   FLOAT          h)
+double splint_pchip(double          xx,
+                    double_triplet *table,
+                    double          h)
 {
-  register FLOAT 
+  register double 
     c2,c3,
     del1,del2,delta,
     x,f;
@@ -1152,18 +1059,18 @@ FLOAT splint_pchip(FLOAT          xx,
  *
  *  Parameters:
  *
- *    Input, FLOAT arg1, arg2, two values to check.
+ *    Input, double arg1, arg2, two values to check.
  *
- *    Output, FLOAT pchst,
+ *    Output, double pchst,
  *    -1.0, if arg1 and arg2 are of opposite sign.
  *     0.0, if either argument is zero.
  *    +1.0, if arg1 and arg2 are of the same sign.
  */
 
-FLOAT pchst(FLOAT arg1,
-            FLOAT arg2)
+double pchst(double arg1,
+             double arg2)
 {
-  FLOAT
+  double
     value;
 
   if (arg1 == 0.) {
@@ -1215,13 +1122,13 @@ FLOAT pchst(FLOAT arg1,
  *                          x[3] = x3, etc.
  */
 
-FLOAT lagrange_interp(register FLOAT *f,
-                      register FLOAT *x,
-                      register int order)
+double lagrange_interp(register double *f,
+                       register double *x,
+                       register int     order)
 {
   register int
     jj, il;
-  FLOAT 
+  double 
     lp[ order+2 ];
 
   /* 
@@ -1255,14 +1162,48 @@ FLOAT lagrange_interp(register FLOAT *f,
 
 /*==================== end of lagrange_interp() =============================*/
 
+/*=============================== inc_gamma_nr() ============================*/
+
+/* 
+ * RS 02/06/2019
+ * Incomplete Gamma function for ice cloud terminal velocity calculation.
+ * Adapted from Numerical Recipes, 3rd Ed., p. 261-262.
+ */
+
+double inc_gamma_nr(double aa_input, 
+                    double xx_input)
+{
+  register int
+    j;
+  register double 
+    sum,del,ap,eps,gln;
+
+  eps = machine_epsilon();
+  gln = log(gamma_nr(aa_input));
+  ap  = aa_input;
+  del = sum = 1.0/aa_input;
+  for (j = 0; j <= 64; j++) {
+    ++ap;
+    del *= xx_input/ap;
+    sum += del;
+    if (fabs(del) < fabs(sum)*eps) {
+      break;
+    }
+  }
+
+  return sum*exp(-xx_input+aa_input*log(xx_input)-gln);
+}
+
+/*============================end of inc_gamma_nr() =========================*/
+
 /*=============================== gamma_nr() ================================*/
 
 /*
  * CJP 06/2003 *A*  
- * Based on "Numerical Recipes in C", 2nd Ed., p 213-214, Cambridge.
+ * Based on "Numerical Recipes in C", 2nd Ed., p. 213-214, Cambridge.
  */
 
-FLOAT gamma_nr(FLOAT xx_input)
+double gamma_nr(double xx_input)
 {
   register int
     j;
@@ -1297,19 +1238,19 @@ FLOAT gamma_nr(FLOAT xx_input)
   }
   loggamma = -tmp+log(2.5066282746310005*ser/x);
 
-  return (FLOAT)exp(loggamma);
+  return (double)exp(loggamma);
 }
 
 /*============================end of gamma_nr() =============================*/
 
 /*======================= sech2() ===========================================*/
 
-FLOAT sech2(FLOAT xx)
+double sech2(double xx)
      /*
       *  Evaluates the square of the hyperbolic secant
       */
 {
-  FLOAT 
+  double 
     a;
 
   a = 1./cosh(xx);
@@ -1328,13 +1269,13 @@ FLOAT sech2(FLOAT xx)
  * integral values.
  */
 
-void exp_integral_setup(float_triplet *exp3table,
-                        float_triplet *exp4table,
-                        int num_datapoints)
+void exp_integral_setup(double_triplet *exp3table,
+                        double_triplet *exp4table,
+                        int             num_datapoints)
 {
   int 
     q;
-  EPIC_FLOAT
+  double
     xtable[501]={0.0,1.0000000133514320E-10, 1.0966806129791248E-10, 1.2027083508263903E-10, 1.3189869138090339E-10, 1.4465073578345911E-10,
  1.5863565546887220E-10, 1.7397264555716406E-10, 1.9079242502387863E-10, 2.0923835083332934E-10, 2.2946763978691522E-10,
  2.5165270850046318E-10, 2.7598264293138146E-10, 3.0266480998057774E-10, 3.3192662490501456E-10, 3.6401748960476869E-10,
@@ -1658,11 +1599,11 @@ void exp_integral_setup(float_triplet *exp3table,
  * From Dennis and Schnabel (1996), Algorithm A1.3.1.
  */
 
-FLOAT machine_epsilon(void)
+double machine_epsilon(void)
 {
   static int
     initialized = FALSE;
-  static FLOAT
+  static double
     eps;
 
   if (!initialized) {
@@ -1695,16 +1636,16 @@ FLOAT machine_epsilon(void)
 #undef  UNLIKELY_VAL
 #define UNLIKELY_VAL -1.11111e+30
 
-int find_root(FLOAT  x1,
-              FLOAT  x2,
-              FLOAT  xacc,
-              FLOAT *x_root,
-              FLOAT  (*func)(FLOAT))
+int find_root(double  x1,
+              double  x2,
+              double  xacc,
+              double *x_root,
+              double  (*func)(double))
 {
   register int
     iter,
     compare;
-  register FLOAT
+  register double
     fh,fl,fm,fnew,
     s,xh,xl,xm,xnew;
   /* 
@@ -1821,11 +1762,11 @@ int find_root(FLOAT  x1,
  * different initial guess.
  */
 
-int broyden_root(int    n,
-                 FLOAT *x,
-                 void  (*vecfunc)(int,FLOAT *,FLOAT *),
-                 FLOAT  tol_f,
-                 int    max_it)
+int broyden_root(int     n,
+                 double *x,
+                 void   (*vecfunc)(int,double *,double *),
+                 double  tol_f,
+                 int     max_it)
 {
   int
     k,j,i,
@@ -1838,14 +1779,14 @@ int broyden_root(int    n,
     status          = DS_X_ACCEPTED;
   static int
     nold = 0;
-  FLOAT
+  double
     sum,denom,
     f,f_old,
     max_step,
     test,h,
     tmp,
     delta = -1;
-  static FLOAT
+  static double
     *c,*d,
     *x_old,
     *fvec,*fvec2,*fvec_old,
@@ -1864,42 +1805,42 @@ int broyden_root(int    n,
       /* 
        * Free previously allocated memory: 
        */
-      free_fvector(r,       0,nold*nold-1,dbmsname);
-      free_fvector(qt,      0,nold*nold-1,dbmsname);
-      free_fvector(w,       0,nold-1,dbmsname);
-      free_fvector(t,       0,nold-1,dbmsname);
-      free_fvector(s,       0,nold-1,dbmsname);
-      free_fvector(sn,      0,nold-1,dbmsname);
-      free_fvector(g,       0,nold-1,dbmsname);
-      free_fvector(fvec_old,0,nold-1,dbmsname);
-      free_fvector(fvec2,   0,nold-1,dbmsname);
-      free_fvector(fvec,    0,nold-1,dbmsname);
-      free_fvector(x_old,   0,nold-1,dbmsname);
-      free_fvector(d,       0,nold-1,dbmsname);
-      free_fvector(c,       0,nold-1,dbmsname);
+      free_dvector(r,       0,nold*nold-1,dbmsname);
+      free_dvector(qt,      0,nold*nold-1,dbmsname);
+      free_dvector(w,       0,nold-1,dbmsname);
+      free_dvector(t,       0,nold-1,dbmsname);
+      free_dvector(s,       0,nold-1,dbmsname);
+      free_dvector(sn,      0,nold-1,dbmsname);
+      free_dvector(g,       0,nold-1,dbmsname);
+      free_dvector(fvec_old,0,nold-1,dbmsname);
+      free_dvector(fvec2,   0,nold-1,dbmsname);
+      free_dvector(fvec,    0,nold-1,dbmsname);
+      free_dvector(x_old,   0,nold-1,dbmsname);
+      free_dvector(d,       0,nold-1,dbmsname);
+      free_dvector(c,       0,nold-1,dbmsname);
     }
     /*
      * Allocate memory: 
      */
-    c        = fvector(0,n-1,dbmsname);
-    d        = fvector(0,n-1,dbmsname);
-    x_old    = fvector(0,n-1,dbmsname);
-    fvec     = fvector(0,n-1,dbmsname);
-    fvec2    = fvector(0,n-1,dbmsname);
-    fvec_old = fvector(0,n-1,dbmsname);
-    g        = fvector(0,n-1,dbmsname);
-    sn       = fvector(0,n-1,dbmsname);
-    s        = fvector(0,n-1,dbmsname);
-    t        = fvector(0,n-1,dbmsname);
-    w        = fvector(0,n-1,dbmsname);
-    qt       = fvector(0,n*n-1,dbmsname);
-    r        = fvector(0,n*n-1,dbmsname);
+    c        = dvector(0,n-1,dbmsname);
+    d        = dvector(0,n-1,dbmsname);
+    x_old    = dvector(0,n-1,dbmsname);
+    fvec     = dvector(0,n-1,dbmsname);
+    fvec2    = dvector(0,n-1,dbmsname);
+    fvec_old = dvector(0,n-1,dbmsname);
+    g        = dvector(0,n-1,dbmsname);
+    sn       = dvector(0,n-1,dbmsname);
+    s        = dvector(0,n-1,dbmsname);
+    t        = dvector(0,n-1,dbmsname);
+    w        = dvector(0,n-1,dbmsname);
+    qt       = dvector(0,n*n-1,dbmsname);
+    r        = dvector(0,n*n-1,dbmsname);
 
     nold = n;
   }
   else {
     /* Clear working memory: */
-    num_bytes = n*sizeof(FLOAT);
+    num_bytes = n*sizeof(double);
     memset(c,       0,num_bytes);
     memset(d,       0,num_bytes);
     memset(x_old,   0,num_bytes);
@@ -1949,7 +1890,7 @@ int broyden_root(int    n,
   for (i = 0; i < n; i++) {
     sum += x[i]*x[i];
   }
-  max_step = DS_MAX_STEP*MAX(sqrt(sum),(FLOAT)n);
+  max_step = DS_MAX_STEP*MAX(sqrt(sum),(double)n);
 
   /*
    * Main iteration loop.
@@ -1988,7 +1929,7 @@ int broyden_root(int    n,
 
 
       /* Compute transpose, QT. */
-      memset(qt,0,n*n*sizeof(FLOAT));
+      memset(qt,0,n*n*sizeof(double));
       for (i = 0; i < n; i++) {
         QT(i,i) = 1.;
       }
@@ -2182,7 +2123,7 @@ int broyden_root(int    n,
       }
       else {
         test  = 0.;
-        denom = MAX(f,0.5*(FLOAT)n);
+        denom = MAX(f,0.5*(double)n);
         for (i = 0; i < n; i++) {
           tmp  = fabs(g[i])*MAX(fabs(x[i]),1.)/denom;
           test = MAX(test,tmp);
@@ -2241,20 +2182,20 @@ int broyden_root(int    n,
  * NOTE: Unlike in DS96, here R is R of QR, not the transpose of R. 
  */
 
-int global_step(int    n,
-                FLOAT *x_old,
-                FLOAT  f_old,
-                FLOAT *g,
-                FLOAT *r,
-                FLOAT *sn,
-                FLOAT  max_step,
-                FLOAT *delta,
-                int    step_type,
-                int   *status,
-                FLOAT *x,
-                FLOAT *f,
-                FLOAT *fvec,
-                void  (*vecfunc)(int,FLOAT *,FLOAT *))
+int global_step(int     n,
+                double *x_old,
+                double  f_old,
+                double *g,
+                double *r,
+                double *sn,
+                double  max_step,
+                double *delta,
+                int     step_type,
+                int    *status,
+                double *x,
+                double *f,
+                double *fvec,
+                void  (*vecfunc)(int,double *,double *))
 {
   int
     max_taken = FALSE;
@@ -2297,22 +2238,22 @@ int global_step(int    n,
  * Assumes zero-based indexing.
  */
 
-int line_search(int    n,
-                FLOAT *x_old,
-                FLOAT  f_old,
-                FLOAT *g,
-                FLOAT *sn,
-                FLOAT  max_step,
-                int   *status,
-                FLOAT *x,
-                FLOAT *f,
-                FLOAT *fvec,
-                void  (*vecfunc)(int,FLOAT *,FLOAT *))
+int line_search(int     n,
+                double *x_old,
+                double  f_old,
+                double *g,
+                double *sn,
+                double  max_step,
+                int    *status,
+                double *x,
+                double *f,
+                double *fvec,
+                void  (*vecfunc)(int,double *,double *))
 {
   int
     i,
     max_taken = FALSE;
-  FLOAT
+  double
     a,b,
     lambda,lambda_prev,lambda_min,
     disc,f_prev,
@@ -2450,26 +2391,26 @@ int line_search(int    n,
  * Returns max_taken;
  * Assumes zero-based indexing.
  */
-int dogleg_driver(int    n,
-                  FLOAT *x_old,
-                  FLOAT  f_old,
-                  FLOAT *g,
-                  FLOAT *r,
-                  FLOAT *sn,
-                  FLOAT  max_step,
-                  FLOAT *delta,
-                  int   *status,
-                  FLOAT *x,
-                  FLOAT *f,
-                  FLOAT *fvec,
-                  void   (*vecfunc)(int,FLOAT *,FLOAT *))
+int dogleg_driver(int     n,
+                  double *x_old,
+                  double  f_old,
+                  double *g,
+                  double *r,
+                  double *sn,
+                  double  max_step,
+                  double *delta,
+                  int    *status,
+                  double *x,
+                  double *f,
+                  double *fvec,
+                  void   (*vecfunc)(int,double *,double *))
 {
   int
     i,
     max_taken,
     newt_taken,
     first_dog = TRUE;
-  FLOAT
+  double
     newt_length,
     f_prev,
     tmp,
@@ -2488,10 +2429,10 @@ int dogleg_driver(int    n,
   /*
    * Allocate memory.
    */
-  s      = fvector(0,n-1,dbmsname);
-  s_hat  = fvector(0,n-1,dbmsname);
-  nu_hat = fvector(0,n-1,dbmsname);
-  x_prev = fvector(0,n-1,dbmsname);
+  s      = dvector(0,n-1,dbmsname);
+  s_hat  = dvector(0,n-1,dbmsname);
+  nu_hat = dvector(0,n-1,dbmsname);
+  x_prev = dvector(0,n-1,dbmsname);
 
   *status = DS_INITIAL;
 
@@ -2518,10 +2459,10 @@ int dogleg_driver(int    n,
   /*
    * Free allocated memory.
    */
-  free_fvector(x_prev,0,n-1,dbmsname);
-  free_fvector(nu_hat,0,n-1,dbmsname);
-  free_fvector(s_hat, 0,n-1,dbmsname);
-  free_fvector(s,     0,n-1,dbmsname);
+  free_dvector(x_prev,0,n-1,dbmsname);
+  free_dvector(nu_hat,0,n-1,dbmsname);
+  free_dvector(s_hat, 0,n-1,dbmsname);
+  free_dvector(s,     0,n-1,dbmsname);
 
   return max_taken;
 }
@@ -2535,28 +2476,28 @@ int dogleg_driver(int    n,
  * Returns newt_taken.
  * Assumes zero-based indexing.
  */
-int dogleg_step(int    n,
-                FLOAT *g,
-                FLOAT *r,
-                FLOAT *sn,
-                FLOAT  newt_length,
-                FLOAT  max_step,
-                FLOAT *delta,
-                int   *first_dog,
-                FLOAT *s_hat,
-                FLOAT *nu_hat,
-                FLOAT *s)
+int dogleg_step(int     n,
+                double *g,
+                double *r,
+                double *sn,
+                double  newt_length,
+                double  max_step,
+                double *delta,
+                int    *first_dog,
+                double *s_hat,
+                double *nu_hat,
+                double *s)
 {
   int
     i,j,
     newt_taken;
   static int
     eta_warned = FALSE;
-  FLOAT
+  double
     alpha,beta,al_be,
     lambda,
     tmp,tmp_nu,tmp_cauchy;
-  static FLOAT
+  static double
     eta,
     cauchy_length;
   /* 
@@ -2707,34 +2648,34 @@ int dogleg_step(int    n,
  * Assumes zero-based indexing.
  */
 
-int trust_region(int    n,
-                 FLOAT *x_old,
-                 FLOAT  f_old,
-                 FLOAT *g,
-                 FLOAT *s,
-                 int    newt_taken,
-                 FLOAT  max_step,
-                 int    step_type,
-                 FLOAT *r,
-                 FLOAT *delta,
-                 int   *status,
-                 FLOAT *x_prev,
-                 FLOAT *f_prev,
-                 FLOAT *x,
-                 FLOAT *f,
-                 FLOAT *fvec,
-                 void  (*vecfunc)(int,FLOAT *,FLOAT *))
+int trust_region(int     n,
+                 double *x_old,
+                 double  f_old,
+                 double *g,
+                 double *s,
+                 int     newt_taken,
+                 double  max_step,
+                 int     step_type,
+                 double *r,
+                 double *delta,
+                 int    *status,
+                 double *x_prev,
+                 double *f_prev,
+                 double *x,
+                 double *f,
+                 double *fvec,
+                 void  (*vecfunc)(int,double *,double *))
 {
   int
     i,j,
     max_taken = FALSE;
-  FLOAT
+  double
     initial_slope,
     step_length,
     rel_step_length,
     delta_tmp,
     tmp;
-  FLOAT
+  double
      df,
      df_tol,
      df_pred;
@@ -2918,15 +2859,15 @@ int trust_region(int    n,
  * Assumes zero-based indexing.
  */
 
-int qr_decompose(int    n,
-                 FLOAT *r,
-                 FLOAT *c,
-                 FLOAT *d)
+int qr_decompose(int     n,
+                 double *r,
+                 double *c,
+                 double *d)
 {
   int
     i,j,k,
     singular;
-  FLOAT
+  double
     sigma,sum,tau,scale;
 
   singular = FALSE;
@@ -2991,15 +2932,15 @@ int qr_decompose(int    n,
  * Assumes zero-based indexing.
  */
 
-void qr_update(int    n,
-               FLOAT *r,
-               FLOAT *qt,
-               FLOAT *u,
-               FLOAT *v)
+void qr_update(int     n,
+               double *r,
+               double *qt,
+               double *u,
+               double *v)
 {
   int
     i,j,k;
-  FLOAT
+  double
     tmp;
 
   /* Find largest k such that u[k] != 0. */
@@ -3043,16 +2984,16 @@ void qr_update(int    n,
  * Assumes zero-based indexing.
  */
 
-void qr_rotate(int    n,
-               FLOAT *r,
-               FLOAT *qt,
-               int    i,
-               FLOAT  a,
-               FLOAT  b)
+void qr_rotate(int     n,
+               double *r,
+               double *qt,
+               int     i,
+               double  a,
+               double  b)
 {
   int
     j;
-  FLOAT
+  double
     c,factor,
     s,w,y;
 
@@ -3100,19 +3041,19 @@ void qr_rotate(int    n,
 #undef  A
 #define A(i,j) a[(j)+n*(i)]
 
-void lu_decompose(int   n,
-                 FLOAT *a,
-                 int   *index,
-                 FLOAT *d)
+void lu_decompose(int    n,
+                 double *a,
+                 int    *index,
+                 double *d)
 {
   int
     i,imax,j,k;
   static int
     n_max = 0;
-  FLOAT
+  double
     tiny = 1.e-20,
     big,dum,sum,temp;
-  static FLOAT
+  static double
    *vv;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -3127,12 +3068,12 @@ void lu_decompose(int   n,
    */
   if (n_max == 0) {
     n_max = n;
-    vv    = fvector(0,n_max-1,dbmsname);
+    vv    = dvector(0,n_max-1,dbmsname);
   }
   else if (n > n_max) {
-    free_fvector(vv,0,n_max-1,dbmsname);
+    free_dvector(vv,0,n_max-1,dbmsname);
     n_max = n;
-    vv    = fvector(0,n_max-1,dbmsname);
+    vv    = dvector(0,n_max-1,dbmsname);
   }
 
   *d = 1.;
@@ -3212,15 +3153,15 @@ void lu_decompose(int   n,
 #undef  A
 #define A(i,j) a[(j)+n*(i)]
 
-void lu_backsub(int    n,
-                FLOAT *a,
-                int   *index,
-                FLOAT *b)
+void lu_backsub(int     n,
+                double *a,
+                int    *index,
+                double *b)
 {
   int
     ii = -1,
     i,ip,j; 
-  FLOAT
+  double
     sum;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -3268,18 +3209,18 @@ void lu_backsub(int    n,
  *       are in double precision.
  */
 
-void lu_improve(int    n,
-                FLOAT *a,
-                FLOAT *alu,
-                int   *index,
-                FLOAT *b,
-                FLOAT *x)
+void lu_improve(int     n,
+                double *a,
+                double *alu,
+                int    *index,
+                double *b,
+                double *x)
 {
   int
     j,i;
   static int
     n_max = 0;
-  static FLOAT
+  static double
    *r;
   double
     sdp;  /* NOTE: sdp must be double precision. */
@@ -3296,12 +3237,12 @@ void lu_improve(int    n,
    */
   if (n_max == 0) {
     n_max = n;
-    r     = fvector(0,n_max-1,dbmsname);
+    r     = dvector(0,n_max-1,dbmsname);
   }
   else if (n > n_max) {
-    free_fvector(r,0,n_max-1,dbmsname);
+    free_dvector(r,0,n_max-1,dbmsname);
     n_max = n;
-    r     = fvector(0,n_max-1,dbmsname);
+    r     = dvector(0,n_max-1,dbmsname);
   }
 
   for (i = 0 ; i < n; i++) {
@@ -3327,12 +3268,12 @@ void lu_improve(int    n,
  * Find place in table using bisection.
  * Adapted from Numerical Recipes in C, p. 117.
  *
- * NOTE: Finds place relative to the x component of the float_triplet table.
+ * NOTE: Finds place relative to the x component of the double_triplet table.
  */
-int find_place_in_table(int            n,
-                        float_triplet *table,
-                        FLOAT          x,
-                        FLOAT         *dx)
+int find_place_in_table(int             n,
+                        double_triplet *table,
+                        double          x,
+                        double         *dx)
 {
   register int
     il,im,iu,
@@ -3405,15 +3346,15 @@ int find_place_in_table(int            n,
  * Find place in table using bisection.
  * Adapted from Numerical Recipes in C, p. 118-119.
  *
- * NOTE: Hunts place relative to the x component of the float_triplet table.
+ * NOTE: Hunts place relative to the x component of the double_triplet table.
  *       Requires an initial guess (il) to location within table, which should be
  *       populated by the calling function as the value returned previously.
  */
-int hunt_place_in_table(int            n,
-                        float_triplet *table,
-                        FLOAT          x,
-                        FLOAT         *dx,
-                        int            il)
+int hunt_place_in_table(int             n,
+                        double_triplet *table,
+                        double          x,
+                        double         *dx,
+                        int             il)
 {
   register int
     im,iu,inc,
@@ -3555,19 +3496,19 @@ int hunt_place_in_table(int            n,
 #undef  AAL
 #define AAL(i,j) aal[m1*(i)+(j)]
 
-void tridiag(int    n,
-             FLOAT *a,
-             FLOAT *b,
-             FLOAT *c,
-             FLOAT *r,
-             FLOAT *u,
-             int    pivot_type)
+void tridiag(int     n,
+             double *a,
+             double *b,
+             double *c,
+             double *r,
+             double *u,
+             int     pivot_type)
 {
   int
     j,
     m1,m2,mm,
     *index;
-  FLOAT
+  double
     bet,
     *gam,
     *aa,
@@ -3592,7 +3533,7 @@ void tridiag(int    n,
 
   if (pivot_type == WITHOUT_PIVOTING) {
     /* Allocate memory. */
-    gam = fvector(0,n-1,dbmsname);
+    gam = dvector(0,n-1,dbmsname);
 
     if (b[0] == 0.0) {
       sprintf(Message,"b[0] = 0\n"
@@ -3611,7 +3552,7 @@ void tridiag(int    n,
          */
         fprintf(stderr,"Warning: tridiag(): retrying with pivoting.\n");
         /* Free allocated memory. */
-        free_fvector(gam,0,n-1,dbmsname);
+        free_dvector(gam,0,n-1,dbmsname);
         tridiag(n,a,b,c,r,u,WITH_PIVOTING);
         return;
       }
@@ -3623,7 +3564,7 @@ void tridiag(int    n,
       u[j] -= gam[j+1]*u[j+1];
     }
     /* Free allocated memory. */
-    free_fvector(gam,0,n-1,dbmsname);
+    free_dvector(gam,0,n-1,dbmsname);
     return;
   }
   else if (pivot_type == WITH_PIVOTING) {
@@ -3636,9 +3577,9 @@ void tridiag(int    n,
     /*
      * Allocate memory.
      */
-    aa     = fvector(0,n*mm-1,dbmsname);
-    aaorig = fvector(0,n*mm-1,dbmsname);
-    aal    = fvector(0,n*m1-1,dbmsname);
+    aa     = dvector(0,n*mm-1,dbmsname);
+    aaorig = dvector(0,n*mm-1,dbmsname);
+    aal    = dvector(0,n*m1-1,dbmsname);
     index  = ivector(0,n-1,dbmsname);
 
     /*
@@ -3671,9 +3612,9 @@ void tridiag(int    n,
     /*
      * Free allocated memory.
      */
-    free_fvector(aa,    0,n*mm-1,dbmsname);
-    free_fvector(aaorig,0,n*mm-1,dbmsname);
-    free_fvector(aal,   0,n*m1-1,       dbmsname);
+    free_dvector(aa,    0,n*mm-1,dbmsname);
+    free_dvector(aaorig,0,n*mm-1,dbmsname);
+    free_dvector(aal,   0,n*m1-1,       dbmsname);
     free_ivector(index, 0,n-1,          dbmsname);
 
     return;
@@ -3708,15 +3649,15 @@ void tridiag(int    n,
 void band_decomp(int     n,
                  int     m1,
                  int     m2,
-                 FLOAT  *a,
-                 FLOAT  *al,
+                 double *a,
+                 double *al,
                  int    *index,
-                 FLOAT  *d)
+                 double *d)
 {
   int
     i,j,k,l,
     mm;
-  FLOAT
+  double
     tmp;
   static int
     warned = FALSE;
@@ -3804,15 +3745,15 @@ void band_decomp(int     n,
 void band_back_sub(int     n,
                    int     m1,
                    int     m2,
-                   FLOAT  *a,
-                   FLOAT  *al,
+                   double *a,
+                   double *al,
                    int    *index,
-                   FLOAT  *b)
+                   double *b)
 {
   int
     i,k,l,
     mm;
-  FLOAT
+  double
     tmp;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -3864,12 +3805,12 @@ void band_back_sub(int     n,
 #undef  A
 #define A(i,j) a[(m1+m2+1)*(i)+(j)]
 
-void band_multiply(int     n,
-                   int     m1,
-                   int     m2,
-                   FLOAT  *a,
-                   FLOAT  *x,
-                   FLOAT  *b)
+void band_multiply(int      n,
+                   int      m1,
+                   int      m2,
+                   double  *a,
+                   double  *x,
+                   double  *b)
 {
   int
     i,j,k,tmploop;
@@ -3906,18 +3847,18 @@ void band_multiply(int     n,
 void band_improve(int     n,
                   int     m1,
                   int     m2,
-                  FLOAT  *aorig,
-                  FLOAT  *a,
-                  FLOAT  *al,
+                  double *aorig,
+                  double *a,
+                  double *al,
                   int    *index,
-                  FLOAT  *b,
-                  FLOAT  *x)
+                  double *b,
+                  double *x)
 {
   int
     k,j,i,tmploop;
   static int
     n_max = 0;
-  static FLOAT
+  static double
    *r;
   double
     sdp;  /* NOTE: sdp must be double precision. */
@@ -3934,12 +3875,12 @@ void band_improve(int     n,
    */
   if (n_max == 0) {
     n_max = n;
-    r     = fvector(0,n_max-1,dbmsname);
+    r     = dvector(0,n_max-1,dbmsname);
   }
   else if (n > n_max) {
-    free_fvector(r,0,n_max-1,dbmsname);
+    free_dvector(r,0,n_max-1,dbmsname);
     n_max = n;
-    r     = fvector(0,n_max-1,dbmsname);
+    r     = dvector(0,n_max-1,dbmsname);
   }
 
   /*
@@ -3976,21 +3917,21 @@ void band_improve(int     n,
 #undef  N_MAX
 #define N_MAX 10
 
-FLOAT poly_interp(int     n,
-                  FLOAT  *xa,
-                  FLOAT  *ya,
-                  FLOAT   x,
-                  FLOAT  *dy)
+double poly_interp(int     n,
+                   double *xa,
+                   double *ya,
+                   double  x,
+                   double *dy)
 {
   int
     i,m,ns;
   static int
     initialized=0;
-  FLOAT
+  double
     den,dif,dift,
     ho,hp,w,
     y;
-  static FLOAT
+  static double
     *c,
     *d;
   /* 
@@ -4005,12 +3946,12 @@ FLOAT poly_interp(int     n,
     /*
      * Allocate memory.
      */
-    c = fvector(0,N_MAX-1,dbmsname);
-    d = fvector(0,N_MAX-1,dbmsname);
+    c = dvector(0,N_MAX-1,dbmsname);
+    d = dvector(0,N_MAX-1,dbmsname);
     initialized = 1;
   }
 
-  dif = FLOAT_MAX, ns = INT_MAX;
+  dif = DBL_MAX, ns = INT_MAX;
   for (i = 0; i < n; i++) {
     dift = fabs(x-xa[i]);
     if (dift < dif) {
@@ -4071,18 +4012,18 @@ FLOAT poly_interp(int     n,
  * Adapted from polcoe() in Numerical Recipes in C, 2nd ed, p. 121.
  * Due to G.B. Rybicki.
  */
-void poly_coeff(int    n,
-                FLOAT *x,
-                FLOAT *y,
-                FLOAT *coeff)
+void poly_coeff(int     n,
+                double *x,
+                double *y,
+                double *coeff)
 {
   register int
     k,j,i;
   static int
     nmax = 0;
-  register FLOAT
+  register double
     phi,ff,b;
-  static FLOAT
+  static double
    *s = NULL;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -4094,14 +4035,14 @@ void poly_coeff(int    n,
 
   if (n > nmax) {
     /* Allocate working array. */
-    if (s) free_fvector(s,0,nmax,dbmsname);
-    s    = fvector(0,n,dbmsname);
+    if (s) free_dvector(s,0,nmax,dbmsname);
+    s    = dvector(0,n,dbmsname);
     nmax = n;
   }
   
   /* Zero arrays s and coeff */
-  memset(s,    0,(n+1)*sizeof(FLOAT));
-  memset(coeff,0,(n+1)*sizeof(FLOAT));
+  memset(s,    0,(n+1)*sizeof(double));
+  memset(coeff,0,(n+1)*sizeof(double));
 
   s[n] = -x[0];
   for (i = 1; i <= n; i++) {
@@ -4136,16 +4077,16 @@ void poly_coeff(int    n,
  * Usage note: Call with successively increasing n, starting at n = 1.
  */
 
-FLOAT nth_trapezoidal(int   n,
-                      FLOAT (*func)(FLOAT),
-                      FLOAT a,
-                      FLOAT b)
+double nth_trapezoidal(int    n,
+                      double (*func)(double),
+                      double  a,
+                      double  b)
 {
   register int
     it,j;
-  register FLOAT
+  register double
     x,tnm,sum,dx;
-  static FLOAT
+  static double
     s;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -4165,7 +4106,7 @@ FLOAT nth_trapezoidal(int   n,
   }
   else {
     it  = (1 << (n-2));
-    tnm = (FLOAT)it;
+    tnm = (double)it;
     dx  = (b-a)/tnm;
     x   = a+0.5*dx;
     sum = 0.;
@@ -4180,7 +4121,7 @@ FLOAT nth_trapezoidal(int   n,
   /* Never get here. */
   sprintf(Message,"should never get here");
   util_error(dbmsname,Message);
-  return FLOAT_MAX;
+  return DBL_MAX;
 }
 
 /*======================= end of nth_trapezoidal() ===========================*/
@@ -4196,15 +4137,15 @@ FLOAT nth_trapezoidal(int   n,
 #undef  NUM_PTS
 #define NUM_PTS 5
 
-FLOAT romberg_integral(FLOAT (*func)(FLOAT),
-                       FLOAT a,
-                       FLOAT b,
-                       FLOAT tol)
+double romberg_integral(double (*func)(double),
+                        double  a,
+                        double  b,
+                        double  tol)
 {
   int
     it,
     n;
-  FLOAT
+  double
     ss,
     dss,
     s[MAX_IT+1],
@@ -4256,14 +4197,14 @@ FLOAT romberg_integral(FLOAT (*func)(FLOAT),
  *    Leslie LM,  Purser RJ, 1992, A comparative study of the performance of various
  *       vertical discretization schemes, Meteorol. Atmos. Phys. 50, 61-73.
  */
-void compact_integration(int    n,
-                         FLOAT *z,
-                         FLOAT *dfdz,
-                         FLOAT *f)
+void compact_integration(int     n,
+                         double *z,
+                         double *dfdz,
+                         double *f)
 {
   int
     k;
-  FLOAT
+  double
     dz30,dz31,dz32,dz20,dz21,dz10,
     df0,df1,df2,df3,
     df;
@@ -4336,18 +4277,18 @@ void compact_integration(int    n,
  * This is the exact inverse of the 3rd-order accurate integration scheme
  * used in compact_integration(); it involves a 4-band matrix inversion.
  */
-void compact_differentiation(int    action,
-                             int    n,
-                             FLOAT *z,
-                             FLOAT *f,
-                             FLOAT *dfdz)
+void compact_differentiation(int     action,
+                             int     n,
+                             double *z,
+                             double *f,
+                             double *dfdz)
 {
   const int
     m1 = 2,
     m2 = 1;
-  FLOAT
+  double
     denom;
-  static FLOAT
+  static double
     d,
     dz10,dz20,dz21,dz30,dz31,dz32,
     term1,term2,
@@ -4370,11 +4311,11 @@ void compact_differentiation(int    action,
 
   if (action == SETUP_UTIL) {
     /* Allocate memory. */
-    acompact = fvector(0,n*(m1+m2+1)-1,dbmsname);
-    aorig    = fvector(0,n*(m1+m2+1)-1,dbmsname);
-    al       = fvector(0,n*m1-1,dbmsname);
-    b        = fvector(0,n-1,dbmsname);
-    borig    = fvector(0,n-1,dbmsname);
+    acompact = dvector(0,n*(m1+m2+1)-1,dbmsname);
+    aorig    = dvector(0,n*(m1+m2+1)-1,dbmsname);
+    al       = dvector(0,n*m1-1,dbmsname);
+    b        = dvector(0,n-1,dbmsname);
+    borig    = dvector(0,n-1,dbmsname);
     index    = ivector(0,n-1,dbmsname);
 
     for (i = 0; i < n-1; i++) {
@@ -4491,21 +4432,21 @@ void compact_differentiation(int    action,
  * NOTE: Assumes no MPI domain decomposition in active dimension.
  */
 
-void crank_nicolson(int    n,
-                    FLOAT  dt,
-                    FLOAT *z,
-                    FLOAT *A,
-                    FLOAT *mu,
-                    FLOAT *rho,
-                    FLOAT *ANS)
+void crank_nicolson(int     n,
+                    double  dt,
+                    double *z,
+                    double *A,
+                    double *mu,
+                    double *rho,
+                    double *ANS)
 {
   int
     k,kstart,kend;
-  FLOAT
+  double
     coeff1,coeff3,factor;
   static int
     nold = -1;
-  static FLOAT
+  static double
    *a,
    *b,
    *c,
@@ -4552,21 +4493,21 @@ void crank_nicolson(int    n,
 
   /* Allocate memory for local vectors. */
   if (nold == -1) {
-    a    = fvector(0,n-1,dbmsname);
-    b    = fvector(0,n-1,dbmsname);
-    c    = fvector(0,n-1,dbmsname);
-    r    = fvector(0,n-1,dbmsname);
+    a    = dvector(0,n-1,dbmsname);
+    b    = dvector(0,n-1,dbmsname);
+    c    = dvector(0,n-1,dbmsname);
+    r    = dvector(0,n-1,dbmsname);
     nold = n;
   }
   else if (nold < n) {
-    free_fvector(a,0,nold-1,dbmsname);
-    free_fvector(b,0,nold-1,dbmsname);
-    free_fvector(c,0,nold-1,dbmsname);
-    free_fvector(r,0,nold-1,dbmsname);
-    a    = fvector(0,n-1,dbmsname);
-    b    = fvector(0,n-1,dbmsname);
-    c    = fvector(0,n-1,dbmsname);
-    r    = fvector(0,n-1,dbmsname);
+    free_dvector(a,0,nold-1,dbmsname);
+    free_dvector(b,0,nold-1,dbmsname);
+    free_dvector(c,0,nold-1,dbmsname);
+    free_dvector(r,0,nold-1,dbmsname);
+    a    = dvector(0,n-1,dbmsname);
+    b    = dvector(0,n-1,dbmsname);
+    c    = dvector(0,n-1,dbmsname);
+    r    = dvector(0,n-1,dbmsname);
     nold = n;
   }
   
@@ -4645,15 +4586,15 @@ void crank_nicolson(int    n,
  * Assumes zero-based indexing.
  */
 
-void hqr(FLOAT *a_eig, 
-         int    n, 
-         FLOAT *wr, 
-         FLOAT *wi)
+void hqr(double *a_eig, 
+         int     n, 
+         double *wr, 
+         double *wi)
 {
   int 
     nn,m,l,k,j,
     klen,its,i,mmin;
-  FLOAT 
+  double 
     z,y,x,w,v,u,
     t,s,r,q,p,
     anorm;
@@ -4812,14 +4753,14 @@ void hqr(FLOAT *a_eig,
 /* 
  * From K & R 2nd ed., p. 87: 
  */
-void quicksort(FLOAT *mag, 
-               int    left, 
-               int    right)
+void quicksort(double *mag, 
+               int     left, 
+               int     right)
 {
   int 
     i,last;
   void 
-    swap(FLOAT *mag,int i,int j);
+    swap(double *mag,int i,int j);
 
   if (left >= right) {
     return;
@@ -4844,11 +4785,11 @@ void quicksort(FLOAT *mag,
 
 /*====================== swap() =============================================*/
 
-void swap(FLOAT *mag,
-          int    i,
-          int    j)
+void swap(double *mag,
+          int     i,
+          int     j)
 {
-  FLOAT 
+  double 
     temp;
 
   temp   = mag[i];
@@ -4871,15 +4812,15 @@ void swap(FLOAT *mag,
 #undef  SWAP
 #define SWAP(a,b) tempr=(a);(a)=(b);(b)=tempr
 
-void four1(FLOAT         data[], 
-           unsigned long nn, 
-           int           isign)
+void four1(double         data[], 
+           unsigned long  nn, 
+           int            isign)
 {
   unsigned long 
     n,mmax,m,j,istep,i;
-  FLOAT 
+  double 
     tempr,tempi;
-  FLOAT 
+  double 
     wtemp,wr,wpr,wpi,wi,theta;
 
   n = nn << 1;
@@ -4932,18 +4873,18 @@ void four1(FLOAT         data[],
        *  Assumes data length is a power of 2; assumes unit-based array.
        *  Result of inverse must be multiplied by 2/n.
        */
-void realft(FLOAT data[], unsigned long n, int isign)
+void realft(double data[], unsigned long n, int isign)
 {
   void 
-    four1(FLOAT data[], unsigned long nn, int isign);
+    four1(double data[], unsigned long nn, int isign);
   unsigned long 
     i, i1, i2, i3, i4, np3;
-  FLOAT 
+  double 
     c1=0.5,c2,h1r,h1i,h2r,h2i;
-  FLOAT 
+  double 
     wr,wi,wpr,wpi,wtemp,theta;
 
-  theta = M_PI/(FLOAT) (n>>1);
+  theta = M_PI/(double) (n>>1);
   if (isign == 1) {
     c2 = -0.5;
     four1(data, n>>1, 1);
@@ -4986,7 +4927,7 @@ void realft(FLOAT data[], unsigned long n, int isign)
 
 /*======================= c_num() ============================================*/
 
-complex c_num(FLOAT x, FLOAT y)
+complex c_num(double x, double y)
 {
   complex
     ans;
@@ -5065,7 +5006,7 @@ complex c_exp(complex z)
  * type-mismatch error occurs if we call this function cabs().
  */
  
-FLOAT c_abs(complex z)
+double c_abs(complex z)
 {
 
   return sqrt((z.x)*(z.x)+(z.y)*(z.y));
@@ -5075,7 +5016,7 @@ FLOAT c_abs(complex z)
 
 /*======================= c_real() ===========================================*/
 
-FLOAT c_real(complex z) 
+double c_real(complex z) 
 {
   return (z.x);
 }
@@ -5084,7 +5025,7 @@ FLOAT c_real(complex z)
 
 /*======================= c_imag() ===========================================*/
 
-FLOAT c_imag(complex z)
+double c_imag(complex z)
 {
   return (z.y);
 }
@@ -5115,8 +5056,6 @@ FLOAT c_imag(complex z)
  * Input parameters:
  *   x1, x2: numbers to be compared
  *
- * This routine may be used for both single and double precision.
- *
  * Returns:
  *   -1 if x1 < x2
  *    0 if x1 == x2
@@ -5129,13 +5068,8 @@ int fcmp(double x1, double x2) {
   double
     delta,
     difference;
-#if EPIC_PRECISION == DOUBLE_PRECISION
   const double
     epsilon = DBL_EPSILON;
-#else
-  const double
-    epsilon = FLT_EPSILON;
-#endif
   
   /* 
    * Get exponent(max(fabs(x1),fabs(x2))) and store it in exponent. 
@@ -5196,16 +5130,16 @@ int fcmp(double x1, double x2) {
  * siga and sigb, and the chi-square, chi2.
  */
 
-void least_squares(FLOAT *x,
-                   FLOAT *y,
-                   int    n,
-                   FLOAT *a)
+void least_squares(double *x,
+                   double *y,
+                   int     n,
+                   double *a)
 
 {
   
   register int
     i;
-  register FLOAT 
+  register double 
     siga,sigb,chi2,q,t,
     sxoss,ss,sigdat,
     sx  = 0.0,
@@ -5269,20 +5203,20 @@ void least_squares(FLOAT *x,
 #undef  A
 #define A(i,j) a[j+(m+1)*i]
  
-void savitzky_golay(FLOAT *c,
-                    int    np,
-                    int    nl,
-                    int    nr,
-                    int    ld,
-                    int    m)
+void savitzky_golay(double *c,
+                    int     np,
+                    int     nl,
+                    int     nr,
+                    int     ld,
+                    int     m)
 {
   int
     imj,ipj,j,k,kk,mm;
   int
    *index;
-  FLOAT
+  double
     d,fac,sum;
-  FLOAT
+  double
     *a,
     *b;
   /* 
@@ -5319,8 +5253,8 @@ void savitzky_golay(FLOAT *c,
 
   /* Allocate memory */
   index = ivector(0,m,dbmsname);
-  a     = fvector(0,(m+1)*(m+1)-1,dbmsname);
-  b     = fvector(0,m,dbmsname);
+  a     = dvector(0,(m+1)*(m+1)-1,dbmsname);
+  b     = dvector(0,m,dbmsname);
 
   for (ipj = 0; ipj <= (m << 1); ipj++) {
     sum = (ipj ? 0. : 1.);
@@ -5361,8 +5295,8 @@ void savitzky_golay(FLOAT *c,
 
   /* Free allocated memory. */
   free_ivector(index,0,m,dbmsname);
-  free_fvector(a,0,(m+1)*(m+1)-1,dbmsname);
-  free_fvector(b,0,m,dbmsname);
+  free_dvector(a,0,(m+1)*(m+1)-1,dbmsname);
+  free_dvector(b,0,m,dbmsname);
 
   return;
 }
@@ -5399,7 +5333,7 @@ void savitzky_golay(FLOAT *c,
 #undef  RNMX
 #define RNMX (1.-EPS)
 
-FLOAT random_number(long *idum)
+double random_number(long *idum)
 {
   int
     j;
@@ -5408,7 +5342,7 @@ FLOAT random_number(long *idum)
   static long
     iy=0,
     iv[NTAB];
-  FLOAT
+  double
     temp;
 
   if (*idum <= 0 || !iy) {
@@ -5451,8 +5385,8 @@ FLOAT random_number(long *idum)
  * lat: [Deg]
  * rerp: (equatorial radius)/(polar radius)
  */
-FLOAT lat_centric_to_graphic(FLOAT lat,
-                             FLOAT rerp)
+double lat_centric_to_graphic(double lat,
+                              double rerp)
 {
   return (fabs(lat) == 90.) ? lat : atan(rerp*rerp*tan(lat*DEG))/DEG;
 }
@@ -5465,8 +5399,8 @@ FLOAT lat_centric_to_graphic(FLOAT lat,
  * lat: [Deg]
  * rerp: (equatorial radius)/(polar radius)
  */
-FLOAT lat_graphic_to_centric(FLOAT lat,
-                             FLOAT rerp)
+double lat_graphic_to_centric(double lat,
+                              double rerp)
 {
   return (fabs(lat) == 90.) ? lat : atan(tan(lat*DEG)/(rerp*rerp))/DEG;
 }
@@ -5481,10 +5415,10 @@ FLOAT lat_graphic_to_centric(FLOAT lat,
  * See http://mathworld.wolfram.com/OblateSpheroid.html.
  */
 
-FLOAT surface_area_oblate(FLOAT a,
-                          FLOAT c)
+double surface_area_oblate(double a,
+                           double c)
 {
-  register FLOAT
+  register double
     e;
 
   e = sqrt(1.-(c/a)*(c/a));

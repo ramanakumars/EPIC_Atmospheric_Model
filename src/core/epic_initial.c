@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -82,8 +83,9 @@
  *     (gas giants have an abyssal layer, k = nk+1)                        *
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-
+#include <epic_datatypes.h>
 #include <epic.h>
+int MODIFY = 1;
 
 /*
  *  Data from the books "Venus," "Mars," "Saturn," "Uranus," 
@@ -109,7 +111,7 @@ void write_defaults(init_defaultspec *def);
 /*
  * The growth factor 1.+ALPHA_BOUNDARY is used
  * for geometrically decreasing boundary-layer spacing 
- * in the top sponge and bottom plaentary boundary layer (PBL).
+ * in the top sponge and bottom planetary boundary layer (PBL).
  */
 #undef  ALPHA_BOUNDARY
 #define ALPHA_BOUNDARY 0.50
@@ -152,7 +154,8 @@ int main(int   argc,
       = {"off",
          "Correlated k",
          "Newtonian",
-         "Heating from file"};
+         "Heating from file",
+         "Global heating-cooling"};
   /*
    * NOTE: The name for advection schemes in non-flux form (aka non-divergence form, not h-weighted)
    *       need to lead with the 13 characters "Non-flux form".
@@ -169,38 +172,29 @@ int main(int   argc,
          "off"},
     *vert_coord_type[]
       = {"isentropic","isobaric","hybrid"};
-  EPIC_FLOAT
+  double
     fgibb,fpe,uoup,
     theta,theta_ortho,theta_para,
     temperature,
-    ptop,pbot;
-  static EPIC_FLOAT
+    ptop,pbot,avg;
+  static double
     *Buff2D[NUM_WORKING_BUFFERS];
-  register EPIC_FLOAT
+  register double
     tmp,tmp2,            /*  temporary storage                          */
     fpara,pressure,mu,
     sigma,sg1,sg2,slope,theta_knee,sigma_knee,
     sgth,log_sgth,neglogp,negp,
     dlnp;
-  EPIC_FLOAT  
+  double  
     *neglogpdat,         /*  -log(pdat)                                 */
     *thetadat,           /*  theta corresponding to t_vs_p data         */
      p_d,sgth_d;
-  float_triplet
+  double_triplet
     *buff_triplet;
   struct tm
     date_start;
   time_t
     current_time;
-#if defined(EPIC_MPI)
-#  if EPIC_PRECISION == DOUBLE_PRECISION
-     MPI_Datatype
-       float_type = MPI_DOUBLE;
-#  else
-     MPI_Datatype
-       float_type = MPI_FLOAT;
-#  endif
-#endif
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -215,7 +209,7 @@ int main(int   argc,
 #endif
   
   /* EPIC Model version number: */
-  grid.epic_version = 5.23;
+  grid.epic_version = 5.30;
 
   declare_copyright();
 
@@ -261,11 +255,7 @@ int main(int   argc,
     fprintf(stdout,"\n\n            WELCOME TO THE EPIC MODEL\n");
     fprintf(stdout,"       Celebrating %1d years as open source\n\n",current_year-1998);
     fprintf(stdout,"             Version: %4.2f\n",grid.epic_version);
-#if EPIC_PRECISION == DOUBLE_PRECISION
     fprintf(stdout,"      Floating-point: double precision\n");
-#else
-    fprintf(stdout,"      Floating-point: single precision\n");
-#endif
     fprintf(stdout,"          Geometries: globe, f-plane \n");
     fprintf(stdout,"         Atmospheres: Venus, Earth, Jupiter, Saturn, Titan, Uranus, Neptune \n");
     fprintf(stdout,"          Benchmarks: Held_Suarez, Venus_LLR05\n");
@@ -281,7 +271,7 @@ int main(int   argc,
     char
       *ptr;
 
-    input_string("Choose atmosphere or benchmark to initialize \n",defaults.system_id,system_id);
+    input_string("Choose atmosphere or benchmark to initialize \n",defaults.system_id,system_id,MODIFY);
 
     /* 
      * Set up system.
@@ -350,7 +340,7 @@ int main(int   argc,
     strcat(header,Message);
   }
 
-  grid.coord_type = defaults.coord_type = input_int(header,defaults.coord_type);
+  grid.coord_type = defaults.coord_type = input_int(header,defaults.coord_type,MODIFY);
   if (grid.coord_type < COORD_FIRST ||
       grid.coord_type > COORD_LAST    ) {
     fprintf(stdout,"%d is out of valid range [%d,%d]:  %d => %s\n",
@@ -379,7 +369,7 @@ int main(int   argc,
   sprintf(Message," 1 => current date and time, %s",header);
   fprintf(stdout,"%s\n",Message);
   defaults.start_date_input_type = 
-    input_int(" 2 => prompt for values (UTC)\n",defaults.start_date_input_type);
+    input_int(" 2 => prompt for values (UTC)\n",defaults.start_date_input_type,MODIFY);
   if (defaults.start_date_input_type == 0) {
     var.start_time = defaults.start_time;
   }
@@ -398,12 +388,12 @@ int main(int   argc,
     mktime(&date_start);
 
     defaults.UTC_start = *gmtime(&defaults.start_time);
-    date_start.tm_year = input_int("  Input year (YYYY):",defaults.UTC_start.tm_year+1900)-1900;
-    date_start.tm_mon  = input_int("   Input month (MM):",defaults.UTC_start.tm_mon+1)-1;
-    date_start.tm_mday = input_int("     Input day (DD):",defaults.UTC_start.tm_mday);
-    date_start.tm_hour = input_int("  Input hour (0-23):",defaults.UTC_start.tm_hour);
-    date_start.tm_min  = input_int("Input minute (0-59):",defaults.UTC_start.tm_min);
-    date_start.tm_sec  = input_int("Input second (0-59):",defaults.UTC_start.tm_sec);
+    date_start.tm_year = input_int("  Input year (YYYY):",defaults.UTC_start.tm_year+1900,MODIFY)-1900;
+    date_start.tm_mon  = input_int("   Input month (MM):",defaults.UTC_start.tm_mon+1,MODIFY)-1;
+    date_start.tm_mday = input_int("     Input day (DD):",defaults.UTC_start.tm_mday,MODIFY);
+    date_start.tm_hour = input_int("  Input hour (0-23):",defaults.UTC_start.tm_hour,MODIFY);
+    date_start.tm_min  = input_int("Input minute (0-59):",defaults.UTC_start.tm_min,MODIFY);
+    date_start.tm_sec  = input_int("Input second (0-59):",defaults.UTC_start.tm_sec,MODIFY);
     /*
      * Shift UTC input into local time (because "struct tm" does not keep track of timezone and assumes time is local).
      */
@@ -423,7 +413,7 @@ int main(int   argc,
   /*
    * Set solar longitude, L_s [deg], which is a function of time.
    */
-  L_s = solar_longitude(planet,var.model_time);
+  L_s = solar_longitude(var.model_time);
 
  /*
   * Prompt for initial winds.
@@ -453,31 +443,79 @@ int main(int   argc,
       grid.du_vert     = defaults.du_vert = 0.;
     break;
     default:
-      defaults.u_scale = input_float("Input initial-wind scaling factor [zero=0., full strength=1.]\n",defaults.u_scale);
+      defaults.u_scale = input_double("Input initial-wind scaling factor [zero=0., full strength=1.]\n",defaults.u_scale,MODIFY);
       if (defaults.u_scale != 0.) {
         /*
          * Prompt for vertical variation of zonal wind.
          */
-        if (strcmp(planet->name,"Jupiter") == 0 ||
-            strcmp(planet->name,"Venus")   == 0) {
-          fprintf(stdout,"Vertical wind profile: 1.0 => use full probe profile \n");
-          fprintf(stdout,"                       0.0 => constant with height \n");
-          grid.du_vert = defaults.du_vert = input_float("",defaults.du_vert);
-        }
-        else if (strcmp(planet->name,"Saturn") == 0) {
-          /*
-           * Cassini CIRS profile: see function cassini_cirs_u().
-           */
-          fprintf(stdout,"Vertical wind profile: 1.0 => use Cassini CIRS profile \n");
-          fprintf(stdout,"                       0.0 => constant with height \n");
-          grid.du_vert = defaults.du_vert = input_float("",defaults.du_vert);
-        }
-        else {
-          grid.du_vert = defaults.du_vert = 0.;
-        }
+
+          if (strcmp(planet->name,"jupiter") == 0) {
+              fprintf(stdout,"Vertical wind shear mode: %d => use probe profile \n", WIND_SHEAR_PROBE);
+              fprintf(stdout,"                          %d => use functional form (Garcia-Melendo 2005) \n", WIND_SHEAR_FUNCTION);
+              grid.wind_shear_mode = defaults.grid_wind_shear_mode = input_int("",defaults.grid_wind_shear_mode,MODIFY);
+              
+              fprintf(stdout,"Vertical wind decay slope: %d => constant \n", WIND_DECAY_SLOPE_CONSTANT);
+              fprintf(stdout,"                           %d => varying with latitude \n", WIND_DECAY_SLOPE_VARYING);
+              grid.wind_decay_m_const = defaults.grid_wind_decay_m_const = input_double("",defaults.grid_wind_decay_m_const,MODIFY);
+
+              if(grid.wind_decay_m_const == WIND_DECAY_SLOPE_CONSTANT) {
+                fprintf(stdout,"Vertical wind decay slope: \n");
+                grid.du_vert_m = defaults.du_vert_m = input_double("",defaults.du_vert_m,MODIFY);
+              } else if (grid.wind_decay_m_const == WIND_DECAY_SLOPE_VARYING) {
+                /* maybe will need to read in a file name at some point */
+              } else {
+                  sprintf(Message,"%d not a valid option", grid.wind_decay_m_const);
+                  epic_error(dbmsname,Message);
+              }
+                
+
+              if(grid.wind_shear_mode == WIND_SHEAR_FUNCTION) {
+                fprintf(stdout,"Transition pressure for zero shear [mbar]: \n");
+                grid.du_vert_pend = defaults.du_vert_pend = input_double("",defaults.du_vert_pend / 100.,1) * 100.;
+              } else {
+                fprintf(stdout,"Vertical wind profile: 1.0 => use full probe profile \n");
+                fprintf(stdout,"                       0.0 => constant with height \n");
+                grid.du_vert = defaults.du_vert = input_double("",defaults.du_vert,MODIFY);
+                grid.du_vert_m = defaults.du_vert_m = 0.;
+                grid.du_vert_pend = defaults.du_vert_pend = 0.;
+              }
+
+              fprintf(stdout,"Cloud top pressure for wind field: %d => constant (680mb)\n", CONSTANT_CLOUD_BASE);
+              fprintf(stdout,"                                   %d => Use belt/zone difference\n", USE_BELT_ZONE);
+              fprintf(stdout,"                                   %d => Use I/F value\n", USE_IF_889NM);
+
+              grid.cloud_top_mode = defaults.grid_cloud_top_mode = input_int("",defaults.grid_cloud_top_mode,MODIFY);
+              if(grid.cloud_top_mode == USE_IF_889NM) {
+                  fprintf(stdout, "I/F at 400 mb: \n");
+                  grid.if_400mb = defaults.grid_if_400mb = input_double("", defaults.grid_if_400mb,MODIFY);
+                  fprintf(stdout, "I/F at 1000 mb: \n");
+                  grid.if_1000mb = defaults.grid_if_1000mb = input_double("", defaults.grid_if_1000mb,MODIFY);
+              } else {
+                  grid.if_400mb = grid.if_1000mb = 0.;
+              }
+          } else if(strcmp(planet->name,"venus")   == 0) {
+              fprintf(stdout,"Vertical wind profile: 1.0 => use full probe profile \n");
+              fprintf(stdout,"                       0.0 => constant with height \n");
+              grid.du_vert = defaults.du_vert = input_double("",defaults.du_vert,MODIFY);
+              grid.du_vert_m = defaults.du_vert_m = 0.;
+              grid.du_vert_pend = defaults.du_vert_pend = 0.;
+          } else if (strcmp(planet->name,"saturn") == 0) {
+                /*
+                 * Cassini CIRS profile: see function cassini_cirs_u().
+                 */
+                fprintf(stdout,"Vertical wind profile: 1.0 => use Cassini CIRS profile \n");
+                fprintf(stdout,"                       0.0 => constant with height \n");
+                grid.du_vert = defaults.du_vert = input_double("",defaults.du_vert,MODIFY);
+          } else {
+            grid.du_vert = defaults.du_vert = 0.;
+            grid.du_vert_m = defaults.du_vert_m = 0.;
+            grid.du_vert_pend = defaults.du_vert_pend = 0.;
+          }
       }
       else {
         grid.du_vert = defaults.du_vert = 0.;
+        grid.du_vert_m = defaults.du_vert_m = 0.;
+        grid.du_vert_pend = defaults.du_vert_pend = 0.;
       }
     break;
   }
@@ -490,7 +528,20 @@ int main(int   argc,
   grid.newt_cool_adjust = defaults.newt_cool_adjust;
   grid.zonal_average_rt = defaults.zonal_average_rt;
 
-  inquire_radiation_scheme(planet);
+  inquire_radiation_scheme(MODIFY);
+
+  if (strcmp(grid.radiation_scheme, "Global heating-cooling") == 0) {
+    defaults.heat_top_pressure = grid.heat_top_pressure = input_double("Top of the heating region [hPa]\n", defaults.heat_top_pressure,MODIFY);
+    defaults.cool_bot_pressure = grid.cool_bot_pressure = input_double("Bottom of the cooling region [hPa]\n", defaults.cool_bot_pressure,MODIFY);
+    defaults.heat_rate = grid.heat_rate = input_double("Heating rate at the bottom [K/day]\n", defaults.heat_rate,MODIFY);
+    defaults.cool_rate = grid.cool_rate = input_double("Cooling rate at the top [K/day]\n", defaults.cool_rate,MODIFY);
+    
+    // convert to appropriate units
+    grid.heat_top_pressure = grid.heat_top_pressure * 100.;
+    grid.cool_bot_pressure = grid.cool_bot_pressure * 100.;
+    grid.heat_rate = grid.heat_rate / 86400.;
+    grid.cool_rate = grid.cool_rate / 86400.;
+  }
 
   defaults.radiation_index  = grid.radiation_index;
   defaults.newt_cool_adjust = grid.newt_cool_adjust;
@@ -510,7 +561,7 @@ int main(int   argc,
   for (ii = 0; ii < num_turbulence_schemes; ii++) {
     fprintf(stdout,"  %s\n",turbulence_scheme[ii]);
   }
-  input_string("Input turbulence scheme\n",defaults.turbulence_scheme,grid.turbulence_scheme);
+  input_string("Input turbulence scheme\n",defaults.turbulence_scheme,grid.turbulence_scheme,MODIFY);
 
   /*
    * Grab the vertical u profile, if it exists.
@@ -521,26 +572,33 @@ int main(int   argc,
    *
    * NOTE: Need to set grid.uv_timestep_scheme before calling set_var_props().
    */
-  set_var_props(planet);
+  set_var_props();
 
-  /*
+  /* 
    * Set advection scheme for THETA, FPARA.
+   *
+   * NOTE: Avoid using HSU_ADVECTION for THETA, it tends to be numerically unstable, for reasons unknown.
+   *       THIRD_ORDER_UPWIND has proven reliable for THETA.
+   *
+   * NOTE: FPARA is like a Q, so HSU_ADVECTION is recommended.
    */
   strcpy(var.theta.advection_scheme,advection_scheme[THIRD_ORDER_UPWIND]);
-  strcpy(var.fpara.advection_scheme,advection_scheme[THIRD_ORDER_UPWIND]);
+  strcpy(var.fpara.advection_scheme,advection_scheme[HSU_ADVECTION]);
 
   /*
    * Set advection schemes for mass variables (H, Qs).
    *
+   * NOTE: These need to be flux-form (h-weighted), e.g. HSU_ADVECTION but not THIRD_ORDER_UPWIND.
    * NOTE: This must come before make_arrays().
    */
   strcpy(var.h.advection_scheme,advection_scheme[HSU_ADVECTION]);
   for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
-    strcpy(var.species[is].advection_scheme,advection_scheme[THIRD_ORDER_UPWIND]);
+    strcpy(var.species[is].advection_scheme,advection_scheme[HSU_ADVECTION]);
   }
 
   /*
    * Set advection scheme for NU_TURB.
+   * THIRD_ORDER_UPWIND is recommended. 
    */
   strcpy(var.nu_turb.advection_scheme,advection_scheme[THIRD_ORDER_UPWIND]);
 
@@ -561,11 +619,27 @@ int main(int   argc,
   }
   else if (defaults.k_sponge == NOT_SET) {
     defaults.k_sponge     = -1;
-    defaults.k_sponge     = grid.k_sponge = input_int("Input k_sponge (-1 = no effect)\n",defaults.k_sponge);
+    defaults.k_sponge     = grid.k_sponge = input_int("Input k_sponge (-1 = no effect)\n",defaults.k_sponge,MODIFY);
     defaults.spacing_type = SPACING_LOGP;
   }
   else {
-    defaults.k_sponge = grid.k_sponge = input_int("Input k_sponge (-1 = no effect)\n",defaults.k_sponge);
+    defaults.k_sponge = grid.k_sponge = input_int("Input k_sponge (-1 = no effect)\n",defaults.k_sponge,MODIFY);
+  }
+
+  /*
+   * grid.n_bot_drag - number of layers at bottom with transitional Rayleigh drag towards abyssal wind profile.
+   */
+  if (strcmp(planet->type,"terrestrial") == 0) {
+    defaults.n_bot_drag = grid.n_bot_drag = -1;
+  }
+  else if (defaults.n_bot_drag == NOT_SET) {
+    defaults.n_bot_drag = -1;
+    defaults.n_bot_drag = grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect,MODIFY):\n",
+                                                      defaults.n_bot_drag,MODIFY);
+  }
+  else {
+    defaults.n_bot_drag = grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect,MODIFY):\n",
+                                                      defaults.n_bot_drag,MODIFY);
   }
 
   /*
@@ -573,10 +647,10 @@ int main(int   argc,
    */
   if (defaults.j_sponge == NOT_SET) {
     defaults.j_sponge     = -1;
-    defaults.j_sponge     = grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical)\n",defaults.j_sponge);
+    defaults.j_sponge     = grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical)\n",defaults.j_sponge,MODIFY);
   }
   else {
-    defaults.j_sponge = grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical)\n",defaults.j_sponge);
+    defaults.j_sponge = grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical)\n",defaults.j_sponge,MODIFY);
   }
 
   /*
@@ -591,7 +665,7 @@ int main(int   argc,
                  "                                 %1d => theta\n"
                  "                                 %1d => from file \n",
                  SPACING_LOGP,SPACING_P,SPACING_THETA,SPACING_FROM_FILE);
-  defaults.spacing_type = spacing_type = input_int(header,defaults.spacing_type);
+  defaults.spacing_type = spacing_type = input_int(header,defaults.spacing_type,MODIFY);
 
   /*
    * Inquire about the vertical range and number of vertical layers.
@@ -604,8 +678,8 @@ int main(int   argc,
    */
   switch(defaults.spacing_type) {
     case SPACING_FROM_FILE:
-      input_string("File containing layer spacing data (type 'initial -h' to see an example)\n",
-                   defaults.layer_spacing_dat,defaults.layer_spacing_dat);
+      input_string("File containing layer spacing data (type 'initial -h' to see an example,MODIFY)\n",
+                   defaults.layer_spacing_dat,defaults.layer_spacing_dat,MODIFY);
       read_spacing_file(&defaults,SIZE_DATA);
     break;
     case SPACING_P:
@@ -613,16 +687,16 @@ int main(int   argc,
       /* 
        * Prompt for ptop (external units are hPa, internal are Pa):
        */
-      defaults.ptop = grid.ptop = 100.*input_float("Pressure at K = 1/2 (model's top) [hPa]\n",
-                                                   defaults.ptop/100.);
+      defaults.ptop = grid.ptop = 100.*input_double("Pressure at K = 1/2 (model's top,MODIFY) [hPa]\n",
+                                                    defaults.ptop/100.,MODIFY);
 
       if (strcmp(planet->type,"gas-giant") == 0) {
         /*
          * Prompt for pbot for gas giant.
          */
         defaults.pbot = grid.pbot = 100.*
-                                    input_float("Pressure at K = nk+1/2 (model's bottom) [hPa]\n",
-                                                defaults.pbot/100.);
+                                    input_double("Pressure at K = nk+1/2 (model's bottom,MODIFY) [hPa]\n",
+                                                 defaults.pbot/100.,MODIFY);
       }
       else {
         defaults.pbot = grid.pbot = planet->p0;
@@ -639,17 +713,17 @@ int main(int   argc,
           defaults.nk = 20;
         }
       }
-      defaults.nk = grid.nk = input_int("\nInput the number of vertical layers, nk\n",defaults.nk);
+      defaults.nk = grid.nk = input_int("\nInput the number of vertical layers, nk\n",defaults.nk,MODIFY);
     break;
     case SPACING_THETA:
-      defaults.thetatop = grid.thetatop = input_float("Potential temperature at K = 1/2 (model's top) [K]\n",
-                                                      defaults.thetatop);
-      defaults.thetabot = grid.thetabot = input_float("Potential temperature at K = nk+1/2 (model's bottom) [K]\n",
-                                                      defaults.thetabot);
+      defaults.thetatop = grid.thetatop = input_double("Potential temperature at K = 1/2 (model's top,MODIFY) [K]\n",
+                                                       defaults.thetatop,MODIFY);
+      defaults.thetabot = grid.thetabot = input_double("Potential temperature at K = nk+1/2 (model's bottom,MODIFY) [K]\n",
+                                                       defaults.thetabot,MODIFY);
       if (defaults.nk == NOT_SET) {
         defaults.nk = 20;
       }
-      defaults.nk = grid.nk = input_int("\nInput the number of vertical layers, nk\n",defaults.nk);
+      defaults.nk = grid.nk = input_int("\nInput the number of vertical layers, nk\n",defaults.nk,MODIFY);
     break;
     default:
       sprintf(Message,"unrecognized defaults.spacing_type=%d",defaults.spacing_type);
@@ -681,7 +755,7 @@ int main(int   argc,
     sprintf(defaults.geometry,"globe");
   }
   else {
-    input_string("Choose geometry \n",defaults.geometry,grid.geometry);
+    input_string("Choose geometry \n",defaults.geometry,grid.geometry,MODIFY);
   }
 
   if (strcmp(grid.geometry,"f-plane") == 0) {
@@ -690,18 +764,18 @@ int main(int   argc,
     grid.pad[2]  = 1;
     grid.pad[0]  = 1;
     grid.f_plane_lat0 = defaults.f_plane_lat0
-                      = input_float("Latitude of f-plane [deg] \n",
-                                     defaults.f_plane_lat0);
+                      = input_double("Latitude of f-plane [deg] \n",
+                                     defaults.f_plane_lat0,MODIFY);
     input_string("Choose mapping: cartesian or polar \n",
-                 defaults.f_plane_map,grid.f_plane_map);
+                 defaults.f_plane_map,grid.f_plane_map,MODIFY);
     if (strcmp(grid.f_plane_map,"cartesian") == 0) {
       grid.wrap[1] = 1;
       grid.pad[1]  = 1;
       grid.jlo     = 1;
       grid.ilo     = 1;
       grid.f_plane_half_width = defaults.f_plane_half_width
-                              = input_float("Half-width [km] \n",
-                                             defaults.f_plane_half_width);
+                              = input_double("Half-width [km] \n",
+                                             defaults.f_plane_half_width,MODIFY);
       /* convert km to m */
       grid.f_plane_half_width *= 1000.;
     }
@@ -711,8 +785,8 @@ int main(int   argc,
       grid.jlo     = 0;
       grid.ilo     = 1;
       grid.f_plane_half_width = defaults.f_plane_half_width
-                              = input_float("Radius [km] \n",
-                                            defaults.f_plane_half_width);
+                              = input_double("Radius [km] \n",
+                                            defaults.f_plane_half_width,MODIFY);
       /* convert km to m */
       grid.f_plane_half_width *= 1000.;
     }
@@ -733,13 +807,13 @@ int main(int   argc,
     grid.ilo     = 1;
 
     grid.globe_latbot=defaults.globe_latbot
-      = input_float("Lowest latitude [deg] \n",defaults.globe_latbot);
+      = input_double("Lowest latitude [deg] \n",defaults.globe_latbot,MODIFY);
     if (grid.globe_latbot < -90.) {
       fprintf(stderr,"latbot must be >= -90.  Setting latbot to -90. \n");
       grid.globe_latbot = defaults.globe_latbot = -90.;
     }
     grid.globe_lattop=defaults.globe_lattop
-      = input_float("Highest latitude [deg] \n",defaults.globe_lattop);
+      = input_double("Highest latitude [deg] \n",defaults.globe_lattop,MODIFY);
     /* Sanity check: */
     if (grid.globe_lattop < grid.globe_latbot) {
       sprintf(Message,"lattop=%f < latbot=%f",grid.globe_lattop,grid.globe_latbot);
@@ -751,9 +825,9 @@ int main(int   argc,
     }
 
     grid.globe_lonbot=defaults.globe_lonbot
-      = input_float("Lowest longitude [deg] \n",defaults.globe_lonbot);
+      = input_double("Lowest longitude [deg] \n",defaults.globe_lonbot,MODIFY);
     grid.globe_lontop=defaults.globe_lontop
-      = input_float("Highest longitude [deg] \n",defaults.globe_lontop);
+      = input_double("Highest longitude [deg] \n",defaults.globe_lontop,MODIFY);
     /* Sanity check: */
     if (grid.globe_lontop < grid.globe_lonbot) {
       sprintf(Message,"lontop=%f < lonbot=%f",grid.globe_lontop,grid.globe_lonbot);
@@ -780,7 +854,7 @@ int main(int   argc,
    *  planet->rgas: gas constant
    * planet->kappa: rgas/cp
    */
-  thermo_setup(planet,&planet->cpr);
+  thermo_setup(&planet->cpr);
   /* Assign thermodynamics function's reference cpr to planet->cp */
   planet->cp    = planet->cpr*planet->rgas;
   planet->kappa = 1./planet->cpr;
@@ -908,7 +982,7 @@ int main(int   argc,
     ;
   }
   else {
-    prompt_species_on(planet,defaults.species_str);
+    prompt_species_on(defaults.species_str,MODIFY);
   }
 
   if (var.on_list[H_2O_INDEX] == LISTED_AND_ON ||
@@ -918,10 +992,11 @@ int main(int   argc,
         defaults.cloud_microphysics == OFF) {
       defaults.cloud_microphysics = ACTIVE;
     }
-    sprintf(Message,"Cloud microphysics: %2d => active  (latent heat, phase changes, precipitation), or \n"
-                    "                    %2d => passive (advection only)\n"
-                    "                    %2d => steady  (maintains starting condition)\n",ACTIVE,PASSIVE,STEADY);
-    defaults.cloud_microphysics = grid.cloud_microphysics = input_int(Message,defaults.cloud_microphysics);
+    sprintf(Message,"Cloud microphysics: %2d => off \n"
+                    "                    %2d => active  (latent heat, phase changes, precipitation) \n"
+                    "                    %2d => passive (advection only)\n",
+                    OFF,ACTIVE,PASSIVE);
+    defaults.cloud_microphysics = grid.cloud_microphysics = input_int(Message,defaults.cloud_microphysics,MODIFY);
   }
   else {
     defaults.cloud_microphysics = grid.cloud_microphysics = OFF;
@@ -930,14 +1005,67 @@ int main(int   argc,
   /*
    * Turn on phases appropriate to cloud microphysics package.
    */
-  turn_on_phases(planet);
+  turn_on_phases();
+
+  /*
+   * Prompt for moist convection.
+   */
+  if (grid.cloud_microphysics != OFF) {
+    if (defaults.moist_convection == NOT_SET ||
+        defaults.moist_convection == OFF) {
+      defaults.moist_convection = OFF;
+    }
+    sprintf(Message,"Moist convection scheme: %2d => off \n"
+                    "                         %2d => on (Sud & Walker, 1999) \n"
+                    "                         %2d => passive (calculate diagnostic variables only) \n",
+                    OFF,ACTIVE,PASSIVE);
+    defaults.moist_convection = grid.moist_convection = input_int(Message,defaults.moist_convection,MODIFY);
+
+    if (grid.moist_convection == ACTIVE) {
+      sprintf(Message,"Maximum number of iterations: \n");
+      defaults.max_mc_it = grid.max_mc_it = input_int(Message,defaults.max_mc_it,MODIFY);
+
+      sprintf(Message,"Relaxation timescale (sec): \n");
+      defaults.tau_relax = grid.tau_relax = input_double(Message,defaults.tau_relax,MODIFY);
+
+      /*
+       * Set the status to TRUE that relaxed Arakawa-Schubert (RAS)
+       * will be calculated for the first time.
+       */
+      grid.first_RAS_upd = TRUE;
+    }
+  }
+  else {
+    defaults.moist_convection = grid.moist_convection = OFF;
+    defaults.max_mc_it        = grid.max_mc_it        = 0;
+    defaults.tau_relax        = grid.tau_relax        = 0.;
+  }
+  
+  if(grid.cloud_microphysics != OFF) {
+    if (defaults.grid_relax_vapor == NOT_SET ||
+        defaults.grid_relax_vapor == OFF) {
+      defaults.grid_relax_vapor = OFF;
+    }
+    sprintf(Message,"Relax vapor profile to initial state : %2d => on, or \n"
+                    "                                       %2d => off\n", ON, OFF);
+    defaults.grid_relax_vapor = grid.relax_vapor = input_int(Message,defaults.grid_relax_vapor,1);
+
+    if(grid.relax_vapor == ACTIVE) {
+        sprintf(Message,"Timescale [days] : \n");
+        defaults.grid_relax_vapor_timescale = grid.relax_vapor_timescale = input_int(Message,defaults.grid_relax_vapor_timescale,1);
+        grid.relax_vapor_timescale *= 24. * 3600.;
+    }
+  } else {
+      defaults.grid_relax_vapor = OFF;
+      grid.relax_vapor_timescale *= 0.;
+  }
 
   /* 
    * Source-sink parameters.
    */
   if (var.fpara.on) {
     defaults.fpara_rate_scaling = var.fpara_rate_scaling = 
-      input_float("Ortho-para conversion-rate scaling [nominal = 1.0]?\n",defaults.fpara_rate_scaling);
+      input_double("Ortho-para conversion-rate scaling [nominal = 1.0]?\n",defaults.fpara_rate_scaling,MODIFY);
   }
 
   /*
@@ -957,7 +1085,7 @@ int main(int   argc,
     sprintf(Message,"\nLatitude indexing: nj   = No. V or PV points interior to the boundaries, from 1 to nj, whereas"
                     "\n                   nj+1 = No. U or H points (they have no boundary pts), from 0 to nj."
                     "\nInput the number of latitude gridpoints (nj, 0 => one u,h point)\n");
-    defaults.nj = grid.nj = input_int(Message,defaults.nj);
+    defaults.nj = grid.nj = input_int(Message,defaults.nj,MODIFY);
     if (grid.globe_latbot == -90. &&
         grid.globe_lattop ==  90.) {
       /* 
@@ -979,7 +1107,7 @@ int main(int   argc,
   else if (strcmp(grid.geometry,"f-plane") == 0) {
     if (strcmp(grid.f_plane_map,"cartesian") == 0) {
       defaults.nj = grid.nj =
-        input_int("\nInput the number of gridpoints on a side\n",defaults.nj);
+        input_int("\nInput the number of gridpoints on a side\n",defaults.nj,MODIFY);
       grid.dlt = 180./(grid.nj);
     }
     else if (strcmp(grid.f_plane_map,"polar") == 0) {
@@ -987,7 +1115,7 @@ int main(int   argc,
        * "latitude" runs from 0 at the edge (j = 1) 
        *  to 90 in the center (j = nj+1) */
       defaults.nj = grid.nj =
-        input_int("\nInput the number of radial gridpoints\n",defaults.nj);
+        input_int("\nInput the number of radial gridpoints\n",defaults.nj,MODIFY);
       grid.dlt   = 90./((grid.nj+1-1)+sqrt(.5));
     }
   }
@@ -1022,7 +1150,7 @@ int main(int   argc,
       fprintf(stdout,"\nInput the number of longitude gridpoints (ni), \n");
     }
     defaults.ni = grid.ni = 
-      input_int("which must be an integer power of two\n",defaults.ni);
+      input_int("which must be an integer power of two\n",defaults.ni,MODIFY);
     /*
      * Verify that ni is a power of 2.
      */
@@ -1042,7 +1170,7 @@ int main(int   argc,
         fprintf(stdout,"\nInput the number of longitude gridpoints, \n");
       }
       defaults.ni = grid.ni = 
-        input_int("which must be an integer power of two\n",defaults.ni);
+        input_int("which must be an integer power of two\n",defaults.ni,MODIFY);
       /*
        * Verify that ni is a power of 2.
        */
@@ -1058,9 +1186,9 @@ int main(int   argc,
    * Input dt.
    */
   defaults.dt = grid.dt = 
-    input_int("Input timestep, dt [s, int to prevent roundoff]\n",defaults.dt);
+    input_int("Input timestep, dt [s, int to prevent roundoff]\n",defaults.dt,MODIFY);
 
-  var.ntp = read_t_vs_p(planet,SIZE_DATA);
+  var.ntp = read_t_vs_p(SIZE_DATA);
 
   /* * * * * * * * * * * * * * * * * * *
    *                                   *
@@ -1068,16 +1196,16 @@ int main(int   argc,
    *                                   *
    * * * * * * * * * * * * * * * * * * */
 
-  make_arrays(planet);
+  make_arrays();
 
   for (I = 0; I < NUM_WORKING_BUFFERS; I++) {
-    Buff2D[I] = fvector(0,Nelem2d-1,dbmsname);
+    Buff2D[I] = dvector(0,Nelem2d-1,dbmsname);
   }
 
   /*
    * NOTE: these must come after make_arrays().
    */
-  read_t_vs_p(planet,POST_SIZE_DATA);
+  read_t_vs_p(POST_SIZE_DATA);
 
   if (spacing_type == SPACING_FROM_FILE) {
     read_spacing_file(&defaults,ALL_DATA);
@@ -1085,30 +1213,30 @@ int main(int   argc,
 
   if (strcmp(grid.uv_timestep_scheme,"3rd-order Adams-Bashforth") == 0) {
     /*
-     * Flag DUDT and DVDT for timeplanes IT_MINUS2 and IT_MINUS1 with FLOAT_MAX
+     * Flag DUDT and DVDT for timeplanes IT_MINUS2 and IT_MINUS1 with DBL_MAX
      * to indicate this is the initial timestep.
      */
     for (K = KLO; K <= KHI; K++) {
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
-          DUDT(IT_MINUS2,K,J,I) = FLOAT_MAX;
-          DUDT(IT_MINUS1,K,J,I) = FLOAT_MAX;
-          DVDT(IT_MINUS2,K,J,I) = FLOAT_MAX;
-          DVDT(IT_MINUS1,K,J,I) = FLOAT_MAX;
+          DUDT(IT_MINUS2,K,J,I) = DBL_MAX;
+          DUDT(IT_MINUS1,K,J,I) = DBL_MAX;
+          DVDT(IT_MINUS2,K,J,I) = DBL_MAX;
+          DVDT(IT_MINUS1,K,J,I) = DBL_MAX;
         }
       }
     }
   }
   else if (strcmp(grid.uv_timestep_scheme,"Leapfrog (Asselin filtered)") == 0) {
     /*
-     * Flag U and V for timeplane IT_MINUS1 with FLOAT_MAX
+     * Flag U and V for timeplane IT_MINUS1 with DBL_MAX
      * to indicate this is the initial timestep.
      */
     for (K = KLO; K <= KHI; K++) {
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
-          U(IT_MINUS1,K,J,I) = FLOAT_MAX;
-          V(IT_MINUS1,K,J,I) = FLOAT_MAX;
+          U(IT_MINUS1,K,J,I) = DBL_MAX;
+          V(IT_MINUS1,K,J,I) = DBL_MAX;
         }
       }
     }
@@ -1120,7 +1248,7 @@ int main(int   argc,
 
   /*
    * NOTE: timeplane_bookkeeping() should come after setting the initial-step
-   *       FLOAT_MAX flags in U or DUDT.
+   *       DBL_MAX flags in U or DUDT.
    */
   timeplane_bookkeeping();
 
@@ -1137,9 +1265,9 @@ int main(int   argc,
   /* 
    * Allocate memory: 
    */
-  thetadat     = fvector( 0,var.ntp-1,dbmsname);
-  neglogpdat   = fvector( 0,var.ntp-1,dbmsname);
-  buff_triplet = ftriplet(0,var.ntp-1,dbmsname);
+  thetadat     = dvector( 0,var.ntp-1,dbmsname);
+  neglogpdat   = dvector( 0,var.ntp-1,dbmsname);
+  buff_triplet = dtriplet(0,var.ntp-1,dbmsname);
 
   /*
    * Interpolate on -log p:
@@ -1150,8 +1278,7 @@ int main(int   argc,
 
   for (ki = 0; ki < var.ntp; ki++) {
     fpara        = return_fpe(var.tdat[ki]);
-    thetadat[ki] = return_theta(planet,fpara,var.pdat[ki],var.tdat[ki],
-                                &theta_ortho,&theta_para);
+    thetadat[ki] = return_theta(fpara,var.pdat[ki],var.tdat[ki],&theta_ortho,&theta_para);
   }
 
   /*
@@ -1219,7 +1346,7 @@ int main(int   argc,
     defaults.lat_tp = 4.;
   }
   else if (strcmp(planet->name,"Jupiter") == 0) {
-    defaults.lat_tp = input_float("Latitude to apply T(p) sounding data [deg]\n",defaults.lat_tp);
+    defaults.lat_tp = input_double("Latitude to apply T(p) sounding data [deg]\n",defaults.lat_tp,MODIFY);
   }
   else {
     defaults.lat_tp = 0.;
@@ -1254,7 +1381,7 @@ int main(int   argc,
     /*
      * Set the surface geopotential.
      */
-    init_phi_surface(planet,&defaults);
+    init_phi_surface();
 
     if (grid.coord_type == COORD_ISENTROPIC) {
       /*
@@ -1276,13 +1403,13 @@ int main(int   argc,
       K = grid.nk;
       for (J = JLOPAD; J <= JHIPAD; J++) {
         for (I = ILOPAD; I <= IHIPAD; I++) {
-          P3(K,J,I) = p_phi(planet,J,PHI_SURFACE(J,I));
+          P3(K,J,I) = p_phi(J,PHI_SURFACE(J,I));
         }
       }
       /* No need to apply bc_lateral() here. */
     }
 
-    defaults.pbot = -FLOAT_MAX;
+    defaults.pbot = -DBL_MAX;
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
         defaults.pbot = MAX(P3(K,J,I),defaults.pbot);
@@ -1308,7 +1435,7 @@ int main(int   argc,
        * Prompt for the target pressure for the transition region
        * between sigma and theta coordinates.
        */
-      if (defaults.p_sigma == (EPIC_FLOAT)NOT_SET) {
+      if (defaults.p_sigma == (double)NOT_SET) {
         switch(planet->index) {
           case VENUS_INDEX:
           case VENUS_LLR05_INDEX:
@@ -1335,8 +1462,8 @@ int main(int   argc,
           break;
         }
       }
-      defaults.p_sigma = 100.*input_float("Pressure of transition between sigma and theta vertical coordinate [hPa]\n",
-                                          defaults.p_sigma/100.);
+      defaults.p_sigma = 100.*input_double("Pressure of transition between sigma and theta vertical coordinate [hPa]\n",
+                                           defaults.p_sigma/100.,MODIFY);
     break;
     default:
       sprintf(Message,"grid.coord_type=%d not yet implemented",grid.coord_type);
@@ -1348,7 +1475,7 @@ int main(int   argc,
    * Determine t_vs_p data indices corresponding to pbot, ptop.
    */
   floor_tp = 0;
-  tmp      = FLOAT_MAX;
+  tmp      = DBL_MAX;
   for (ki = 0; ki < var.ntp; ki++) {
     tmp2 = fabs(var.pdat[ki]-defaults.pbot);
     /* 
@@ -1360,7 +1487,7 @@ int main(int   argc,
     }
   }
   ceiling_tp = var.ntp-1;
-  tmp        = FLOAT_MAX;
+  tmp        = DBL_MAX;
   for (ki = var.ntp-1; ki >= 0; ki--) {
     tmp2 = fabs(var.pdat[ki]-defaults.ptop);
     if (tmp2 < tmp && var.pdat[ki] <= defaults.ptop) {
@@ -1466,7 +1593,7 @@ int main(int   argc,
           grid.hybrid_alpha = 20.;
         break;
         default:
-          tmp = FLOAT_MAX;
+          tmp = DBL_MAX;
           for (ki = floor_tp; ki <= ceiling_tp; ki++) {
             tmp = MIN(tmp,thetadat[ki]);
           }
@@ -1476,7 +1603,7 @@ int main(int   argc,
            * Find the highest tangent point from grid.zeta0 to the theta profile,
            * call it theta_knee, sigma_knee.
            */
-          tmp = FLOAT_MAX;
+          tmp = DBL_MAX;
           for (ki = floor_tp; ki <= ceiling_tp; ki++) {
             if (var.pdat[ki] < defaults.ptop) {
               break;
@@ -1549,7 +1676,7 @@ int main(int   argc,
   switch(spacing_type) {
     case SPACING_P:
       for (kk = 2; kk < 2*KHI+1; kk++) {
-        grid.p_ref[kk] = defaults.ptop+(EPIC_FLOAT)(kk-1)/(EPIC_FLOAT)(2*KHI)*(defaults.pbot-defaults.ptop);
+        grid.p_ref[kk] = defaults.ptop+(double)(kk-1)/(double)(2*KHI)*(defaults.pbot-defaults.ptop);
       }
 
       for (ki = 0; ki < var.ntp; ki++) {
@@ -1572,7 +1699,7 @@ int main(int   argc,
     case SPACING_LOGP:
       for (K = KLO; K < KHI; K++) {
         neglogp        = -log(defaults.ptop)
-                         +(EPIC_FLOAT)(K)/(EPIC_FLOAT)(KHI)*(-log(defaults.pbot)+log(defaults.ptop));
+                         +(double)(K)/(double)(KHI)*(-log(defaults.pbot)+log(defaults.ptop));
         grid.p_ref[2*K+1] = exp(-neglogp);
       }
       /*
@@ -1580,7 +1707,7 @@ int main(int   argc,
        */
       for (K = KLO; K <= KHI; K++) {
         kk = 2*K;
-        grid.p_ref[kk] = onto_kk(planet,P2_INDEX,grid.p_ref[kk-1],grid.p_ref[kk+1],kk,JLO,ILO);
+        grid.p_ref[kk] = onto_kk(P2_INDEX,grid.p_ref[kk-1],grid.p_ref[kk+1],kk);
       }
 
       for (ki = 0; ki < var.ntp; ki++) {
@@ -1602,7 +1729,7 @@ int main(int   argc,
     break;
     case SPACING_THETA:
       for (kk = 2; kk < 2*KHI+1; kk++) {
-        grid.theta_ref[kk] = defaults.thetatop+(EPIC_FLOAT)(kk-1)/(EPIC_FLOAT)(2*KHI)*(defaults.thetabot-defaults.thetatop);
+        grid.theta_ref[kk] = defaults.thetatop+(double)(kk-1)/(double)(2*KHI)*(defaults.thetabot-defaults.thetatop);
       }
 
       for (ki = 0; ki < var.ntp; ki++) {
@@ -1696,7 +1823,7 @@ int main(int   argc,
 
         /* NOTE: This is only a crude estimate of the molar mass, mu. */
         mu                 = R_GAS/planet->rgas;
-        buff_triplet[ki].y = return_density(planet,fpara,var.pdat[ki],var.tdat[ki],mu,PASSING_T);
+        buff_triplet[ki].y = return_density(fpara,var.pdat[ki],var.tdat[ki],mu,PASSING_T);
       }
       spline_pchip(var.ntp,buff_triplet);
       ki = -2;
@@ -1727,7 +1854,7 @@ int main(int   argc,
 
         /* NOTE: This is only a crude estimate of the molar mass, mu. */
         mu                 = R_GAS/planet->rgas;
-        buff_triplet[ki].y = return_density(planet,fpara,var.pdat[ki],var.tdat[ki],mu,PASSING_T);
+        buff_triplet[ki].y = return_density(fpara,var.pdat[ki],var.tdat[ki],mu,PASSING_T);
       }
       spline_pchip(var.ntp,buff_triplet);
       ki = -2;
@@ -1756,9 +1883,9 @@ int main(int   argc,
    *
    * set_gravity(): must be called after specifying grid.p_ref[kk], grid.re[K], and grid.rp[K].
    */
-  set_re_rp(planet);
-  set_fmn(planet);
-  set_gravity(planet);
+  set_re_rp();
+  set_fmn();
+  set_gravity();
 
   switch(grid.coord_type) {
     case COORD_HYBRID:
@@ -1864,7 +1991,7 @@ int main(int   argc,
     */
     for (K = KLO; K <= KHI+1; K++) {
       pressure = grid.p_ref[2*K+1];
-      get_sounding(planet,pressure,"temperature",&temperature);
+      get_sounding(pressure,"temperature",&temperature);
       fpe = return_fpe(temperature);
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
@@ -1888,19 +2015,20 @@ int main(int   argc,
    *                                                                     *
    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-  init_with_ref(planet,Buff2D);
-  init_species(planet,&defaults,USE_PROMPTS,Buff2D);
-  setup_mu_p(planet);
+  init_with_ref();
+  init_species(&defaults,USE_PROMPTS);
+
+  setup_mu_p();
 
   if (strcmp(planet->type,"gas-giant") == 0) {
     /*
-     * NOTE: If gradient-balance in the meridional plane, the purpose of init_with_u(), is not desired,
-     *       then add an appropriate initialization scheme.
+     * NOTE: If gradient-balance in the meridional plane, which is the purpose of init_with_u(),
+     *       is not desired, then add an appropriate initialization scheme.
      */
-    init_with_u(planet,floor_tp,ceiling_tp,&defaults,Buff2D);
+    init_with_u(floor_tp,ceiling_tp,&defaults);
   }
   else if (strcmp(planet->type,"terrestrial") == 0) {
-    init_with_ref(planet,Buff2D);
+    init_with_ref();
   }
   else {
     sprintf(Message,"planet->type=%s, need an initialization scheme for this case",planet->type);
@@ -1908,19 +2036,36 @@ int main(int   argc,
   }
 
   /*
+   * Set U_SPINUP(K,J,I), the target zonal wind for Rayleigh drag.
+   * Use the zonal average of U.
+   */
+  for (K = 0; K <= grid.nk+1; K++) {
+    for (J = JLO; J <= JHI; J++) {
+      avg = 0.;
+      for (I = ILO; I <= IHI; I++) {
+        avg += U(grid.it_uv,K,J,I);
+      }
+      avg /= grid.ni;
+      for (I = ILO; I <= IHI; I++) {
+        U_SPINUP(K,J,I) = avg;
+      }
+    }
+  }
+
+  /*
    * Initialize DZDT2.
    * Currently we are just setting it to zero.
    */
-  memset(var.dzdt2.value,0,Nelem3d*sizeof(EPIC_FLOAT));
+  memset(var.dzdt2.value,0,Nelem3d*sizeof(double));
 
   /*
    * Update fpara as fpe:
    */
   if (var.fpara.on) {
-    init_fpara_as_fpe(planet);
+    init_fpara_as_fpe();
   }
 
-  init_species(planet,&defaults,USE_DEFAULTS,Buff2D);
+  init_species(&defaults,USE_DEFAULTS);
 
   /* 
    * Set hyperviscosity coefficients.
@@ -1928,7 +2073,7 @@ int main(int   argc,
   grid.nudiv_nondim = defaults.nudiv_nondim;
   grid.nu_nondim    = defaults.nu_nondim;
   grid.nu_order     = defaults.nu_order;
-  set_hyperviscosity();
+  set_hyperviscosity(MODIFY);
   defaults.nudiv_nondim = grid.nudiv_nondim;
   defaults.nu_nondim    = grid.nu_nondim;
   defaults.nu_order     = grid.nu_order;
@@ -1941,7 +2086,7 @@ int main(int   argc,
     /*
      * NOTE: init_subgrid() must be called here before synching diagnostic variables.
      */
-    init_subgrid(planet);
+    init_subgrid();
   }
   else if (strcmp(grid.turbulence_scheme,"off") == 0) {
     ;
@@ -1960,16 +2105,17 @@ int main(int   argc,
    *       need to calculate PHI3(KHI,J,I) on the grid.thetabot isentropic surface
    *       and call store_pgrad_vars with PASSING_PHI3NK; this is not yet implemented.
    */
-  set_p2_etc(planet,UPDATE_THETA,Buff2D);
-  store_pgrad_vars(planet,Buff2D,SYNC_DIAGS_ONLY,CALC_PHI3NK);
-  store_diag(planet);
+  set_p2_etc(UPDATE_THETA);
+  store_pgrad_vars(SYNC_DIAGS_ONLY,CALC_PHI3NK);
+  store_diag();
 
   /*
    * Prompt for which variables to write to extract.nc.
    */
-  prompt_extract_on(defaults.extract_str,&defaults.extract_species_fraction_type);
+  prompt_extract_on(defaults.extract_str,&defaults.extract_species_fraction_type,&defaults.mc_diag_extract_sum,MODIFY);
 
   grid.extract_species_fraction_type = defaults.extract_species_fraction_type;
+  grid.mc_diag_extract_sum           = defaults.mc_diag_extract_sum;
 
   /*
    * Write defaults file:
@@ -1979,18 +2125,18 @@ int main(int   argc,
   /* 
    * Print out zonal-wind information: 
    */
-  print_zonal_info(planet);
+  print_zonal_info();
 
   /* 
    * Print out vertical information: 
    */
-  print_vertical_column(planet,JLO,ILO,"vertical.dat");
+  print_vertical_column(grid.jtp,ILO,"vertical.dat");
 
   /*
    * Call vertical_modes() to write vertical eigenvalues and eigenvectors to a file.
    */
   if (KHI >= 4) {
-    vertical_modes(planet,JLO,ILO);
+    vertical_modes(grid.jtp,ILO);
   }
 
   /* 
@@ -1998,19 +2144,20 @@ int main(int   argc,
    */
   sprintf(outfile,"epic.nc");
   time_index = 0;
-  var_write(planet,outfile,ALL_DATA,time_index,0);
+  var_write(outfile,ALL_DATA,time_index,0);
 
   /* 
    * Free allocated memory: 
    */
-  free_arrays(planet); 
-  free_ftriplet(buff_triplet,0,var.ntp-1,         dbmsname);
-  free_fvector(neglogpdat,   0,var.ntp-1,         dbmsname);
-  free_fvector(thetadat,     0,var.ntp-1,         dbmsname);
-  free_var_props(planet);
+  free_arrays(); 
+  free_dtriplet(buff_triplet,0,var.ntp-1,         dbmsname);
+  free_dvector(neglogpdat,   0,var.ntp-1,         dbmsname);
+  free_dvector(thetadat,     0,var.ntp-1,         dbmsname);
+  free_var_props();
   for (I = 0; I < NUM_WORKING_BUFFERS; I++) {
-    free_fvector(Buff2D[I],0,Nelem2d-1,dbmsname);
+    free_dvector(Buff2D[I],0,Nelem2d-1,dbmsname);
   }
+
   /*
    * NOTE: In initial (but not change or epic), the structure memory that the pointer "planet" points to 
    *       is not dynamically allocated, but is the memory of one of the statically allocated planets
@@ -2034,7 +2181,7 @@ void read_defaults(init_defaultspec *def)
   int
     index,
     nc_id,nc_err;
-  EPIC_FLOAT
+  double
     solar;
   char
     min_element[4];
@@ -2076,40 +2223,63 @@ void read_defaults(init_defaultspec *def)
     READI(&def->dt,def_dt,1);
     READI(&def->newt_cool_adjust,def_newt_cool_adjust,1);
     READI(&def->cloud_microphysics,def_cloud_microphysics,1);
+    READI(&def->moist_convection,def_moist_convection,1);
+    READI(&def->max_mc_it,def_max_mc_it,1);
+    READD(&def->tau_relax,def_tau_relax,1);
+    READI(&def->grid_wind_shear_mode,grid_wind_shear_mode,1);
+    READI(&def->grid_wind_decay_m_const,grid_wind_decay_m_const,1);
 
     READI(def->on,def_on,LAST_SPECIES+1);
 
-    READF(&def->du_vert,def_du_vert,1);
+    READD(&def->du_vert,def_du_vert,1);
+    READD(&def->du_vert_m,du_vert_m,1);
+    READD(&def->du_vert_pend,du_vert_pend,1);
+
+    READI(&def->grid_cloud_top_mode,grid_cloud_top_mode,1);
+    READD(&def->grid_if_400mb,grid_if_400mb,1);
+    READD(&def->grid_if_1000mb,grid_if_1000mb,1);
+
     READI(&def->uv_timestep_scheme,def_uv_timestep_scheme,1);
     READI(&def->radiation_index,def_radiation_index,1);
     READI(&def->zonal_average_rt,def_zonal_average_rt,1);
     READI(&def->extract_species_fraction_type,def_extract_species_fraction_type,1);
+    READI(&def->mc_diag_extract_sum,def_mc_diag_extract_sum,1);
     READI(&def->spacing_type,def_spacing_type,1);
     READI(&def->coord_type,def_coord_type,1);
     READI(&def->k_sponge,def_k_sponge,1);
+    READI(&def->n_bot_drag,def_n_bot_drag,1);
     READI(&def->j_sponge,def_j_sponge,1);
+    
 
-    READF(&def->globe_lonbot,def_globe_lonbot,1);
-    READF(&def->globe_lontop,def_globe_lontop,1);
-    READF(&def->globe_latbot,def_globe_latbot,1);
-    READF(&def->globe_lattop,def_globe_lattop,1);
-    READF(&def->lat_tp,def_lat_tp,1);
-    READF(&def->f_plane_half_width,def_f_plane_half_width,1);
-    READF(&def->f_plane_lat0,def_f_plane_lat0,1);
-    READF(&def->ptop,def_ptop,1);
-    READF(&def->pbot,def_pbot,1);
-    READF(&def->thetatop,def_thetatop,1);
-    READF(&def->thetabot,def_thetabot,1);
-    READF(&def->p_sigma,def_p_sigma,1);
-    READF(&def->nudiv_nondim,def_nudiv_nondim,1);
-    READF(&def->u_scale,def_u_scale,1);
+    READD(&def->heat_rate,grid_heat_rate,1);
+    READD(&def->cool_rate,grid_cool_rate,1);
+    READD(&def->heat_top_pressure,grid_heat_top_pressure,1);
+    READD(&def->cool_bot_pressure,grid_cool_bot_pressure,1);
+    
+    READI(&def->grid_relax_vapor,grid_relax_vapor,1);
+    READD(&def->grid_relax_vapor_timescale,grid_relax_vapor_timescale,1);
+
+    READD(&def->globe_lonbot,def_globe_lonbot,1);
+    READD(&def->globe_lontop,def_globe_lontop,1);
+    READD(&def->globe_latbot,def_globe_latbot,1);
+    READD(&def->globe_lattop,def_globe_lattop,1);
+    READD(&def->lat_tp,def_lat_tp,1);
+    READD(&def->f_plane_half_width,def_f_plane_half_width,1);
+    READD(&def->f_plane_lat0,def_f_plane_lat0,1);
+    READD(&def->ptop,def_ptop,1);
+    READD(&def->pbot,def_pbot,1);
+    READD(&def->thetatop,def_thetatop,1);
+    READD(&def->thetabot,def_thetabot,1);
+    READD(&def->p_sigma,def_p_sigma,1);
+    READD(&def->nudiv_nondim,def_nudiv_nondim,1);
+    READD(&def->u_scale,def_u_scale,1);
     READI(&def->nu_order,def_nu_order,1);
-    READF(&def->nu_nondim,def_nu_nondim,1);
-    READF(&def->fpara_rate_scaling,def_fpara_rate_scaling,1);
+    READD(&def->nu_nondim,def_nu_nondim,1);
+    READD(&def->fpara_rate_scaling,def_fpara_rate_scaling,1);
 
-    READF(def->mole_fraction,def_mole_fraction,LAST_SPECIES+1);
-    READF(def->mole_fraction_over_solar,def_mole_fraction_over_solar,LAST_SPECIES+1);
-    READF(def->rh_max,def_rh_max,LAST_SPECIES+1);
+    READD(def->mole_fraction,def_mole_fraction,LAST_SPECIES+1);
+    READD(def->mole_fraction_over_solar,def_mole_fraction_over_solar,LAST_SPECIES+1);
+    READD(def->rh_max,def_rh_max,LAST_SPECIES+1);
   }
   else {
     /*
@@ -2122,7 +2292,7 @@ void read_defaults(init_defaultspec *def)
     strcpy(def->extract_str,"none");
     strcpy(def->species_str,"none");
     strcpy(def->layer_spacing_dat,"layer_spacing.dat");
-    strcpy(def->turbulence_scheme,"on");
+    strcpy(def->turbulence_scheme,"off");
 
     def->start_date_input_type   = NOT_SET;
     def->start_time              = (time_t)(-2145916800);  /* 1902_01_01_00:00:00 (UTC) */
@@ -2141,16 +2311,35 @@ void read_defaults(init_defaultspec *def)
     for (index = THETA_INDEX+1; index <= LAST_SPECIES; index++) {
       def->on[index]   = FALSE;
     }
-
+    
+    def->grid_wind_shear_mode           = WIND_SHEAR_FUNCTION;
+    def->grid_wind_decay_m_const        = WIND_DECAY_SLOPE_CONSTANT;
     def->du_vert                        = .0;
+    def->du_vert_m                      = 0.;
+    def->du_vert_pend                   = 30000.e2;
+
+    def->grid_cloud_top_mode = CONSTANT_CLOUD_BASE;
+    def->grid_if_400mb = 0.09;
+    def->grid_if_1000mb = 0.05;
+
     def->uv_timestep_scheme             =  0;
     def->radiation_index                =  0;
     def->zonal_average_rt               =  TRUE;
-    def->extract_species_fraction_type  =  MOLAR;
+    def->extract_species_fraction_type  =  MASS;
+    def->mc_diag_extract_sum            =  0000;
     def->spacing_type                   =  SPACING_LOGP;
     def->coord_type                     =  NOT_SET;
     def->k_sponge                       =  NOT_SET;
+    def->n_bot_drag                     =  NOT_SET;
     def->j_sponge                       =  NOT_SET;
+
+    def->heat_top_pressure  = 20000.; // hPa
+    def->cool_bot_pressure  = 50.;    // hPa
+    def->heat_rate = 0.008; // K/day
+    def->cool_rate = 0.01;  // K/day
+  
+    def->grid_relax_vapor = OFF;
+    def->grid_relax_vapor_timescale = 5;
 
     def->globe_lonbot       = -180.;
     def->globe_lontop       =  180.;
@@ -2163,11 +2352,11 @@ void read_defaults(init_defaultspec *def)
     def->pbot               =  10000.*100.;
     def->thetatop           = 820.;
     def->thetabot           = 320.;
-    def->p_sigma            =  (EPIC_FLOAT)NOT_SET;
+    def->p_sigma            = (double)NOT_SET;
     def->nudiv_nondim       =  0.;
     def->u_scale            =  1.;
     def->nu_order           =  6;
-    def->nu_nondim          =  0.5;
+    def->nu_nondim          =  0.1;
     def->fpara_rate_scaling =  1.0;
     for (index = FIRST_SPECIES; index <= LAST_SPECIES; index++) {
       solar = solar_fraction(var.species[index].info[0].name,MOLAR,min_element);
@@ -2226,37 +2415,61 @@ void write_defaults(init_defaultspec *def)
   WRITEI(&def->dt,def_dt,1);
   WRITEI(&def->newt_cool_adjust,def_newt_cool_adjust,1);
   WRITEI(&def->cloud_microphysics,def_cloud_microphysics,1);
+  WRITEI(&def->moist_convection,def_moist_convection,1);
+  WRITEI(&def->max_mc_it,def_max_mc_it,1);
+  WRITED(&def->tau_relax,def_tau_relax,1);
+
   WRITEI(def->on,def_on,LAST_SPECIES+1);
-  WRITEF(&def->du_vert,def_du_vert,1);
+  WRITEI(&def->grid_wind_shear_mode,grid_wind_shear_mode,1);
+  WRITEI(&def->grid_wind_decay_m_const,grid_wind_decay_m_const,1);
+  WRITED(&def->du_vert_m,du_vert_m,1);
+  WRITED(&def->du_vert_pend,du_vert_pend,1);
+  WRITED(&def->du_vert,def_du_vert,1);
   WRITEI(&def->uv_timestep_scheme,def_uv_timestep_scheme,1);
   WRITEI(&def->radiation_index,def_radiation_index,1);
   WRITEI(&def->zonal_average_rt,def_zonal_average_rt,1);
   WRITEI(&def->extract_species_fraction_type,def_extract_species_fraction_type,1);
+  WRITEI(&def->mc_diag_extract_sum,def_mc_diag_extract_sum,1);
   WRITEI(&def->spacing_type,def_spacing_type,1);
   WRITEI(&def->coord_type,def_coord_type,1);
   WRITEI(&def->k_sponge,def_k_sponge,1);
+  WRITEI(&def->n_bot_drag,def_n_bot_drag,1);
   WRITEI(&def->j_sponge,def_j_sponge,1);
+  
+  WRITEI(&def->grid_cloud_top_mode,grid_cloud_top_mode,1);
+  WRITED(&def->grid_if_400mb,grid_if_400mb,1);
+  WRITED(&def->grid_if_1000mb,grid_if_1000mb,1);
+    
+  WRITED(&def->heat_rate,grid_heat_rate,1);
+  WRITED(&def->cool_rate,grid_cool_rate,1);
+  WRITED(&def->heat_top_pressure,grid_heat_top_pressure,1);
+  WRITED(&def->cool_bot_pressure,grid_cool_bot_pressure,1);
+  
+  WRITEI(&def->grid_relax_vapor,grid_relax_vapor,1);
+  WRITED(&def->grid_relax_vapor_timescale,grid_relax_vapor_timescale,1);
 
-  WRITEF(&def->globe_lonbot,def_globe_lonbot,1);
-  WRITEF(&def->globe_lontop,def_globe_lontop,1);
-  WRITEF(&def->globe_latbot,def_globe_latbot,1);
-  WRITEF(&def->globe_lattop,def_globe_lattop,1);
-  WRITEF(&def->lat_tp,def_lat_tp,1);
-  WRITEF(&def->f_plane_half_width,def_f_plane_half_width,1);
-  WRITEF(&def->f_plane_lat0,def_f_plane_lat0,1);
-  WRITEF(&def->ptop,def_ptop,1);
-  WRITEF(&def->pbot,def_pbot,1);
-  WRITEF(&def->thetatop,def_thetatop,1);
-  WRITEF(&def->thetabot,def_thetabot,1);
-  WRITEF(&def->p_sigma,def_p_sigma,1);
-  WRITEF(&def->nudiv_nondim,def_nudiv_nondim,1);
-  WRITEF(&def->u_scale,def_u_scale,1);
+  WRITED(&def->globe_lonbot,def_globe_lonbot,1);
+  WRITED(&def->globe_lontop,def_globe_lontop,1);
+  WRITED(&def->globe_latbot,def_globe_latbot,1);
+  WRITED(&def->globe_lattop,def_globe_lattop,1);
+  WRITED(&def->lat_tp,def_lat_tp,1);
+  WRITED(&def->f_plane_half_width,def_f_plane_half_width,1);
+  WRITED(&def->f_plane_lat0,def_f_plane_lat0,1);
+  WRITED(&def->ptop,def_ptop,1);
+  WRITED(&def->pbot,def_pbot,1);
+  WRITED(&def->thetatop,def_thetatop,1);
+  WRITED(&def->thetabot,def_thetabot,1);
+  WRITED(&def->p_sigma,def_p_sigma,1);
+  WRITED(&def->nudiv_nondim,def_nudiv_nondim,1);
+  WRITED(&def->u_scale,def_u_scale,1);
   WRITEI(&def->nu_order,def_nu_order,1);
-  WRITEF(&def->nu_nondim,def_nu_nondim,1);
-  WRITEF(&def->fpara_rate_scaling,def_fpara_rate_scaling,1);
-  WRITEF(def->mole_fraction,def_mole_fraction,LAST_SPECIES+1);
-  WRITEF(def->mole_fraction_over_solar,def_mole_fraction_over_solar,LAST_SPECIES+1);
-  WRITEF(def->rh_max,def_rh_max,LAST_SPECIES+1);
+  WRITED(&def->nu_nondim,def_nu_nondim,1);
+  WRITED(&def->fpara_rate_scaling,def_fpara_rate_scaling,1);
+  WRITED(def->mole_fraction,def_mole_fraction,LAST_SPECIES+1);
+  WRITED(def->mole_fraction_over_solar,def_mole_fraction_over_solar,LAST_SPECIES+1);
+  WRITED(def->vmr_slope,def_vmr_slope,LAST_SPECIES+1);
+  WRITED(def->vmr_pcrit,def_vmr_pcrit,LAST_SPECIES+1);
+  WRITED(def->rh_max,def_rh_max,LAST_SPECIES+1);
 
   nc_close(nc_id);
 

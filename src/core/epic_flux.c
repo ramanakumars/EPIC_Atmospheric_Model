@@ -1,5 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                 *
+ * Copyright (C) 2024-2025 Ramanakumar Sankar                      *
  * Copyright (C) 1998-2023 Timothy E. Dowling                      *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
@@ -39,20 +40,20 @@
 /*
  * Hybrid mass flux for variable at the top of the model.
  *
- * For index == H_INDEX, this is WH.
- * For index == H_2O_INDEX, this is WH*(mixing ratio of H_2O), etc.
+ * For is == H_INDEX, this is WH.
+ * For is == H_2O_INDEX, etc, this is WH*(mixing ratio of H_2O), etc.
  *
  * Returns as an argument the hybrid vertical velocity at the
  * top of the model, wtop.
  */
 
-EPIC_FLOAT flux_top(planetspec *planet,
-                    int         index,
-                    int         J,
-                    int         I,
-                    EPIC_FLOAT *wtop)
+double flux_top(int     is,
+                int     ip,
+                int     J,
+                int     I,
+                double *wtop)
 {
-  EPIC_FLOAT
+  double
     flux;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -62,7 +63,15 @@ EPIC_FLOAT flux_top(planetspec *planet,
   static char
     dbmsname[]="flux_top";
 
-  flux  = 0.;
+  switch(is) {
+    case H_INDEX:
+      flux = 0.;
+    break;
+    default:
+      flux = 0.*Q(is,ip,0,J,I);
+    break;
+  }
+
   if (wtop) {
    *wtop = 0.;
   }
@@ -77,20 +86,20 @@ EPIC_FLOAT flux_top(planetspec *planet,
 /*
  * Hybrid mass flux for variable at the bottom of the model.
  *
- * For index == H_INDEX, this is WH.
- * For index == H_2O_INDEX, this is WH*(mixing ratio of phase), etc.
+ * For is == H_INDEX, this is WH.
+ * For is == H_2O_INDEX, etc., this is WH*(mixing ratio of phase), etc.
  *
  * Returns as an argument the hybrid vertical velocity at the
  * bottom of the model, wbot.
  */
 
-EPIC_FLOAT flux_bot(planetspec *planet,
-                    int         index,
-                    int         J,
-                    int         I,
-                    EPIC_FLOAT *wbot)
+double flux_bot(int     is,
+                int     ip,
+                int     J,
+                int     I,
+                double *wbot)
 {
-  EPIC_FLOAT
+  double
     flux;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -100,7 +109,15 @@ EPIC_FLOAT flux_bot(planetspec *planet,
   static char
     dbmsname[]="flux_bot";
 
-  flux  = 0.;
+  switch(is) {
+    case H_INDEX:
+      flux = 0.;
+    break;
+    default:
+      flux = 0.*Q(is,ip,KHI,J,I);
+    break;
+  }
+
   if (wbot) {
     *wbot = 0.;
   }
@@ -127,13 +144,12 @@ EPIC_FLOAT flux_bot(planetspec *planet,
 #define SUM_DIV3(k,j,i)       sum_div3[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 #define HORIZONTAL_DIV(k,j,i) horizontal_div[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 
-void calc_w(planetspec *planet,
-            int         action)
+void calc_w(int action)
 {
   register int
     K,J,I,
     kk,jj;
-  EPIC_FLOAT
+  double
     pbot,sigma,sgdot,dFdsg,
     lnptoppbot_inv,dgdsg,
     dsumdiv,
@@ -145,7 +161,7 @@ void calc_w(planetspec *planet,
     zeta_1_0 = grid.zeta1-grid.zeta0;
   static int
     initialized = FALSE;         
-  static EPIC_FLOAT
+  static double
     *sum_div3;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
@@ -157,7 +173,7 @@ void calc_w(planetspec *planet,
 
   if (!initialized) {
     /* Allocate memory */
-    sum_div3 = fvector(0,Nelem3d-1,dbmsname);
+    sum_div3 = dvector(0,Nelem3d-1,dbmsname);
 
     initialized = TRUE;
   }
@@ -169,8 +185,8 @@ void calc_w(planetspec *planet,
    */
   for (J = JLOPAD; J <= JHIPAD; J++) {
     for (I = ILOPAD; I <= IHIPAD; I++) {
-      flux_top(planet,H_INDEX,J,I,&W3(  0,J,I));
-      flux_bot(planet,H_INDEX,J,I,&W3(KHI,J,I));
+      flux_top(H_INDEX,NO_PHASE,J,I,&W3(  0,J,I));
+      flux_bot(H_INDEX,NO_PHASE,J,I,&W3(KHI,J,I));
     }
   }
   /* No need to apply bc_lateral() here. */
@@ -223,7 +239,7 @@ void calc_w(planetspec *planet,
    */
 
   /* Zero-out SUM_DIV array. */
-  memset(sum_div3,0,Nelem3d*sizeof(EPIC_FLOAT));
+  memset(sum_div3,0,Nelem3d*sizeof(double));
 
   if (grid.coord_type != COORD_ISENTROPIC) {
     for (K = KLO; K <= KHI; K++) {
@@ -326,17 +342,30 @@ void calc_w(planetspec *planet,
  * Advect scalar prognostic variables forward one timestep using 
  * the specified scheme(s). Ensure positive-definite status as necessary.
  *
- * NOTE: Non-flux form schemes should lead with the 13 characters 
+ * NOTE: Non-flux form schemes need to lead with the 13 characters 
  *       "Non-flux form" in their advection_scheme string.
  */
 
-void advection(planetspec  *planet,
-               EPIC_FLOAT **Buff2D)
+#define OLD_H3_TOP(j,i)       old_h3_top[i+(j)*Iadim-Shift2d]
+#define OLD_HDRY3_TOP(j,i) old_hdry3_top[i+(j)*Iadim-Shift2d]
+#define OLD_H3_BOT(j,i)       old_h3_bot[i+(j)*Iadim-Shift2d]
+#define OLD_HDRY3_BOT(j,i) old_hdry3_bot[i+(j)*Iadim-Shift2d]
+
+void advection(double **Buff2D)
 
 {
   register int
     is,ip,iq,
     K,J,I;
+  register double
+    sum;
+  static int
+    initialized = FALSE;
+  static double
+    *old_h3_top,
+    *old_hdry3_top,
+    *old_h3_bot,
+    *old_hdry3_bot;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -344,6 +373,32 @@ void advection(planetspec  *planet,
     idbms=0;
   static char
     dbmsname[]="advection";
+
+  if (!initialized) {
+    /*
+     * Allocate memory.
+     */
+    old_h3_top    = dvector(0,Nelem2d-1,dbmsname);
+    old_hdry3_top = dvector(0,Nelem2d-1,dbmsname);
+    old_h3_bot    = dvector(0,Nelem2d-1,dbmsname);
+    old_hdry3_bot = dvector(0,Nelem2d-1,dbmsname);
+
+    initialized = TRUE;
+  }
+
+  /*
+   * Store top and bottom H3 and HDRY3 values to ensure precise recovery of
+   * h-weighted variables carried on the interfaces, which are boundary conditions at
+   * K = 0 and K = grid.nk.
+   */
+  for (J = JLOPAD; J <= JHIPAD; J++) {
+    for (I = ILOPAD; I <= IHIPAD; I++) {
+      OLD_H3_TOP(   J,I) = H3(   0,      J,I);
+      OLD_HDRY3_TOP(J,I) = HDRY3(0,      J,I);
+      OLD_H3_BOT(   J,I) = H3(   grid.nk,J,I);
+      OLD_HDRY3_BOT(J,I) = HDRY3(grid.nk,J,I);
+    }
+  }
 
   /*
    * THETA
@@ -357,13 +412,13 @@ void advection(planetspec  *planet,
         case COORD_ISOBARIC:
         case COORD_HYBRID:
           if (strcmp(var.theta.advection_scheme,"Non-flux form, 3rd-order upwind") == 0) {
-            upwind_3rd_order(planet,THETA_INDEX,NO_PHASE,var.theta.value,HORIZONTAL_AND_VERTICAL,Buff2D);
+            upwind_3rd_order(THETA_INDEX,NO_PHASE,var.theta.value,HORIZONTAL_AND_VERTICAL,Buff2D);
           }
           else {
             sprintf(Message,"unrecognized var.theta.advection_scheme=%s",var.theta.advection_scheme);
             epic_error(dbmsname,Message);
           }
-          restore_mass(planet,THETA_INDEX,NO_PHASE);
+          restore_mass(THETA_INDEX,NO_PHASE);
         break;
         default:
           sprintf(Message,"grid.coord_type=%d not yet implemented",grid.coord_type);
@@ -379,7 +434,7 @@ void advection(planetspec  *planet,
         case COORD_ISOBARIC:
         case COORD_HYBRID:
           /* Weight with H3. */
-          for (K = KLOPAD; K <= KHIPAD; K++) {
+          for (K = KLO-1; K <= KHI; K++) {
             for (J = JLOPAD; J <= JHIPAD; J++) {
               for (I = ILOPAD; I <= IHIPAD; I++) {
                 THETA(K,J,I) *= H3(K,J,I);
@@ -390,7 +445,7 @@ void advection(planetspec  *planet,
            * Advect H3*THETA.
            */ 
           if (strcmp("Predictor-corrector (Hsu, Konor, and Arakawa)",var.theta.advection_scheme) == 0) {
-            hsu_advection(planet,THETA_INDEX,NO_PHASE,var.theta.value,HORIZONTAL_AND_VERTICAL,Buff2D);
+            hsu_advection(THETA_INDEX,NO_PHASE,var.theta.value,HORIZONTAL_AND_VERTICAL,Buff2D);
           }
           else {
             sprintf(Message,"unrecognized var.theta.advection_scheme=%s",var.theta.advection_scheme);
@@ -411,17 +466,17 @@ void advection(planetspec  *planet,
   if (var.fpara.on) {
     if (strncmp(var.fpara.advection_scheme,"Non-flux form",13) == 0) {
       if (strcmp(var.fpara.advection_scheme,"Non-flux form, 3rd-order upwind") == 0) {
-        upwind_3rd_order(planet,FPARA_INDEX,NO_PHASE,var.fpara.value,HORIZONTAL_AND_VERTICAL,Buff2D);
+        upwind_3rd_order(FPARA_INDEX,NO_PHASE,var.fpara.value,HORIZONTAL_AND_VERTICAL,Buff2D);
       }
       else {
         sprintf(Message,"unrecognized var.fpara.advection_scheme=%s",var.fpara.advection_scheme);
         epic_error(dbmsname,Message);
       }
-      restore_mass(planet,FPARA_INDEX,NO_PHASE);
+      restore_mass(FPARA_INDEX,NO_PHASE);
     }
     else {
       /* Weight with H3. */
-      for (K = KLOPAD; K <= KHIPAD; K++) {
+      for (K = KLO-1; K <= KHI; K++) {
         for (J = JLOPAD; J <= JHIPAD; J++) {
           for (I = ILOPAD; I <= IHIPAD; I++) {
             FPARA(K,J,I) *= H3(K,J,I);
@@ -429,7 +484,7 @@ void advection(planetspec  *planet,
         }
       }
       if (strcmp("Predictor-corrector (Hsu, Konor, and Arakawa)",var.fpara.advection_scheme) == 0) {
-        hsu_advection(planet,FPARA_INDEX,NO_PHASE,var.fpara.value,HORIZONTAL_AND_VERTICAL,Buff2D);
+        hsu_advection(FPARA_INDEX,NO_PHASE,var.fpara.value,HORIZONTAL_AND_VERTICAL,Buff2D);
       }
       else {
         sprintf(Message,"unrecognized var.fpara.advection_scheme=%s",var.fpara.advection_scheme);
@@ -441,63 +496,49 @@ void advection(planetspec  *planet,
   /*
    * Optional Species, Qs.
    */
-  if (grid.cloud_microphysics != OFF && grid.cloud_microphysics != STEADY) {
-    for (iq = 0; iq < grid.nq; iq++) {
-      if (strncmp(var.species[grid.is[iq]].advection_scheme,"Non-flux form",13) == 0) {
-        if (strcmp(var.species[grid.is[iq]].advection_scheme,"Non-flux form, 3rd-order upwind") == 0) {
-          upwind_3rd_order(planet,grid.is[iq],grid.ip[iq],
-                           var.species[grid.is[iq]].phase[grid.ip[iq]].q,HORIZONTAL_AND_VERTICAL,Buff2D);
-        }
-        else {
-          sprintf(Message,"unrecognized var.species[%d].advection_scheme=%s",grid.is[iq],var.species[grid.is[iq]].advection_scheme);
-          epic_error(dbmsname,Message);
-        }
-        restore_mass(planet,grid.is[iq],grid.ip[iq]);
-      }
-      else {
-        /* Weight with H3. */
-        for (K = KLOPAD; K <= KHIPAD; K++) {
-          for (J = JLOPAD; J <= JHIPAD; J++) {
-            for (I = ILOPAD; I <= IHIPAD; I++) {
-              /* Ensure Q >= Q_MIN */
-              Q(grid.is[iq],grid.ip[iq],K,J,I) = MAX(Q(grid.is[iq],grid.ip[iq],K,J,I),Q_MIN)*H3(K,J,I);
-            }
-          }
-        }
-        if (strcmp(var.species[grid.is[iq]].advection_scheme,"Predictor-corrector (Hsu, Konor, and Arakawa)") == 0) {
-          hsu_advection(planet,grid.is[iq],grid.ip[iq],
-                        var.species[grid.is[iq]].phase[grid.ip[iq]].q,HORIZONTAL_AND_VERTICAL,Buff2D);
-        }
-        else {
-          sprintf(Message,"unrecognized var.species[%d].advection_scheme=%s",
-                          grid.is[iq],var.species[grid.is[iq]].advection_scheme);
-          epic_error(dbmsname,Message);
+  for (iq = 0; iq < grid.nq; iq++) {
+    /* 
+     * Weight with HDRY3.
+     *
+     * NOTE: Q is mass mixing ratio with a dry-density denominator, not specific humidity with a total-density denominator.
+     *       Hence to get the partial hybrid density on the interface, we multiply Q by HDRY3.
+     */
+    for (K = KLO-1; K <= KHI; K++) {
+      for (J = JLOPAD; J <= JHIPAD; J++) {
+        for (I = ILOPAD; I <= IHIPAD; I++) {
+          /* Ensure Q >= Q_MIN */
+          Q(grid.is[iq],grid.ip[iq],K,J,I) = MAX(Q(grid.is[iq],grid.ip[iq],K,J,I),Q_MIN)*HDRY3(K,J,I);
         }
       }
     }
 
-    /*
-     * NOTE: call sync_x_to_q() below, not here, because of possible h-weighting.
-     */
+    if (strcmp(var.species[grid.is[iq]].advection_scheme,"Predictor-corrector (Hsu, Konor, and Arakawa)") == 0) {
+      hsu_advection(grid.is[iq],grid.ip[iq],var.species[grid.is[iq]].phase[grid.ip[iq]].q,HORIZONTAL_AND_VERTICAL,Buff2D);
+    }
+    else {
+      sprintf(Message,"unrecognized var.species[%d].advection_scheme=%s",
+                      grid.is[iq],var.species[grid.is[iq]].advection_scheme);
+      epic_error(dbmsname,Message);
+    }
   }
 
   /*
-   * NU_TURB
+   * NU_TURB, which is carried in the layer.
    */
   if (var.nu_turb.on) {
     if (strncmp(var.nu_turb.advection_scheme,"Non-flux form",13) == 0) {
       if (strcmp(var.nu_turb.advection_scheme,"Non-flux form, 3rd-order upwind") == 0) {
-        upwind_3rd_order(planet,NU_TURB_INDEX,NO_PHASE,var.nu_turb.value,HORIZONTAL_AND_VERTICAL,Buff2D);
+        upwind_3rd_order(NU_TURB_INDEX,NO_PHASE,var.nu_turb.value,HORIZONTAL_AND_VERTICAL,Buff2D);
       }
       else {
         sprintf(Message,"unrecognized var.nu_turb.advection_scheme=%s",var.nu_turb.advection_scheme);
         epic_error(dbmsname,Message);
       }
-      restore_mass(planet,NU_TURB_INDEX,NO_PHASE);
+      restore_mass(NU_TURB_INDEX,NO_PHASE);
     }
     else {
       /* Weight with H. */
-      for (K = KLOPAD; K <= KHIPAD; K++) {
+      for (K = KLO; K <= KHI; K++) {
         for (J = JLOPAD; J <= JHIPAD; J++) {
           for (I = ILOPAD; I <= IHIPAD; I++) {
             NU_TURB(K,J,I) *= H(K,J,I);
@@ -505,7 +546,7 @@ void advection(planetspec  *planet,
         }
       }
       if (strcmp("Predictor-corrector (Hsu, Konor, and Arakawa)",var.nu_turb.advection_scheme) == 0) {
-        hsu_advection(planet,NU_TURB_INDEX,NO_PHASE,var.nu_turb.value,HORIZONTAL_AND_VERTICAL,Buff2D);
+        hsu_advection(NU_TURB_INDEX,NO_PHASE,var.nu_turb.value,HORIZONTAL_AND_VERTICAL,Buff2D);
       }
       else {
         sprintf(Message,"unrecognized var.nu_turb.advection_scheme=%s",var.nu_turb.advection_scheme);
@@ -516,7 +557,6 @@ void advection(planetspec  *planet,
 
   /*
    * Advect H. 
-   * Update H3.
    */
   if (var.h.on) {
     switch(grid.coord_type) {
@@ -526,33 +566,13 @@ void advection(planetspec  *planet,
       case COORD_ISENTROPIC:
       case COORD_HYBRID:
         if (strcmp(var.h.advection_scheme,"Predictor-corrector (Hsu, Konor, and Arakawa)") == 0) {
-          hsu_advection(planet,H_INDEX,NO_PHASE,var.h.value,HORIZONTAL_AND_VERTICAL,Buff2D);
+          hsu_advection(H_INDEX,NO_PHASE,var.h.value,HORIZONTAL_AND_VERTICAL,Buff2D);
         }
         else {
           sprintf(Message,"unrecognized var.h.advection_scheme=%s",var.h.advection_scheme);
           epic_error(dbmsname,Message);
         }
-        restore_mass(planet,H_INDEX,NO_PHASE);
-
-        /*
-         * Update H3, which depends on H.
-         */
-        for (J = JLOPAD; J <=JHIPAD; J++) {
-          for (I = ILOPAD; I <= IHIPAD; I++) {
-            /*
-             * NOTE: If this is changed, it should also be changed in set_p2_etc().
-             */
-            for (K = KLO; K < KHI; K++) {
-              H3(K,J,I) = sqrt(H(K,J,I)*H(K+1,J,I));
-            }
-            K = KLO-1;
-            H3(K,J,I) = SQR(H(K+1,J,I))/H3(K+1,J,I);
-            K = KHI;
-            H3(K,J,I) = SQR(H(K,J,I))/H3(K-1,J,I);
-            K = KHI+1;
-            H3(K,J,I) = SQR(H3(K-1,J,I))/H3(K-2,J,I);
-          }
-        }
+        restore_mass(H_INDEX,NO_PHASE);
       break;
       default:
         sprintf(Message,"grid.coord_type=%d not yet implemented",grid.coord_type);
@@ -562,54 +582,118 @@ void advection(planetspec  *planet,
   }
 
   /*
+   * Determine new H3
+   *
+   * NOTE: Do not call set_p2_etc() here, since the "Q"s are still HDRY3 weighted.
+   */
+  for (J = JLOPAD; J <=JHIPAD; J++) {
+    for (I = ILOPAD; I <= IHIPAD; I++) {
+      for (K = KLO; K < KHI; K++) {
+        H3(K,J,I) = sqrt(H(K,J,I)*H(K+1,J,I));
+      }
+      K = KLO-1;
+      H3(K,J,I) = SQR(H(K+1,J,I))/H3(K+1,J,I);
+      K = KHI;
+      H3(K,J,I) = SQR(H(K,J,I))/H3(K-1,J,I);
+      K = KHI+1;
+      H3(K,J,I) = SQR(H3(K-1,J,I))/H3(K-2,J,I);
+    }
+  }
+  /* No need to call bc_lateral() here. */
+
+  /*
+   * Determine new HDRY3.
+   *
+   * NOTE: Do not call set_p2_etc() here, since the "Q"s are still HDRY3 weighted.
+   *
+   * NOTE: It is important that the calculation of HDRY3 here and in set_p2_etc() be consistent.
+   */
+  for (J = JLOPAD; J <= JHIPAD; J++) {
+    for (I = ILOPAD; I <= IHIPAD; I++) {
+      for (K = KLO; K <= KHI; K++) {
+        HDRY3(K,J,I) = H3(K,J,I);
+        sum = 0.;
+        for (iq = 0; iq < grid.nq; iq++) {
+          /*
+           * "Q" is Q*HDRY3 here.
+           */
+          sum += Q(grid.is[iq],grid.ip[iq],K,J,I);
+        }
+        HDRY3(K,J,I) -= sum;
+      }
+      K = KLO-1;
+      HDRY3(K,J,I) = SQR(HDRY3(K+1,J,I))/HDRY3(K+2,J,I);
+
+      K = KHI+1;
+      HDRY3(K,J,I) = SQR(HDRY3(K-1,J,I))/HDRY3(K-2,J,I);
+    }
+  }
+
+  /*
    * Restore variables to non-H-weighted form, as necessary.
    */
   if (var.theta.on                       && 
       grid.coord_type != COORD_ISENTROPIC  ) {
     if (strncmp(var.theta.advection_scheme,"Non-flux form",13) != 0) {
-      for (K = KLOPAD; K <= KHIPAD; K++) {
+      for (K = KLO; K < KHI; K++) {
         for (J = JLOPAD; J <= JHIPAD; J++) {
           for (I = ILOPAD; I <= IHIPAD; I++) {
             THETA(K,J,I) /= H3(K,J,I);
           }
         }
       }
+      for (J = JLOPAD; J <= JHIPAD; J++) {
+        for (I = ILOPAD; I <= IHIPAD; I++) {
+          THETA(0,      J,I) /= OLD_H3_TOP(J,I);
+          THETA(grid.nk,J,I) /= OLD_H3_BOT(J,I);
+        }
+      }
     }
-    restore_mass(planet,THETA_INDEX,NO_PHASE);
+    restore_mass(THETA_INDEX,NO_PHASE);
   }
 
   if (var.fpara.on) {
     if (strncmp(var.fpara.advection_scheme,"Non-flux form",13) != 0) {
-      for (K = KLOPAD; K <= KHIPAD; K++) {
+      for (K = KLO; K < KHI; K++) {
         for (J = JLOPAD; J <= JHIPAD; J++) {
           for (I = ILOPAD; I <= IHIPAD; I++) {
             FPARA(K,J,I) /= H3(K,J,I);
           }
         }
       }
-    }
-    restore_mass(planet,FPARA_INDEX,NO_PHASE);
-  }
-
-  if (grid.cloud_microphysics != OFF && grid.cloud_microphysics != STEADY) {
-    for (iq = 0; iq < grid.nq; iq++) {
-      if (strncmp(var.species[grid.is[iq]].advection_scheme,"Non-flux form",13) != 0) {
-        for (K = KLOPAD; K <= KHIPAD; K++) {
-          for (J = JLOPAD; J <= JHIPAD; J++) {
-            for (I = ILOPAD; I <= IHIPAD; I++) {
-              Q(grid.is[iq],grid.ip[iq],K,J,I) /= H3(K,J,I);
-            }
-          }
+      for (J = JLOPAD; J <= JHIPAD; J++) {
+        for (I = ILOPAD; I <= IHIPAD; I++) {
+          FPARA(0,      J,I) /= OLD_H3_TOP(J,I);
+          FPARA(grid.nk,J,I) /= OLD_H3_BOT(J,I);
         }
       }
-      restore_mass(planet,grid.is[iq],grid.ip[iq]);
     }
-    sync_x_to_q(planet);
+    restore_mass(FPARA_INDEX,NO_PHASE);
+  }
+
+  /*
+   * Take off HDRY3 weighting from "Q".
+   */
+  for (iq = 0; iq < grid.nq; iq++) {
+    for (K = KLO; K < KHI; K++) {
+      for (J = JLOPAD; J <= JHIPAD; J++) {
+        for (I = ILOPAD; I <= IHIPAD; I++) {
+          Q(grid.is[iq],grid.ip[iq],K,J,I) /= HDRY3(K,J,I);
+        }
+      }
+    }
+    for (J = JLOPAD; J <= JHIPAD; J++) {
+      for (I = ILOPAD; I <= IHIPAD; I++) {
+        Q(grid.is[iq],grid.ip[iq],0,      J,I) /= OLD_HDRY3_TOP(J,I);
+        Q(grid.is[iq],grid.ip[iq],grid.nk,J,I) /= OLD_HDRY3_BOT(J,I);
+      }
+    }
+    restore_mass(grid.is[iq],grid.ip[iq]);
   }
 
   if (var.nu_turb.on) {
     if (strncmp(var.nu_turb.advection_scheme,"Non-flux form",13) != 0) {
-      for (K = KLOPAD; K <= KHIPAD; K++) {
+      for (K = KLO; K <= KHI; K++) {
         for (J = JLOPAD; J <= JHIPAD; J++) {
           for (I = ILOPAD; I <= IHIPAD; I++) {
             NU_TURB(K,J,I) /= H(K,J,I);
@@ -617,15 +701,14 @@ void advection(planetspec  *planet,
         }
       }
     }
-    restore_mass(planet,NU_TURB_INDEX,NO_PHASE);
+    restore_mass(NU_TURB_INDEX,NO_PHASE);
   }
 
-  set_p2_etc(planet,DONT_UPDATE_THETA,Buff2D);
-
   /*
-   * NOTE: For the hybrid-coordinate case, a call to set_p2_etc() with UPDATE_THETA should be made to update
-   *       theta = theta_diag, which is a function of pressure, 
-   *       as soon as possible after returning from this subroutine.   
+   * NOTE: The function set_p2_etc(UPDATE_THETA) is expensive,
+   *       so we do not call it here, but it should be called after this 
+   *       function and before using any of the variables besides H3 and
+   *       HDRY3 that it refreshes.
    */
 
   return;
@@ -644,21 +727,20 @@ void advection(planetspec  *planet,
  *  that handles steep gradients.
  */
 
-void hsu_advection(planetspec  *planet,
-                   int          is,
-                   int          ip,
-                   EPIC_FLOAT  *buff3d,
-                   int          direction,
-                   EPIC_FLOAT **Buff2D)
+void hsu_advection(int      is,
+                   int      ip,
+                   double  *buff3d,
+                   int      direction,
+                   double **Buff2D)
 {
   int   
     K,J,I,
-    kk,k_first;
+    kk,k_first,k_last;
   static int
     initialized = FALSE;
   unsigned long
     nbytes_2d;
-  EPIC_FLOAT
+  double
     uhatp,uhatm,
     vhatp,vhatm,
     whatp,whatm,
@@ -666,14 +748,16 @@ void hsu_advection(planetspec  *planet,
     al,gap,gam,bep,bem,behatp,behatm,g_hsu,
     mn_2jp1,mn_2j,m_2j_inv,n_2jp1_inv,tmp,
     ep,a_min,
-    precip_density,
     rho_h,
     da;
-  EPIC_FLOAT
+  double
+    temperature,pressure,
+    partial_rho,dry_rho;
+  double
     *a,*a_diff1,*a_diff2,
     *um,*up,*u2d,*vm,*vp,*v2d,
     *ff,*a_pred,*aa1,*aaa;
-  static EPIC_FLOAT
+  static double
     *wm,*wp,
     *w_a,*w_a_pred,
     *w_a_min,*w_a_diff1,*w_a_diff2,
@@ -690,15 +774,15 @@ void hsu_advection(planetspec  *planet,
     /*
      * Allocate memory.
      */
-    wm        = fvector(0,KHI,  dbmsname);
-    wp        = fvector(0,KHI,  dbmsname);
-    w_a       = fvector(0,KHI,  dbmsname);
-    w_a_pred  = fvector(0,KHI,  dbmsname);
-    w_a_min   = fvector(0,KHI,  dbmsname);
-    w_ff      = fvector(0,KHI+1,dbmsname);
-    w_a_diff1 = fvector(0,KHI,  dbmsname);
-    w_a_diff2 = fvector(0,KHI,  dbmsname);
-    w_aaa     = fvector(0,KHI,  dbmsname);
+    wm        = dvector(0,KHI,  dbmsname);
+    wp        = dvector(0,KHI,  dbmsname);
+    w_a       = dvector(0,KHI,  dbmsname);
+    w_a_pred  = dvector(0,KHI,  dbmsname);
+    w_a_min   = dvector(0,KHI,  dbmsname);
+    w_ff      = dvector(0,KHI+1,dbmsname);
+    w_a_diff1 = dvector(0,KHI,  dbmsname);
+    w_a_diff2 = dvector(0,KHI,  dbmsname);
+    w_aaa     = dvector(0,KHI,  dbmsname);
 
     initialized = TRUE;
   }
@@ -709,24 +793,28 @@ void hsu_advection(planetspec  *planet,
    */
   ep = 1.e-10;
 
-  nbytes_2d = Nelem2d*sizeof(EPIC_FLOAT);
+  nbytes_2d = Nelem2d*sizeof(double);
 
   switch(is) {
     case H_INDEX:
       if (!var.h.on) return;
       k_first = KLO;
+      k_last  = KHI;
     break;
     case THETA_INDEX:
       if (!var.theta.on) return;
       k_first = KLO;
+      k_last  = KHI-1;
     break;
     case NU_TURB_INDEX:
       if (!var.nu_turb.on) return;
       k_first = KLO;
+      k_last  = KHI;
     break;
     case FPARA_INDEX:
       if (!var.fpara.on) return;
       k_first = KLO;
+      k_last  = KHI-1;
     break;
     default:
       if (is < FIRST_SPECIES || is > LAST_SPECIES) {
@@ -735,11 +823,11 @@ void hsu_advection(planetspec  *planet,
       }
       if (!var.species[is].phase[ip].on) return;
       k_first = KLO;
+      k_last  = KHI-1;
     break;
   }
 
   if (direction == HORIZONTAL_AND_VERTICAL || direction == JUST_VERTICAL) {
-
     /***********************
      * Vertical advection. *
      ***********************/
@@ -791,18 +879,34 @@ void hsu_advection(planetspec  *planet,
           /*
            * Variable is carried on layer interfaces.
            */
-          if (is >= FIRST_SPECIES && is <= LAST_SPECIES &&
-              ip >= FIRST_PRECIP  && ip <= LAST_PRECIP    ) {
+          if (is >= FIRST_SPECIES && is <= LAST_SPECIES) {
             for (K = k_first; K <= KHI; K++) {
-              vertvel = .5*(W3(K,J,I)+W3(K-1,J,I));
-              /*
-               * Include terminal velocity for precipitation.
-               */
-              precip_density  = sqrt(Q(is,ip,K,  J,I)*PDRY3(K,  J,I)/T3(K,  J,I)
-                                    *Q(is,ip,K-1,J,I)*PDRY3(K-1,J,I)/T3(K-1,J,I))/planet->rgas;
-              rho_h           = RHO2(K,J,I)/H(K,J,I);
-              vertvel        -= rho_h*fabs(terminal_velocity(is,ip,P2(K,J,I),T2(K,J,I),precip_density));
+              kk = 2*K;
+              vertvel = .5*(W3(K-1,J,I)+W3(K,J,I));
+              if (ip != VAPOR) {
+                /*
+                 * Include terminal velocity for condensed phases.
+                 * Average values at interfaces in the same manner
+                 * that the fluid velocity is averaged.
+                 *
+                 * NOTE: The output of terminal_velocity() is assumed to be positive downwards.
+                 */
+                temperature = T3(K-1,J,I);
+                pressure    = P3(K-1,J,I);
+                dry_rho     = PDRY3(K-1,J,I)/(temperature*planet->rgas);
+                partial_rho = (Q(is,ip,K-1,J,I)/HDRY3(K-1,J,I))*dry_rho;
+                rho_h       = RHO3(K-1,J,I)/H3(K-1,J,I);
+                tmp         = rho_h*terminal_velocity(is,ip,temperature,pressure,partial_rho);
 
+                temperature = T3(K,J,I);
+                pressure    = P3(K,J,I);
+                dry_rho     = PDRY3(K,J,I)/(temperature*planet->rgas);
+                partial_rho = (Q(is,ip,K,J,I)/HDRY3(K,J,I))*dry_rho;
+                rho_h       = RHO3(K,J,I)/H3(K,J,I);
+                tmp        += rho_h*terminal_velocity(is,ip,temperature,pressure,partial_rho);
+
+                vertvel    -= .5*tmp;
+              }
               wm[K] = .5*(vertvel-fabs(vertvel));
               wp[K] = .5*(vertvel+fabs(vertvel));
             }
@@ -825,12 +929,12 @@ void hsu_advection(planetspec  *planet,
            *  Here, w_a[K] is located above wp[K],wm[K].
            */
           if (k_first == 1) {
-            w_ff[k_first-1] = flux_top(planet,is,J,I,NULL);
+            w_ff[k_first-1] = flux_top(is,ip,J,I,NULL);
           }
           else {
             w_ff[k_first-1] = 0.;
           }
-          w_ff[KHI] = flux_bot(planet,is,J,I,NULL);
+          w_ff[KHI] = flux_bot(is,ip,J,I,NULL);
           for (K = k_first; K < KHI; K++) {
             w_ff[K] = wp[K]*w_a[K+1]+wm[K]*w_a[K];
           }
@@ -977,13 +1081,13 @@ void hsu_advection(planetspec  *planet,
         switch(is) {
           case H_INDEX:
           case NU_TURB_INDEX:
-            for (K = k_first; K <= KHI; K++) {
+            for (K = k_first; K <= k_last; K++) {
               da             = (w_ff[K]-w_ff[K-1])*grid.dsgth_inv[2*K]*DT;
               BUFF3D(K,J,I) += da;
             }
           break;
           default:
-            for (K = k_first; K < KHI; K++) {
+            for (K = k_first; K <= k_last; K++) {
               da             = (w_ff[K+1]-w_ff[K])*grid.dsgth_inv[2*K+1]*DT;
               BUFF3D(K,J,I) += da;
             }
@@ -1000,7 +1104,7 @@ void hsu_advection(planetspec  *planet,
      * Meridional advection. *
      *************************/
 
-    for (K = k_first; K <= KHI; K++) {
+    for (K = k_first; K <= k_last; K++) {
       switch(is) {
         case H_INDEX:
           if (!var.h.on) return;
@@ -1048,7 +1152,7 @@ void hsu_advection(planetspec  *planet,
         kk = 2*K+1;
         for (J = JFIRST; J <= JHI; J++) {
           for (I = ILO; I <= IHI; I++) {
-            V2D(J,I) = get_var(planet,V_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
+            V2D(J,I) = get_var(V_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
           }
         }
         /* Need to apply bc_lateral() here. */
@@ -1066,7 +1170,7 @@ void hsu_advection(planetspec  *planet,
            * The corresponding V should be zero in this case, 
            * such that this value does not matter.
            */
-          m_2j_inv = FLOAT_MAX;
+          m_2j_inv = DBL_MAX;
         }
         else{
           m_2j_inv = 1./grid.m[kk][2*J];
@@ -1201,7 +1305,7 @@ void hsu_advection(planetspec  *planet,
      * Zonal advection. *
      ********************/
 
-    for (K = k_first; K <= KHI; K++) {
+    for (K = k_first; K <= k_last; K++) {
       switch(is) {
         case H_INDEX:
           if (!var.h.on) return;
@@ -1234,7 +1338,7 @@ void hsu_advection(planetspec  *planet,
       u2d = Buff2D[2];
 
       a = Buff2D[6];
-      memcpy(a,buff3d+(K-Kshift)*Nelem2d,Nelem2d*sizeof(EPIC_FLOAT));
+      memcpy(a,buff3d+(K-Kshift)*Nelem2d,Nelem2d*sizeof(double));
 
       if (is == H_INDEX || is == NU_TURB_INDEX) {
         kk = 2*K;
@@ -1249,7 +1353,7 @@ void hsu_advection(planetspec  *planet,
         kk = 2*K+1;
         for (J = JLO; J <= JHI; J++) {
           for (I = ILO; I <= IHI; I++) {
-            U2D(J,I) = get_var(planet,U_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
+            U2D(J,I) = get_var(U_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
           }
         }
         /* Need to apply bc_lateral() here. */
@@ -1404,33 +1508,33 @@ void hsu_advection(planetspec  *planet,
 #undef  COEFM3
 #define COEFM3(k,i) coefm3[i+(k-KLO)*3]
 
-void upwind_3rd_order(planetspec  *planet,
-                      int          is,
-                      int          ip,
-                      EPIC_FLOAT  *buff3d,
-                      int          direction,
-                      EPIC_FLOAT **Buff2D)
+void upwind_3rd_order(int      is,
+                      int      ip,
+                      double  *buff3d,
+                      int      direction,
+                      double **Buff2D)
 {
   register int
     K,J,I,
     k,klast,kk,kkshift;
-  EPIC_FLOAT
+  double
     v,vp,vm,n,
     u,up,um,m,
     w,wp,wm,zp2,zp1,zm1,zm2,
-    rho_h,
-    precip_density;
-  EPIC_FLOAT
+    rho_h;
+  double
    *aa1,
    *aaa,
    *buffji,
    *a,
    *u2d,
    *v2d;
-  EPIC_FLOAT
+  double
     val0,tmp,
+    temperature,pressure,
+    partial_rho,dry_rho,
     buff[grid.nk+1];
-  static EPIC_FLOAT
+  static double
    *coefp3,*coefp2,
    *coefm3,*coefm2;
   static int
@@ -1446,11 +1550,11 @@ void upwind_3rd_order(planetspec  *planet,
 
   if (!initialized) {
     /* Allocate memory */
-    coefp2 = fvector(0,3*(KHI-KLO+1)-1,dbmsname);
-    coefm2 = fvector(0,3*(KHI-KLO+1)-1,dbmsname);
+    coefp2 = dvector(0,3*(KHI-KLO+1)-1,dbmsname);
+    coefm2 = dvector(0,3*(KHI-KLO+1)-1,dbmsname);
 
-    coefp3 = fvector(0,3*(KHI-1-KLO+1)-1,dbmsname);
-    coefm3 = fvector(0,3*(KHI-1-KLO+1)-1,dbmsname);
+    coefp3 = dvector(0,3*(KHI-1-KLO+1)-1,dbmsname);
+    coefm3 = dvector(0,3*(KHI-1-KLO+1)-1,dbmsname);
 
     if (strcmp(grid.geometry,"f-plane") == 0 &&
         strcmp(grid.f_plane_map,"cartesian") == 0) {
@@ -1576,14 +1680,6 @@ void upwind_3rd_order(planetspec  *planet,
          */
         for (J = JLOPAD; J <= JHIPAD; J++) {
           for (I = ILOPAD; I <= IHIPAD; I++) {
-            for (K = KLO+1; K <= KHI-1; K++) {
-              w       = .5*(W3(K,J,I)+W3(K-1,J,I));
-              wp      = .5*(w+fabs(w));
-              wm      = .5*(w-fabs(w));
-              val0    = BUFF3D(K,J,I);
-              buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP2(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP2(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP2(K,2))
-                            +wm*((BUFF3D(K+1,J,I)-val0)*COEFM2(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM2(K,1)+(BUFF3D(K-2,J,I)-val0)*COEFM2(K,2)));
-            }
             /*
              * Assume variable is linear on ends.
              * Use a 1st-order difference on the fettered side.
@@ -1596,6 +1692,15 @@ void upwind_3rd_order(planetspec  *planet,
             tmp     = -.5*(BUFF3D(K+1,J,I)-val0);
             buff[K] = -DT*(wp*(tmp*COEFP2(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP2(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP2(K,2))
                           +wm*tmp/(grid.sigmatheta[2*K-1]-grid.sigmatheta[2*K]));
+
+            for (K = KLO+1; K <= KHI-1; K++) {
+              w       = .5*(W3(K,J,I)+W3(K-1,J,I));
+              wp      = .5*(w+fabs(w));
+              wm      = .5*(w-fabs(w));
+              val0    = BUFF3D(K,J,I);
+              buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP2(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP2(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP2(K,2))
+                            +wm*((BUFF3D(K+1,J,I)-val0)*COEFM2(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM2(K,1)+(BUFF3D(K-2,J,I)-val0)*COEFM2(K,2)));
+            }
 
             K       = KHI;
             w       = .5*(W3(K,J,I)+W3(K-1,J,I));
@@ -1617,42 +1722,64 @@ void upwind_3rd_order(planetspec  *planet,
         /*
          * Interface variable
          */
-        if (is >= FIRST_SPECIES && is <= LAST_SPECIES &&
-            ip >= FIRST_PRECIP  && ip <= LAST_PRECIP    ) {
+        if (is >= FIRST_SPECIES && is <= LAST_SPECIES) {
           /*
-           * Include terminal velocity for precipitation.
+           * Include terminal velocity for condensed phases.
            */
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
-              for (K = KLO+1; K <= KHI-2; K++) {
-                /*
-                 * Use rho_h to convert terminal_velocity() from [m/s] to W3-format [K/s].
-                 */
-                rho_h          = RHO3(K,J,I)/H3(K,J,I);
-                precip_density = Q(is,ip,K,J,I)*PDRY3(K,J,I)/(planet->rgas*T3(K,J,I));;
-                w              = W3(K,J,I)-rho_h*fabs(terminal_velocity(is,ip,P3(K,J,I),T3(K,J,I),precip_density));
+              K  = KLO;
+              kk = 2*K+1;
 
+              w = W3(K,J,I);
+              if (ip != VAPOR) {
+                temperature  = T3(K,J,I);
+                pressure     = P3(K,J,I);
+                dry_rho      = PDRY3(K,J,I)/(temperature*planet->rgas);
+                partial_rho  = Q(is,ip,K,J,I)*dry_rho;
+                rho_h        = RHO3(K,J,I)/H3(K,J,I);
+                w           -= rho_h*terminal_velocity(is,ip,temperature,pressure,partial_rho);
+              }
+              wp      = .5*(w+fabs(w));
+              wm      = .5*(w-fabs(w));
+              val0    =  BUFF3D(K,J,I);
+              buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP3(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP3(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP3(K,2))
+                            +wm*((BUFF3D(K+1,J,I)-val0)*COEFM3(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM3(K,1)));
+
+              for (K = KLO+1; K <= KHI-2; K++) {
+                kk = 2*K+1;
+
+                w = W3(K,J,I);
+                if (ip != VAPOR) {
+                  /*
+                   * Use rho_h to convert velocity() from [m/s] to W3-format [K/s].
+                   */
+                  temperature  = T3(K,J,I);
+                  pressure     = P3(K,J,I);
+                  dry_rho      = PDRY3(K,J,I)/(temperature*planet->rgas);
+                  partial_rho  = Q(is,ip,K,J,I)*dry_rho;
+                  rho_h        = RHO3(K,J,I)/H3(K,J,I);
+                  w           -= rho_h*terminal_velocity(is,ip,temperature,pressure,partial_rho);
+                }
                 wp      = .5*(w+fabs(w));
                 wm      = .5*(w-fabs(w));
                 val0    =  BUFF3D(K,J,I);
                 buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP3(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP3(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP3(K,2))
                               +wm*((BUFF3D(K+1,J,I)-val0)*COEFM3(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM3(K,1)+(BUFF3D(K-2,J,I)-val0)*COEFM3(K,2)));
               }
-              K = KLO;
-              rho_h          = RHO3(K,J,I)/H3(K,J,I);
-              precip_density = Q(is,ip,K,J,I)*PDRY3(K,J,I)/(planet->rgas*T3(K,J,I));;
-              w              = W3(K,J,I)-rho_h*fabs(terminal_velocity(is,ip,P3(K,J,I),T3(K,J,I),precip_density));
 
-              wp      = .5*(w+fabs(w));
-              wm      = .5*(w-fabs(w));
-              val0    =  BUFF3D(K,J,I);
-              buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP3(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP3(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP3(K,2))
-                            +wm*((BUFF3D(K+1,J,I)-val0)*COEFM3(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM3(K,1)));
-              K = KHI-1;
-              rho_h          = RHO3(K,J,I)/H3(K,J,I);
-              precip_density = Q(is,ip,K,J,I)*PDRY3(K,J,I)/(planet->rgas*T3(K,J,I));;
-              w              = W3(K,J,I)-rho_h*fabs(terminal_velocity(is,ip,P3(K,J,I),T3(K,J,I),precip_density));
+              K  = KHI-1;
+              kk = 2*K+1;
 
+              w = W3(K,J,I);
+              if (ip != VAPOR) {
+                temperature  = T3(K,J,I);
+                pressure     = P3(K,J,I);
+                dry_rho      = PDRY3(K,J,I)/(temperature*planet->rgas);
+                partial_rho  = Q(is,ip,K,J,I)*dry_rho;
+                rho_h        = RHO3(K,J,I)/H3(K,J,I);
+                w           -= rho_h*terminal_velocity(is,ip,temperature,pressure,partial_rho);
+              }
               wp      = .5*(w+fabs(w));
               wm      = .5*(w-fabs(w));
               val0    =  BUFF3D(K,J,I);
@@ -1669,6 +1796,14 @@ void upwind_3rd_order(planetspec  *planet,
         else {
           for (J = JLOPAD; J <= JHIPAD; J++) {
             for (I = ILOPAD; I <= IHIPAD; I++) {
+              K = KLO;
+              w       =  W3(K,J,I);
+              wp      = .5*(w+fabs(w));
+              wm      = .5*(w-fabs(w));
+              val0    =  BUFF3D(K,J,I);
+              buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP3(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP3(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP3(K,2))
+                            +wm*((BUFF3D(K+1,J,I)-val0)*COEFM3(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM3(K,1)));
+
               for (K = KLO+1; K <= KHI-2; K++) {
                 w       =  W3(K,J,I);
                 wp      = .5*(w+fabs(w));
@@ -1677,13 +1812,7 @@ void upwind_3rd_order(planetspec  *planet,
                 buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP3(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP3(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP3(K,2))
                               +wm*((BUFF3D(K+1,J,I)-val0)*COEFM3(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM3(K,1)+(BUFF3D(K-2,J,I)-val0)*COEFM3(K,2)));
               }
-              K = KLO;
-              w       =  W3(K,J,I);
-              wp      = .5*(w+fabs(w));
-              wm      = .5*(w-fabs(w));
-              val0    =  BUFF3D(K,J,I);
-              buff[K] = -DT*(wp*((BUFF3D(K-1,J,I)-val0)*COEFP3(K,0)+(BUFF3D(K+1,J,I)-val0)*COEFP3(K,1)+(BUFF3D(K+2,J,I)-val0)*COEFP3(K,2))
-                            +wm*((BUFF3D(K+1,J,I)-val0)*COEFM3(K,0)+(BUFF3D(K-1,J,I)-val0)*COEFM3(K,1)));
+
               K = KHI-1;
               w       =  W3(K,J,I);
               wp      = .5*(w+fabs(w));
@@ -1713,7 +1842,7 @@ void upwind_3rd_order(planetspec  *planet,
     v2d    = Buff2D[5];
 
     /* Zero V2D memory */
-    memset(v2d,0,sizeof(EPIC_FLOAT)*Nelem2d);
+    memset(v2d,0,sizeof(double)*Nelem2d);
 
     switch(is) {
       case H_INDEX:
@@ -1762,7 +1891,7 @@ void upwind_3rd_order(planetspec  *planet,
           kk = 2*K+1;
           for (J = JFIRST; J <= JHI; J++) {
             for (I = ILO; I <= IHI; I++) {
-              V2D(J,I) = get_var(planet,V_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
+              V2D(J,I) = get_var(V_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
             }
           }
           /* Need to apply bc_lateral() here. */
@@ -1791,8 +1920,8 @@ void upwind_3rd_order(planetspec  *planet,
     else {
       for (K = KLO; K <= klast; K++) {
         /* Clear memory to clear boundaries. */
-        memset(aa1,0,Nelem2d*sizeof(EPIC_FLOAT));
-        memset(aaa,0,Nelem2d*sizeof(EPIC_FLOAT));
+        memset(aa1,0,Nelem2d*sizeof(double));
+        memset(aaa,0,Nelem2d*sizeof(double));
 
         for (J = JFIRST; J <= JHI; J++) {
           for (I = ILO; I <= IHI; I++) {
@@ -1832,7 +1961,7 @@ void upwind_3rd_order(planetspec  *planet,
           kk = 2*K+1;
           for (J = JFIRST; J <= JHI; J++) {
             for (I = ILO; I <= IHI; I++) {
-              V2D(J,I) = get_var(planet,V_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
+              V2D(J,I) = get_var(V_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
             }
           }
           /* Need to apply bc_lateral() here. */
@@ -1894,7 +2023,7 @@ void upwind_3rd_order(planetspec  *planet,
      ********************/
 
     for (K = KLO; K <= klast; K++) {
-      memcpy(a,buff3d+(K-Kshift)*Nelem2d,Nelem2d*sizeof(EPIC_FLOAT));
+      memcpy(a,buff3d+(K-Kshift)*Nelem2d,Nelem2d*sizeof(double));
 
       if (is == H_INDEX || is == NU_TURB_INDEX) {
         kk = 2*K;
@@ -1909,7 +2038,7 @@ void upwind_3rd_order(planetspec  *planet,
         kk = 2*K+1;
         for (J = JLO; J <= JHI; J++) {
           for (I = ILO; I <= IHI; I++) {
-            U2D(J,I) = get_var(planet,U_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
+            U2D(J,I) = get_var(U_INDEX,NO_PHASE,grid.it_uv,kk,J,I);
           }
         }
         /* Need to apply bc_lateral() here. */
@@ -1966,9 +2095,9 @@ void upwind_3rd_order(planetspec  *planet,
  * variables like NU_TURB) are done with a positive-definite scheme. Because U and V
  * are signed quantities, they need a different approach.
  */
-void uv_vertical_advection(planetspec *planet)
+void uv_vertical_advection(void)
 {
-  uv_vert_upwind_3rd_order(planet);
+  uv_vert_upwind_3rd_order();
 
   return;
 }
@@ -1982,15 +2111,15 @@ void uv_vertical_advection(planetspec *planet)
 #undef  COEFM
 #define COEFM(k,i) coefm[i+(k-KLO)*3]
 
-void uv_vert_upwind_3rd_order(planetspec *planet)
+void uv_vert_upwind_3rd_order(void)
 {
   register int
     K,J,I,kk;
-  EPIC_FLOAT
+  double
     w,wp,wm,
     zp2,zp1,zm1,zm2,
     val0;
-  static EPIC_FLOAT
+  static double
    *coefp,
    *coefm;
   static int
@@ -2005,8 +2134,8 @@ void uv_vert_upwind_3rd_order(planetspec *planet)
 
   if (!initialized) {
     /* Allocate memory */
-    coefp  = fvector(0,3*(grid.nk)-1,dbmsname);
-    coefm  = fvector(0,3*(grid.nk)-1,dbmsname);
+    coefp  = dvector(0,3*(grid.nk)-1,dbmsname);
+    coefm  = dvector(0,3*(grid.nk)-1,dbmsname);
 
     /*
      * The vertical direction requires general coefficients, because the vertical grid
@@ -2021,6 +2150,7 @@ void uv_vert_upwind_3rd_order(planetspec *planet)
     COEFP(K,0) = zm1*zm2/(zp1*(zp1-zm2)*(zp1-zm1));
     COEFP(K,1) = zp1*zm2/(zm1*(zm1-zm2)*(zm1-zp1));
     COEFP(K,2) = zp1*zm1/(zm2*(zm2-zm1)*(zm2-zp1));
+
     for (K = KLO+1; K <= KHI-2; K++) {
       kk         = 2*K;
       zp1        = (grid.sigmatheta[kk-2]-grid.sigmatheta[kk]);
@@ -2030,6 +2160,7 @@ void uv_vert_upwind_3rd_order(planetspec *planet)
       COEFP(K,1) = zp1*zm2/(zm1*(zm1-zm2)*(zm1-zp1));
       COEFP(K,2) = zp1*zm1/(zm2*(zm2-zm1)*(zm2-zp1));
     }
+
     K          = KHI-1;
     kk         = 2*K;
     zp1        = (grid.sigmatheta[kk-2]-grid.sigmatheta[kk]);
@@ -2047,6 +2178,7 @@ void uv_vert_upwind_3rd_order(planetspec *planet)
     /* Assume 3-pt zero curvature for endpoint. */
     COEFM(K,0) = zp1*zp2/(zm1*(zm1-zp1)*(zm1-zp2));
     COEFM(K,1) = zm1*(zp2*(zm1-zp2)+zp1*(zp1-zm1))/((zp1-zp2)*zp1*(zp1-zm1)*(zm1-zp2));
+
     for (K = KLO+2; K <= KHI-1; K++) {
       kk         = 2*K;
       zp2        = (grid.sigmatheta[kk-4]-grid.sigmatheta[kk]);
@@ -2056,6 +2188,7 @@ void uv_vert_upwind_3rd_order(planetspec *planet)
       COEFM(K,1) = zm1*zp2/(zp1*(zp1-zm1)*(zp1-zp2));
       COEFM(K,2) = zm1*zp1/(zp2*(zp2-zm1)*(zp2-zp1));
     }
+
     K          = KHI;
     kk         = 2*K;
     zp2        = (grid.sigmatheta[kk-4]-grid.sigmatheta[kk]);
@@ -2121,16 +2254,6 @@ void uv_vert_upwind_3rd_order(planetspec *planet)
      * V
      */
     for (J = JFIRST; J <= JHI; J++) {
-      for (K = KLO+1; K <= KHI-1; K++) {
-        w    = .25*(W3(K,J,I)+W3(K-1,J,I)+W3(K,J-1,I)+W3(K-1,J-1,I));
-        wp   = .5*(w+fabs(w));
-        wm   = .5*(w-fabs(w));
-        val0 = V(grid.it_uv,K,J,I);
-
-        DVDT(grid.it_uv_tend,K,J,I) -= 
-               wp*((V(grid.it_uv,K-1,J,I)-val0)*COEFP(K,0)+(V(grid.it_uv,K+1,J,I)-val0)*COEFP(K,1)+(V(grid.it_uv,K+2,J,I)-val0)*COEFP(K,2))
-              +wm*((V(grid.it_uv,K+1,J,I)-val0)*COEFM(K,0)+(V(grid.it_uv,K-1,J,I)-val0)*COEFM(K,1)+(V(grid.it_uv,K-2,J,I)-val0)*COEFM(K,2));
-      }
       /*
        * Assume V = 0. at top and bottom of model.
        * Use a 1st-order difference on the fettered side.
@@ -2143,6 +2266,17 @@ void uv_vert_upwind_3rd_order(planetspec *planet)
       DVDT(grid.it_uv_tend,K,J,I) -= 
              wp*((0.-val0)*COEFP(K,0)+(V(grid.it_uv,K+1,J,I)-val0)*COEFP(K,1)+(V(grid.it_uv,K+2,J,I)-val0)*COEFP(K,2))
             +wm*(0.-val0)/(grid.sigmatheta[2*K-1]-grid.sigmatheta[2*K]);
+
+      for (K = KLO+1; K <= KHI-1; K++) {
+        w    = .25*(W3(K,J,I)+W3(K-1,J,I)+W3(K,J-1,I)+W3(K-1,J-1,I));
+        wp   = .5*(w+fabs(w));
+        wm   = .5*(w-fabs(w));
+        val0 = V(grid.it_uv,K,J,I);
+
+        DVDT(grid.it_uv_tend,K,J,I) -= 
+               wp*((V(grid.it_uv,K-1,J,I)-val0)*COEFP(K,0)+(V(grid.it_uv,K+1,J,I)-val0)*COEFP(K,1)+(V(grid.it_uv,K+2,J,I)-val0)*COEFP(K,2))
+              +wm*((V(grid.it_uv,K+1,J,I)-val0)*COEFM(K,0)+(V(grid.it_uv,K-1,J,I)-val0)*COEFM(K,1)+(V(grid.it_uv,K-2,J,I)-val0)*COEFM(K,2));
+      }
 
       K    = KHI;
       w    = .25*(W3(K,J,I)+W3(K-1,J,I)+W3(K,J-1,I)+W3(K-1,J-1,I));
