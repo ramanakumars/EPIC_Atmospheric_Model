@@ -449,7 +449,7 @@ int main(int   argc,
          * Prompt for vertical variation of zonal wind.
          */
 
-          if (strcmp(planet->name,"jupiter") == 0) {
+          if (strcmp(planet->name,"Jupiter") == 0) {
               fprintf(stdout,"Vertical wind shear mode: %d => use probe profile \n", WIND_SHEAR_PROBE);
               fprintf(stdout,"                          %d => use functional form (Garcia-Melendo 2005) \n", WIND_SHEAR_FUNCTION);
               grid.wind_shear_mode = defaults.grid_wind_shear_mode = input_int("",defaults.grid_wind_shear_mode,MODIFY);

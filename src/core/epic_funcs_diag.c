@@ -5047,7 +5047,7 @@ void source_sink(void)
     moist_convection();
   }
 
-  if (grid.cloud_microphysics != OFF) {
+  if (grid.cloud_microphysics == ACTIVE) {
     cloud_microphysics();
   }
 
@@ -6137,7 +6137,7 @@ double u_jupiter(double p,
   j = find_place_in_table(ndat,u_table,lat,&lat_d);
   u = splint_pchip(lat,u_table+j,lat_d);
   
-    if(grid.cloud_top_mode == USE_BELT_ZONE) {
+  if(grid.cloud_top_mode == USE_BELT_ZONE) {
     /* RS: 1/4/2023
      * scale the pressure so that the zonal wind is set at 400mb instead of 680mb 
      */
@@ -6643,10 +6643,6 @@ double u_amp(double p,
   static char
     dbmsname[]="u_amp";
 
-  if (grid.du_vert == 0.) {
-    return 1.;
-  }
-  else {
     switch(planet->index) {
       case VENUS_INDEX:
         p0 = 87.47*100.;
@@ -6658,6 +6654,27 @@ double u_amp(double p,
       break;
       case JUPITER_INDEX:
         p0 = 680.*100.;
+        if (grid.wind_shear_mode == WIND_SHEAR_FUNCTION) {
+          /* create the wind shear as a function of pressure:
+           * u = u(p0) * (1 + m * log(p / p0)) between the cloud top pressure p0
+           * and the shear end zone defined by grid.du_vert_pend
+           */
+          if (p <= p0) {
+            /* above the cloud tops follow the wind decay by Gierasch et al. which is 
+             * handled by galileo_u()
+             */
+            return galileo_u(p, lat);
+          } else if (p <= grid.du_vert_pend) {
+            /* between the cloud top and du_vert_pend, follow the log-scaling function
+             * u = u0 * (1 + m * log(p/p0)) where p0 is the cloud top pressure
+             */
+            return (1. + grid.du_vert_m * log(p / p0));
+          } else {
+            /* below pend (bottom of the shear zone, extend the "last known value" of the wind speed
+             */
+            return (1. + grid.du_vert_m * log(grid.du_vert_pend / p0));
+          }
+        } else {
         /* 
          *  p < 680 mb: u_amp is set to follow the thermal-wind decay 
          *     determined by Gierasch et al (1986, Icarus 67, 456-483).
@@ -6665,11 +6682,12 @@ double u_amp(double p,
          *  p > 680 mb: u_amp is the Galileo Probe Doppler wind profile,
          *              normalized at 680 hPa and scaled by grid.du_vert.
          */
-        if (p <= p0) {
-          return galileo_u(p, lat);
-        }
-        else {
-          return grid.du_vert*(galileo_u(p, lat)-1.)+1.;
+          if (p <= p0) {
+            return galileo_u(p, lat);
+          }
+          else {
+            return grid.du_vert*(galileo_u(p, lat)-1.)+1.;
+          }
         }
       break;
       case SATURN_INDEX:
@@ -6680,7 +6698,6 @@ double u_amp(double p,
         epic_error(dbmsname,Message);
       break;
     }
-  }
 
   /* Should never get here.*/
   sprintf(Message,"should never get here");
