@@ -1164,9 +1164,7 @@ void scalar_vertical_subgrid(double **Buff2D)
     /*
      * Adjust convectively unstable regions to be neutrally stable.
      */
-/*gurn adiabatic_adjustment() commented out
     adiabatic_adjustment();
-*/
   }
   else {
     sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
