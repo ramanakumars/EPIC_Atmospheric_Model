@@ -6643,61 +6643,61 @@ double u_amp(double p,
   static char
     dbmsname[]="u_amp";
 
-    switch(planet->index) {
-      case VENUS_INDEX:
-        p0 = 87.47*100.;
-        /*
-         * Pioneer Venus profile.
-         * Normalize to 87.47 hPa (location of max u in profile).
+  switch(planet->index) {
+    case VENUS_INDEX:
+      p0 = 87.47*100.;
+      /*
+       * Pioneer Venus profile.
+       * Normalize to 87.47 hPa (location of max u in profile).
+       */
+      return grid.du_vert*(pioneer_venus_u(p)/pioneer_venus_u(p0)-1.)+1.;
+    break;
+    case JUPITER_INDEX:
+      p0 = 680.*100.;
+      if (grid.wind_shear_mode == WIND_SHEAR_FUNCTION) {
+        /* create the wind shear as a function of pressure:
+         * u = u(p0) * (1 + m * log(p / p0)) between the cloud top pressure p0
+         * and the shear end zone defined by grid.du_vert_pend
          */
-        return grid.du_vert*(pioneer_venus_u(p)/pioneer_venus_u(p0)-1.)+1.;
-      break;
-      case JUPITER_INDEX:
-        p0 = 680.*100.;
-        if (grid.wind_shear_mode == WIND_SHEAR_FUNCTION) {
-          /* create the wind shear as a function of pressure:
-           * u = u(p0) * (1 + m * log(p / p0)) between the cloud top pressure p0
-           * and the shear end zone defined by grid.du_vert_pend
+        if (p <= p0) {
+          /* above the cloud tops follow the wind decay by Gierasch et al. which is 
+           * handled by galileo_u()
            */
-          if (p <= p0) {
-            /* above the cloud tops follow the wind decay by Gierasch et al. which is 
-             * handled by galileo_u()
-             */
-            return galileo_u(p, lat);
-          } else if (p <= grid.du_vert_pend) {
-            /* between the cloud top and du_vert_pend, follow the log-scaling function
-             * u = u0 * (1 + m * log(p/p0)) where p0 is the cloud top pressure
-             */
-            return (1. + grid.du_vert_m * log(p / p0));
-          } else {
-            /* below pend (bottom of the shear zone, extend the "last known value" of the wind speed
-             */
-            return (1. + grid.du_vert_m * log(grid.du_vert_pend / p0));
-          }
+          return galileo_u(p, lat);
+        } else if (p <= grid.du_vert_pend) {
+          /* between the cloud top and du_vert_pend, follow the log-scaling function
+           * u = u0 * (1 + m * log(p/p0)) where p0 is the cloud top pressure
+           */
+          return (1. + grid.du_vert_m * log(p / p0));
         } else {
-        /* 
-         *  p < 680 mb: u_amp is set to follow the thermal-wind decay 
-         *     determined by Gierasch et al (1986, Icarus 67, 456-483).
-         *
-         *  p > 680 mb: u_amp is the Galileo Probe Doppler wind profile,
-         *              normalized at 680 hPa and scaled by grid.du_vert.
-         */
-          if (p <= p0) {
-            return galileo_u(p, lat);
-          }
-          else {
-            return grid.du_vert*(galileo_u(p, lat)-1.)+1.;
-          }
+          /* below pend (bottom of the shear zone, extend the "last known value" of the wind speed
+           */
+          return (1. + grid.du_vert_m * log(grid.du_vert_pend / p0));
         }
-      break;
-      case SATURN_INDEX:
-        return grid.du_vert*(cassini_cirs_u(p)-1.)+1.;
-      break;
-      default:
-        sprintf(Message,"planet=%s not yet implemented",planet->name);
-        epic_error(dbmsname,Message);
-      break;
-    }
+      } else {
+      /* 
+       *  p < 680 mb: u_amp is set to follow the thermal-wind decay 
+       *     determined by Gierasch et al (1986, Icarus 67, 456-483).
+       *
+       *  p > 680 mb: u_amp is the Galileo Probe Doppler wind profile,
+       *              normalized at 680 hPa and scaled by grid.du_vert.
+       */
+        if (p <= p0) {
+          return galileo_u(p, lat);
+        }
+        else {
+          return grid.du_vert*(galileo_u(p, lat)-1.)+1.;
+        }
+      }
+    break;
+    case SATURN_INDEX:
+      return grid.du_vert*(cassini_cirs_u(p)-1.)+1.;
+    break;
+    default:
+      sprintf(Message,"planet=%s not yet implemented",planet->name);
+      epic_error(dbmsname,Message);
+    break;
+  }
 
   /* Should never get here.*/
   sprintf(Message,"should never get here");

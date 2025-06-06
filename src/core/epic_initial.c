@@ -634,11 +634,11 @@ int main(int   argc,
   }
   else if (defaults.n_bot_drag == NOT_SET) {
     defaults.n_bot_drag = -1;
-    defaults.n_bot_drag = grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect,MODIFY):\n",
+    defaults.n_bot_drag = grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect):\n",
                                                       defaults.n_bot_drag,MODIFY);
   }
   else {
-    defaults.n_bot_drag = grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect,MODIFY):\n",
+    defaults.n_bot_drag = grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect):\n",
                                                       defaults.n_bot_drag,MODIFY);
   }
 
