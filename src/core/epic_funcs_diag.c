@@ -854,13 +854,14 @@ void make_arrays(void)
     if (var.on_list[is] == LISTED_AND_ON) {
       var.species[is].on = TRUE;
 
-      if (grid.moist_convection == ACTIVE) {
-        var.species[is].cwf.value       = dvector(0,Nelem3d-1,dbmsname);
-        var.species[is].pbase_mc.value  = dvector(0,Nelem2d-1,dbmsname);
-        var.species[is].lambda_mc.value = dvector(0,Nelem3d-1,dbmsname);
-        var.species[is].mb_mc.value     = dvector(0,Nelem3d-1,dbmsname);
-        var.species[is].dAdt.value      = dvector(0,Nelem3d-1,dbmsname);
-      }
+      // if (grid.moist_convection == ACTIVE) {
+      // create arrays for the RAS scheme
+      var.species[is].cwf.value       = dvector(0,Nelem3d-1,dbmsname);
+      var.species[is].pbase_mc.value  = dvector(0,Nelem2d-1,dbmsname);
+      var.species[is].lambda_mc.value = dvector(0,Nelem3d-1,dbmsname);
+      var.species[is].mb_mc.value     = dvector(0,Nelem3d-1,dbmsname);
+      var.species[is].dAdt.value      = dvector(0,Nelem3d-1,dbmsname);
+      // }
 
       if (var.extract_on_list[is] == LISTED_AND_ON) {
         var.species[is].extract_on = TRUE;
