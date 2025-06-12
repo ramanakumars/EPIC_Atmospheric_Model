@@ -41,7 +41,8 @@
 #include <epic_datatypes.h>
 #include <epic.h>
 
-
+// boolean value on whether the we are loading from a defaults file
+// or if the user is allowed to modify the defaults option
 int MODIFY = 1;
 
 /*
@@ -220,6 +221,9 @@ int main(int   argc,
       }
       else if (strcmp(sflag, "-from_defaults") == 0) {
         sscanf(argv[++count],"%s",defaults_file);
+
+        // if we load in from a defaults file, then turn off the modify flag
+        // since we are not asking for input from the user
         MODIFY = 0;
       }
       else if (strcmp(sflag,"-help") == 0 ||
@@ -572,11 +576,11 @@ int main(int   argc,
   /*
    * Set sponges, drag layers:
    */
-  grid.k_sponge   = input_int("Input k_sponge (-1 = no effect,MODIFY):\n",
+  grid.k_sponge   = input_int("Input k_sponge (-1 = no effect):\n",
                               grid.k_sponge,MODIFY);
-  grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect,MODIFY):\n",
+  grid.n_bot_drag = input_int("Input number of bottom layers with transitional drag towards abyssal wind profile (-1 = no effect):\n",
                               grid.n_bot_drag,MODIFY);
-  grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical,MODIFY):\n",
+  grid.j_sponge = input_int("Input j_sponge (-1 = no effect; 3 is typical):\n",
                             grid.j_sponge,MODIFY);
 
   /*
