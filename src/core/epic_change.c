@@ -51,6 +51,8 @@ int MODIFY = 1;
 void add_spots(char    *spots_file,
                double  *pert);
 
+void add_noise(char *noise_file);
+
 void add_waves(char     *waves_file,
                double   *pert);
 
@@ -108,10 +110,11 @@ int main(int   argc,
          char *argv[])
 {
   char   
-    spots_file[FILE_STR], /*  added-spot locations and sizes         */
-    waves_file[FILE_STR], /*  wave perturbation parameters           */
-    heat_file[FILE_STR],  /*  file for thermal perturbation          */
-    sflag[80],            /*  string to hold command-line flags      */
+    spots_file[FILE_STR], /*  added-spot locations and sizes            */
+    noise_file[FILE_STR], /*  added-windfield noise locations and sizes */
+    waves_file[FILE_STR], /*  wave perturbation parameters              */
+    heat_file[FILE_STR],  /*  file for thermal perturbation             */
+    sflag[80],            /*  string to hold command-line flags         */
     infile[ FILE_STR],
     outfile[FILE_STR],
     openmars_infile[FILE_STR],
@@ -132,6 +135,7 @@ int main(int   argc,
     count,index,ii;
   int
     spots      = FALSE,
+    noise      = FALSE,
     waves      = FALSE,
     heat       = FALSE,  /* RS 04/16/2020 adding thermal source */
     stretch_ni = FALSE,
@@ -182,6 +186,10 @@ int main(int   argc,
       if (strcmp(sflag,"-spots") == 0) {
         sscanf(argv[++count],"%s",spots_file);
         spots = TRUE;
+      }
+      else if (strcmp(sflag,"-noise") == 0) {
+        sscanf(argv[++count],"%s",noise_file);
+        noise = TRUE;
       }
       else if (strcmp(sflag,"-waves") == 0) {
         sscanf(argv[++count],"%s",waves_file);
@@ -658,7 +666,7 @@ int main(int   argc,
   cleanup:
 
   /* Write defaults file if we are not using a defaults input: */
-  if(!MODIFY) {
+  if(MODIFY) {
     write_defaults(&defaults);
   }
 
@@ -851,6 +859,194 @@ void add_spots(char    *spots_file,
 #undef POLYNOMIAL_GAUSSIAN_ORDER
 
 /*======================= end of add_spots() ================================*/
+
+/*======================= add_noise() =======================================*/
+
+/*
+* Add noise to the wind field.
+* Kunio Sayanagi, 11-07-07
+* This function perturbs the wind velocity field.
+* It takes the same input file as add_spots, and is based on add_spots
+*
+* NOTE: Not MPI ready.
+*/
+#undef  PERT_U
+#define PERT_U(k,j,i) pert_u[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
+
+#undef  PERT_V
+#define PERT_V(k,j,i) pert_v[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
+
+void add_noise(char       *noise_file)
+{
+ register int
+   K,J,I,jj,ispot,i;
+ int
+   nspots=0;
+ double 
+   rr,xspot,yspot,zspot,fspot,
+   pressure,
+   *ampspot,
+   *lonspot,*latspot,*pspot,
+   *aspot,*bspot,*cspot_up,*cspot_down,
+   *pert_u,
+   *pert_v,
+    factor,
+   lon_width,
+   lon_half_width;
+ char
+   *char_pt,
+   buffer[FILE_STR];
+ FILE
+   *spots;
+ /*
+  * The following are part of DEBUG_MILESTONE(.) statements:
+  */
+ int
+   idbms=0;
+ static char
+   dbmsname[]="add_spots";
+
+ int
+  kount1, kount2, kount3;
+
+ if (strcmp(noise_file,"none") == 0) {
+   /* Return if there is nothing to do: */
+   return;
+ }
+
+ /* Read vortex description file: */
+ lon_width      = grid.globe_lontop - grid.globe_lonbot;
+ lon_half_width = 0.5 * lon_width;
+ nspots = number_objects_in_file(noise_file);
+
+ fprintf(stdout,"add_noise: Perturbing the wind field ...\n"); fflush(stdout);
+
+ /*
+  * Allocate memory:
+  */
+ lonspot    = dvector(0,nspots-1, dbmsname);
+ latspot    = dvector(0,nspots-1, dbmsname);
+ pspot      = dvector(0,nspots-1, dbmsname);
+ aspot      = dvector(0,nspots-1, dbmsname);
+ bspot      = dvector(0,nspots-1, dbmsname);
+ cspot_up   = dvector(0,nspots-1, dbmsname);
+ cspot_down = dvector(0,nspots-1, dbmsname);
+ ampspot    = dvector(0,nspots-1, dbmsname);
+ pert_u     = dvector(0,Nelem3d-1,dbmsname);
+ pert_v     = dvector(0,Nelem3d-1,dbmsname);
+
+ /*
+  * Read in vortex information:
+  */
+ read_spots_file(noise_file,
+                 ampspot,
+                 lonspot,
+                 latspot,
+                 pspot,
+                 aspot,
+                 bspot,
+                 cspot_up,
+                 cspot_down,
+                 DONT_ADJUST_AMPLITUDE);
+
+ /* Clear PERT memory. */
+ memset(pert_u,0,Nelem3d*sizeof(double));
+ memset(pert_v,0,Nelem3d*sizeof(double));
+
+ /*
+  * Calculate the perturbation fields, and store
+  * in PERT memory.
+  */
+ for (K = KLO; K <= KHI; K++) {
+   for (J = JLO; J <= JHI; J++) {
+     for (I = ILO; I <= IHI; I++) {
+       pressure = P3(K,J,I);
+       for (ispot = 0; ispot < nspots; ispot++) {
+         /* Account for periodicity in x-direction: */
+         xspot  = (grid.lon[2*I+1]-lonspot[ispot]);
+         if (xspot > lon_half_width) {
+           xspot -= lon_width;
+         } else if (xspot < -lon_half_width) {
+           xspot += lon_width;
+         }
+         xspot /= aspot[ispot];
+
+         yspot  = (grid.lat[2*J+1]-latspot[ispot])/bspot[ispot];
+
+         rr     = xspot*xspot+yspot*yspot;
+         if (pressure <= pspot[ispot]){
+           zspot = -log(pressure/pspot[ispot])/cspot_up[ispot];
+         }
+         else{
+           zspot =  log(pressure/pspot[ispot])/cspot_down[ispot];
+         }
+         rr += zspot*zspot;
+
+         /*
+          * Kind of kludgie, but when ispot = even, perturb U and when odd, perturb V
+          */
+         if ((ispot%2) == 0) {
+           PERT_U(K,J,I) += ampspot[ispot]*exp(-rr);
+         }
+         else {
+           PERT_V(K,J,I) += ampspot[ispot]*exp(-rr);
+         }
+       }
+     }
+   }
+ }
+
+ /* Need to apply bc_lateral() here. */
+ bc_lateral(pert_u,THREEDIM);
+ bc_lateral(pert_v,THREEDIM);
+
+ /*
+  * Modify U and V.
+  *
+  * NOTE: Not MPI ready.
+  */
+ printf("add_noise: Modifing U and V ... \n");
+ for (K = KLO; K <= KHI; K++) {
+   for (J = JLO; J <= JHI; J++) {
+     jj = 2*J+1;
+     for (I = ILO; I <= IHI; I++) {
+       U(grid.it_uv,K,J,I) += PERT_U(K,J,I);
+     }
+   }
+   /* Need to apply bc_lateral() here. */
+   bc_lateral(var.u.value+grid.it_uv*Nelem3d,THREEDIM);
+
+   for (J = JFIRST; J <= JHI; J++) {
+     jj = 2*J;
+     for (I = ILO; I <= IHI; I++) {
+       V(grid.it_uv,K,J,I) += PERT_V(K,J,I);
+     }
+   }
+
+   /* Need to apply bc_lateral() here. */
+   bc_lateral(var.v.value+grid.it_uv*Nelem3d,THREEDIM);
+
+ } /* (end loop over K) */
+
+
+ fprintf(stdout,"done.\n"); fflush(stdout);
+
+ /* Free allocated memory: */
+ free_dvector(pert_u,    0,Nelem3d-1,dbmsname);
+ free_dvector(pert_v,    0,Nelem3d-1,dbmsname);
+ free_dvector(ampspot,   0,nspots-1, dbmsname);
+ free_dvector(cspot_down,0,nspots-1, dbmsname);
+ free_dvector(cspot_up,  0,nspots-1, dbmsname);
+ free_dvector(bspot,     0,nspots-1, dbmsname);
+ free_dvector(aspot,     0,nspots-1, dbmsname);
+ free_dvector(pspot,     0,nspots-1, dbmsname);
+ free_dvector(latspot,   0,nspots-1, dbmsname);
+ free_dvector(lonspot,   0,nspots-1, dbmsname);
+
+ return;
+}
+
+/*======================= end of add_noise() ================================*/
 
 /*======================= add_waves() =======================================*/
 
