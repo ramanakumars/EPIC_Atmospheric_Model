@@ -2843,15 +2843,15 @@ void trim_species(int     is,
         rh_ji = RH(J,I);
         qij   = Q(is, VAPOR, K, J, I);
 
-          supersat = 0.;
-        if(fcmp(rh_ji,rh_trim) > 0) {
+        supersat = 0.;
+        if(fcmp(rh_ji,*rh_max) > 0) {
           // calculate the amount of supersaturation
-          supersat = MAX(qij*(1.-rh_trim/rh_ji),0.);
+          supersat = MAX(qij*(1.-*rh_max/rh_ji),0.);
           Q(is,VAPOR,K,J,I) = qij-supersat;
         } else {
           Q(is,VAPOR,K,J,I) = qij;
         }
-        // fprintf(stdout, "change %d %d %d %.5e %.3e %.3e\n",K,J,I,supersat,Q(is,VAPOR,K,J,I),qij);
+        // fprintf(stdout, "change %d %d %d rh_max: %.3e supersat: %.5e q_new: %.3e rh: %.3e q_old: %.3e\n",K,J,I,rh_trim,supersat,Q(is,VAPOR,K,J,I),rh_ji,qij);
 
       }
     } 

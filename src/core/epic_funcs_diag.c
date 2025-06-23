@@ -939,10 +939,7 @@ void make_arrays(void)
     if (var.species[is].on) {
       for (ip = FIRST_PHASE; ip <= LAST_PHASE; ip++) {
         if (var.species[is].phase[ip].on) {
-          if (grid.cloud_microphysics == ACTIVE ||
-              ip == VAPOR) {
-            grid.nq++;
-          }
+          grid.nq++;
         }
       }
     }
@@ -962,12 +959,9 @@ void make_arrays(void)
       if (var.species[is].on) {
         for (ip = FIRST_PHASE; ip <= LAST_PHASE; ip++) {
           if (var.species[is].phase[ip].on) {
-            if (grid.cloud_microphysics == ACTIVE ||
-                ip == VAPOR) {
               grid.is[itmp] = is;
               grid.ip[itmp] = ip;
               itmp++;
-            }
           }
         }
       }
@@ -7161,7 +7155,7 @@ void turn_on_phases(void)
 
       var.species[H_2O_INDEX].phase[VAPOR].on = TRUE;
 
-      if (grid.cloud_microphysics == ACTIVE) {
+      if (grid.cloud_microphysics != OFF) {
         var.species[NH_3_INDEX].phase[LIQUID].on = TRUE;
         var.species[NH_3_INDEX].phase[ICE   ].on = TRUE;
         var.species[NH_3_INDEX].phase[RAIN  ].on = TRUE;
@@ -7182,7 +7176,7 @@ void turn_on_phases(void)
         var.species[H_2O_INDEX].phase[RAIN  ].on = TRUE;
         var.species[H_2O_INDEX].phase[SNOW  ].on = TRUE;
       }
-      else if (grid.cloud_microphysics == PASSIVE) {
+      else {
         var.species[NH_3_INDEX].phase[LIQUID].on = FALSE;
         var.species[NH_3_INDEX].phase[ICE   ].on = FALSE;
         var.species[NH_3_INDEX].phase[RAIN  ].on = FALSE;

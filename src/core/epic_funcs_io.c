@@ -341,7 +341,7 @@ void read_array(int   node,
       }
       nc_err = nc_inq_varid(nc_id,the_name,&nc_varid);
       if (nc_err != NC_NOERR) {
-        sprintf(Message,"%s",nc_strerror(nc_err));
+        sprintf(Message,"%s  variable: %s",nc_strerror(nc_err), name);
         epic_error(dbmsname,Message);
       }
 
