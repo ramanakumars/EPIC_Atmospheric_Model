@@ -2831,7 +2831,9 @@ void trim_species(int     is,
 
   /* RS 09/16/2019 ask for the maximum relative humidity */
   sprintf(prompt, "Input maximum initial relative humidity for %s [1.=sat]\n",var.species[is].info[0].name);
-  *rh_max = input_double(prompt, *rh_max, prompt_mode == USE_PROMPTS ? 1 : 0);
+  *rh_max = rh_trim = input_double(prompt, *rh_max, prompt_mode == USE_PROMPTS ? 1 : 0);
+
+  fprintf(stdout, "%.3e\n", rh_trim);
 
   rh = dvector(0,Nelem2d-1,dbmsname);
   for(K=KHI; K>=0; K--) {
@@ -2846,7 +2848,7 @@ void trim_species(int     is,
         supersat = 0.;
         if(fcmp(rh_ji,*rh_max) > 0) {
           // calculate the amount of supersaturation
-          supersat = MAX(qij*(1.-*rh_max/rh_ji),0.);
+          supersat = MAX(qij*(1.-rh_trim/rh_ji),0.);
           Q(is,VAPOR,K,J,I) = qij-supersat;
         } else {
           Q(is,VAPOR,K,J,I) = qij;

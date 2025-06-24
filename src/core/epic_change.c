@@ -635,6 +635,10 @@ int main(int   argc,
     store_diag();
   }
 
+  if (noise) {
+    add_noise(noise_file);
+  }
+
   /*
    * Add thermal perturbation if requested:
    */
