@@ -1813,27 +1813,19 @@ void var_write(char         *outfile,
     /*
      * Write parameter and key diagnostic arrays.
      */
-    if (var.phi_surface.on) {
-      if ((portion == EXTRACT_DATA && var.phi_surface.extract_on) ||
-          (portion != EXTRACT_DATA)                                 ) {
-        write_array(node,TWODIM,start,end,stretch_ni,var.phi_surface.info[0].name,
-                    var.phi_surface.info[0].index,var.phi_surface.value,DOUBLE_ARRAY,nc_id);
-      }
-    }
-
-    if (var.pbot.on) {
-      if ((portion == EXTRACT_DATA && var.pbot.extract_on) ||
-          (portion != EXTRACT_DATA)                          ) {
-        write_array(node,TWODIM,start,end,stretch_ni,var.pbot.info[0].name,
-                    var.pbot.info[0].index,var.pbot.value,DOUBLE_ARRAY,nc_id);
-      }
-    }
-
     if (var.dzdt2.on) {
       if ((portion == EXTRACT_DATA && var.dzdt2.extract_on) ||
           (portion != EXTRACT_DATA)                           ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.dzdt2.info[0].name,
                     var.dzdt2.info[0].index,var.dzdt2.value,DOUBLE_ARRAY,nc_id);
+      }
+    }
+
+    if (var.phi_surface.on) {
+      if ((portion == EXTRACT_DATA && var.phi_surface.extract_on) ||
+          (portion != EXTRACT_DATA)                                 ) {
+        write_array(node,TWODIM,start,end,stretch_ni,var.phi_surface.info[0].name,
+                    var.phi_surface.info[0].index,var.phi_surface.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
@@ -1853,6 +1845,14 @@ void var_write(char         *outfile,
           (portion != EXTRACT_DATA)                              ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.u_spinup.info[0].name,
                     var.u_spinup.info[0].index,var.u_spinup.value,DOUBLE_ARRAY,nc_id);
+      }
+    }
+
+    if (var.pbot.on) {
+      if ((portion == EXTRACT_DATA && var.pbot.extract_on) ||
+          (portion != EXTRACT_DATA)                          ) {
+        write_array(node,TWODIM,start,end,stretch_ni,var.pbot.info[0].name,
+                    var.pbot.info[0].index,var.pbot.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
@@ -2160,6 +2160,26 @@ void var_write(char         *outfile,
         /* No need to apply bc_lateral() here. */
         write_array(node,FOURDIM,start,end,stretch_ni,var.molar_mass3.info[0].name,
                     var.molar_mass3.info[0].index,var.molar_mass3.value,DOUBLE_ARRAY,nc_id);
+      }
+
+      if (var.Nsquared2.extract_on) {
+        if (!var.Nsquared2.on) {
+          /* Calculate variable here and store in BUFF3D memory. */
+          var.Nsquared2.value = buff3d;
+          for (J = JLO; J <= JHI; J++) {
+            for (I = ILO; I <= IHI; I++) {
+              for (K = KLO; K <= KHI; K++) {
+                BUFF3D(K,J,I) = get_brunt2(2*K,J,I);
+              }
+              /* Cosmetic value at K = 0 */
+              K = 0;
+              BUFF3D(K,J,I) = BUFF3D(K+1,J,I);
+            }
+          }
+          /* No need to apply bc_lateral() here */
+        }
+        write_array(node,FOURDIM,start,end,stretch_ni,var.Nsquared2.info[0].name,
+                    var.Nsquared2.info[0].index,var.Nsquared2.value,DOUBLE_ARRAY,nc_id);
       }
 
       /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -3133,9 +3153,6 @@ void define_netcdf(int portion,
     if (var.mont2.extract_on) {
       DEFINE_NC_VAR(mont2,h,num,on_array,NEEDS_STANDARD_NAME);
     }
-    if (var.ri2.extract_on) {
-      DEFINE_NC_VAR(ri2,h,num,on_array,NEEDS_STANDARD_NAME);
-    }
     if (var.heat3.extract_on) {
       DEFINE_NC_VAR(heat3,p3,num,on_array,NEEDS_STANDARD_NAME);
     }
@@ -3175,6 +3192,12 @@ void define_netcdf(int portion,
     if (var.molar_mass3.extract_on) {
       DEFINE_NC_VAR(molar_mass3,p3,num,on_array,NEEDS_STANDARD_NAME);
     }
+    if (var.Nsquared2.extract_on) {
+      DEFINE_NC_VAR(Nsquared2,h,num,on_array,HAS_STANDARD_NAME);
+    }
+    if (var.ri2.extract_on) {
+      DEFINE_NC_VAR(ri2,h,num,on_array,NEEDS_STANDARD_NAME);
+    }
     if (var.div_uv2.extract_on) {
       DEFINE_NC_VAR(div_uv2,h,num,on_array,HAS_STANDARD_NAME);
     }
@@ -3212,21 +3235,24 @@ void define_netcdf(int portion,
     }
   }
 
-  if (var.pbot.on) {
-    if ((portion == EXTRACT_HEADER_DATA && var.pbot.extract_on) ||
-        (portion != EXTRACT_HEADER_DATA)                                ) {
-      DEFINE_NC_JI(pbot,h,NEEDS_STANDARD_NAME);
-    }
-  }
-
   if (var.gravity2.on) {
-    DEFINE_NC_KJ(gravity2,h,NEEDS_STANDARD_NAME);
+    if ((portion == EXTRACT_HEADER_DATA && var.gravity2.extract_on) ||
+        (portion != EXTRACT_HEADER_DATA)                              ) {
+      DEFINE_NC_KJ(gravity2,h,NEEDS_STANDARD_NAME);
+    }
   }
 
   if (var.u_spinup.on) {
     if ((portion == EXTRACT_HEADER_DATA && var.u_spinup.extract_on) ||
         (portion != EXTRACT_HEADER_DATA)                           ) {
       DEFINE_NC_VAR(u_spinup,u,num,on_array,HAS_STANDARD_NAME);
+    }
+  }
+
+  if (var.pbot.on) {
+    if ((portion == EXTRACT_HEADER_DATA && var.pbot.extract_on) ||
+        (portion != EXTRACT_HEADER_DATA)                                ) {
+      DEFINE_NC_JI(pbot,h,NEEDS_STANDARD_NAME);
     }
   }
 
@@ -3696,6 +3722,7 @@ void prompt_extract_on(char *def_extract_str,
     PRINT_EXTRACT_ON(eddy_pv2,EDDY_PV2_INDEX);
   }
   PRINT_EXTRACT_ON(molar_mass3,MOLAR_MASS3_INDEX);
+  PRINT_EXTRACT_ON(Nsquared2,NSQUARED2_INDEX);
   PRINT_EXTRACT_ON(ri2,RI2_INDEX);
   PRINT_EXTRACT_ON(rel_vort2,REL_VORT2_INDEX);
   PRINT_EXTRACT_ON(eddy_rel_vort2,EDDY_REL_VORT2_INDEX);
@@ -3718,6 +3745,8 @@ void prompt_extract_on(char *def_extract_str,
   }
 
   if (var.phi_surface.on) {PRINT_EXTRACT_ON(phi_surface,PHI_SURFACE_INDEX);}
+  PRINT_EXTRACT_ON(gravity2,GRAVITY2_INDEX);
+
   fprintf(stdout,"\n");
   sprintf(Message,"On one line, input the indices of variables to be included in extract.nc\n");
   input_string(Message,def_extract_str,extract_str,modify);
@@ -3762,6 +3791,7 @@ void prompt_extract_on(char *def_extract_str,
         case PV2_INDEX:                  var.pv2.extract_on                  = TRUE; break;
         case EDDY_PV2_INDEX:             var.eddy_pv2.extract_on             = TRUE; break;
         case MOLAR_MASS3_INDEX:          var.molar_mass3.extract_on          = TRUE; break;
+        case NSQUARED2_INDEX:            var.Nsquared2.extract_on            = TRUE; break;
         case RI2_INDEX:                  var.ri2.extract_on                  = TRUE; break;
         case REL_VORT2_INDEX:            var.rel_vort2.extract_on            = TRUE; break;
         case EDDY_REL_VORT2_INDEX:       var.eddy_rel_vort2.extract_on       = TRUE; break;
@@ -3777,6 +3807,7 @@ void prompt_extract_on(char *def_extract_str,
         case HEAT_MC_INDEX:              var.heat_mc.extract_on              = TRUE; break;
         case CLOUD_BASE_INDEX:           var.cloud_base.extract_on           = TRUE; break;
         case PHI_SURFACE_INDEX:          var.phi_surface.extract_on          = TRUE; break;
+        case GRAVITY2_INDEX:             var.gravity2.extract_on             = TRUE; break;
         case PBOT_INDEX:                 var.pbot.extract_on                 = TRUE; break;
         default:
           if (index < FIRST_SPECIES || index > LAST_SPECIES) {
@@ -5215,7 +5246,3 @@ void declare_copyright(void)
 /*======================= end of declare_copyright() =========================*/
 
 /* * * * * * * * * * * * *  end of epic_funcs_io.c  * * * * * * * * * * * * * */
-
-
-
-
