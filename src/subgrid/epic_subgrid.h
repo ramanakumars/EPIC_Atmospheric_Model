@@ -44,7 +44,7 @@
  * Shift macros.
  */
 #define D_WALL(k,j,i)   d_wall[   i+(j)*Iadim+(k)*Nelem2d-Shift3d]
-#define DIFF_COEF(j,i)  diff_coef[i+(j)*Iadim-Shift2d]
+#define DIFF_COEF(k,j,i)  diff_coef[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 #define TAU11(j,i)      tau11[    i+(j)*Iadim-Shift2d]
 #define TAU22(j,i)      tau22[    i+(j)*Iadim-Shift2d]
 #define TAU33(j,i)      tau33[    i+(j)*Iadim-Shift2d]
@@ -53,7 +53,7 @@
 #define KIE(j,i)        kie[      i+(j)*Iadim-Shift2d]
 #define TAU_WALL(j,i)   tau_wall[ i+(j)*Iadim-Shift2d]
 
-#define LPHH(j,i)  lphh[ i+(j)*Iadim-Shift2d]
+#define LPHH(k,j,i)  lphh[ i+(j)*Iadim+(k)*Nelem2d-Shift3d]
 #define LPUU(j,i)  lpuu[ i+(j)*Iadim-Shift2d]
 #define LPVV(j,i)  lpvv[ i+(j)*Iadim-Shift2d]
 
@@ -84,12 +84,10 @@ void scalar_hyperviscosity(int      nu_order,
 
 void adiabatic_adjustment(void);
 
-void laplacian_h(int     kk,
+void laplacian_h(int     kstart, int kend,
                  double *hh,
                  double *diff_coeff,
-                 double *lph,
-                 double *buff1,
-                 double *buff2);
+                 double *lph);
 
 void scalar_vertical_subgrid(double **Buff2D);
 
