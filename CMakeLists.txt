@@ -32,7 +32,6 @@ add_subdirectory(src/mpi/mpg)
 add_subdirectory(src/rt/cdisort)
 
 set(LIBS -lm cdisort)
-set(INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 add_executable(epic ${SRC_FILES} ${SINGLE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/src/core/epic_main.c)
 add_executable(change ${SRC_FILES} ${SINGLE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/src/core/epic_change.c)
@@ -40,29 +39,9 @@ add_executable(initial ${SRC_FILES} ${SINGLE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/
 add_executable(mpi_epic ${SRC_FILES} ${MPI_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/src/core/epic_main.c)
 
 find_library(NETCDF_LIB NAMES netcdf)
-if(NOT NETCDF_LIB)
-    include(ExternalProject)
-    ExternalProject_Add(netCDF 
-        URL https://github.com/Unidata/netcdf-c/archive/refs/tags/v4.9.2.zip
-        PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/
-        CMAKE_ARGS 
-            -DENABLE_DAP=0
-            -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/netcdf/
-    )
-    
-    add_dependencies(epic netCDF)
-    add_dependencies(mpi_epic netCDF)
-    add_dependencies(change netCDF)
-    add_dependencies(initial netCDF)
-
-    SET(INCLUDES ${INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/include)
-    target_link_libraries(epic ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
-    target_link_libraries(mpi_epic ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
-    target_link_libraries(initial ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
-    target_link_libraries(change ${CMAKE_CURRENT_SOURCE_DIR}/netcdf/lib64/libnetcdf.so)
-else()
-    SET(LIBS ${LIBS} netcdf)
-endif()
+find_path(NETCDF_INCLUDES netcdf.h)
+SET(LIBS ${LIBS} ${NETCDF_LIB})
+set(INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include ${NETCDF_INCLUDES})
 
 message("LIST OF INCLUDES: ")
 message(${INCLUDES})
