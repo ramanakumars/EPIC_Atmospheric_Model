@@ -199,28 +199,32 @@ void timestep(int      action,
 
       if (var.h.on) {
         zonal_filter(H_INDEX,var.h.value+shift);
-        restore_mass(H_INDEX,NO_PHASE);
       }
 
       if (var.theta.on) {
         zonal_filter(THETA_INDEX,var.theta.value+shift);
-        restore_mass(THETA_INDEX,NO_PHASE);
       }
 
       if (var.fpara.on) {
         zonal_filter(FPARA_INDEX,var.fpara.value+shift);
-        restore_mass(FPARA_INDEX,NO_PHASE);
       }
 
       if (var.nu_turb.on) {
         zonal_filter(NU_TURB_INDEX,var.nu_turb.value+shift);
-        restore_mass(NU_TURB_INDEX,NO_PHASE);
       }
 
       for (iq = 0; iq < grid.nq; iq++) {
         zonal_filter(grid.is[iq],var.species[grid.is[iq]].phase[grid.ip[iq]].q+shift);
-        restore_mass(grid.is[iq],grid.ip[iq]);
       }
+    }
+
+    if(var.h.on) restore_mass(H_INDEX,NO_PHASE);
+    if(var.theta.on) restore_mass(THETA_INDEX,NO_PHASE);
+    if(var.fpara.on) restore_mass(FPARA_INDEX,NO_PHASE);
+    if(var.nu_turb.on) restore_mass(NU_TURB_INDEX,NO_PHASE);
+    
+    for(iq = 0; iq < grid.nq; iq++) {
+        restore_mass(grid.is[iq],grid.ip[iq]);
     }
 
     /*
