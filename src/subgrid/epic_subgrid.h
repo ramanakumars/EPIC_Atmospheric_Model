@@ -26,7 +26,7 @@
 #ifndef EPIC_SUBGRID_H
 #define EPIC_SUBGRID_H
 
-/* * * * * * * * * * * * * epic_subgrid.h  * * * * * * * * * * * * * 
+/* * * * * * * * * * * * * epic_subgrid.h  * * * * * * * * * * * * *
  *                                                                 *
  *       TE Dowling, VK Parimi, RP LeBeau,                         *
  *                                                                 *
@@ -38,29 +38,29 @@
  * Defines.
  */
 #define NU_TURB_EPSILON (1.e-3)
-#define NU_TURB_MIN (1.e-3*planet->kinvisc)
+#define NU_TURB_MIN (1.e-3 * planet->kinvisc)
 
 /*
  * Shift macros.
  */
-#define D_WALL(k,j,i)   d_wall[   i+(j)*Iadim+(k)*Nelem2d-Shift3d]
-#define DIFF_COEF(k,j,i)  diff_coef[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
-#define TAU11(j,i)      tau11[    i+(j)*Iadim-Shift2d]
-#define TAU22(j,i)      tau22[    i+(j)*Iadim-Shift2d]
-#define TAU33(j,i)      tau33[    i+(j)*Iadim-Shift2d]
-#define TAU12(j,i)      tau12[    i+(j)*Iadim-Shift2d]
-#define DIE(j,i)        die[      i+(j)*Iadim-Shift2d]
-#define KIE(j,i)        kie[      i+(j)*Iadim-Shift2d]
-#define TAU_WALL(j,i)   tau_wall[ i+(j)*Iadim-Shift2d]
+#define D_WALL(k, j, i) d_wall[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
+#define DIFF_COEF(k, j, i) diff_coef[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
+#define TAU11(j, i) tau11[i + (j) * Iadim - Shift2d]
+#define TAU22(j, i) tau22[i + (j) * Iadim - Shift2d]
+#define TAU33(j, i) tau33[i + (j) * Iadim - Shift2d]
+#define TAU12(j, i) tau12[i + (j) * Iadim - Shift2d]
+#define DIE(j, i) die[i + (j) * Iadim - Shift2d]
+#define KIE(j, i) kie[i + (j) * Iadim - Shift2d]
+#define TAU_WALL(j, i) tau_wall[i + (j) * Iadim - Shift2d]
 
-#define LPHH(k,j,i)  lphh[ i+(j)*Iadim+(k)*Nelem2d-Shift3d]
-#define LPUU(j,i)  lpuu[ i+(j)*Iadim-Shift2d]
-#define LPVV(j,i)  lpvv[ i+(j)*Iadim-Shift2d]
+#define LPHH(k, j, i) lphh[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
+#define LPUU(k, j, i) lpuu[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
+#define LPVV(k, j, i) lpvv[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 
-#define BUFF1(j,i) buff1[i+(j)*Iadim-Shift2d]
-#define BUFF2(j,i) buff2[i+(j)*Iadim-Shift2d]
+#define BUFF1(j, i) buff1[i + (j) * Iadim - Shift2d]
+#define BUFF2(j, i) buff2[i + (j) * Iadim - Shift2d]
 
-#define COEF(itmp,j,i) coef[itmp][i+(j)*Iadim-Shift2d]
+#define COEF(itmp, j, i) coef[itmp][i + (j) * Iadim - Shift2d]
 
 /*
  * Function prototypes.
@@ -75,19 +75,12 @@ void scalar_horizontal_subgrid(double **Buff2D);
 
 void scalar_horizontal_diffusion(double **Buff2D);
 
-void scalar_hyperviscosity(int      nu_order,
-                           double   nu_hyper,
-                           double **Buff2D,
-                           int      kstart,
-                           int      kend,
-                           double  *h);
+void scalar_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D, int kstart, int kend,
+                           double *h);
 
 void adiabatic_adjustment(void);
 
-void laplacian_h(int     kstart, int kend,
-                 double *hh,
-                 double *diff_coeff,
-                 double *lph);
+void laplacian_h(int kstart, int kend, double *hh, double *diff_coeff, double *lph);
 
 void scalar_vertical_subgrid(double **Buff2D);
 
@@ -97,22 +90,12 @@ void uv_horizontal_subgrid(double **Buff2D);
 
 void uv_horizontal_diffusion(double **Buff2D);
 
-void divergence_damping(int          K,
-                        double       nudiv_nondim,
-                        double     **Buff2D);
+void divergence_damping(int K, double nudiv_nondim, double **Buff2D);
 
-void uv_hyperviscosity(int      nu_order,
-                       double   nu_hyper,
-                       double **Buff2D);
+void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D);
 
-void laplacian_uv(int     K,
-                  double *uu,
-                  double *vv,
-                  double  viscosity,
-                  double *lpuu,
-                  double *lpvv,
-                  double *buff1,
-                  double *buff2);
+void laplacian_uv(int kstart, int kend, double *uu, double *vv, double viscosity, double *lpuu,
+                  double *lpvv);
 
 void uv_vertical_subgrid(double **Buff2D);
 
@@ -130,25 +113,17 @@ void source_sink_turb(double **Buff2D);
 
 void source_sink_SA(double **Buff2D);
 
-void dwall_SA(double  *d_wall);
+void dwall_SA(double *d_wall);
 
 void fp_init_prof(void);
-      
+
 double delta_SA(int K, int J, int I);
 
-void tau_surface(int     index,
-                 double *tau_wall,
-                 double *buffji); 
+void tau_surface(int index, double *tau_wall, double *buffji);
 
-double law_of_the_wall(int    K,
-                       int    J,
-                       int    I,
-                       int    index,
-                       double u_tan);
+double law_of_the_wall(int K, int J, int I, int index, double u_tan);
 
-double func_utau(double u_tau,
-                 double u_tan,
-                 double dwall);
+double func_utau(double u_tau, double u_tan, double dwall);
 
 double invert_fv1(double t_vis);
 

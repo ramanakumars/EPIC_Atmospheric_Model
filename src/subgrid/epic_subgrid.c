@@ -886,7 +886,7 @@ void laplacian_h(int kstart, int kend, double *hh, double *diff_coef,
 
 void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D) {
   int K, J, I, kk, kstart, kend, itmp, sign;
-  double *uu, *vv, *lpuu, *lpvv, *buff1, *buff2, *ptmp;
+  static double *uu, *vv, *lpuu, *lpvv, *ptmp;
   double visc_coef;
   register double rln, taper, tmp;
   static double max_nu_horizontal[MAX_NU_ORDER + 1];
@@ -908,6 +908,11 @@ void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D) {
             sqrt(1. + SQR(grid.rp[K] / grid.re[K] * tan(LAT0 * DEG)));
       m0[K] = 1. / (rln * grid.dln * DEG);
     }
+    uu = dvector(0, Nelem3d - 1, dbmsname);
+    vv = dvector(0, Nelem3d - 1, dbmsname);
+    lpuu = dvector(0, Nelem3d - 1, dbmsname);
+    lpvv = dvector(0, Nelem3d - 1, dbmsname);
+    ptmp = dvector(0, Nelem3d - 1, dbmsname);
 
     initialized = TRUE;
   }
@@ -924,13 +929,6 @@ void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D) {
     epic_error(dbmsname, Message);
   }
 
-  uu = Buff2D[0];
-  vv = Buff2D[1];
-  lpuu = Buff2D[2];
-  lpvv = Buff2D[3];
-  buff1 = Buff2D[4];
-  buff2 = Buff2D[5];
-
   /*
    * Factor hyperviscosity coefficient to avoid overflow/underflow.
    */
@@ -944,39 +942,36 @@ void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D) {
    */
   kstart = KLO;
   kend = KHI;
+  /*
+   * Copy U and V into LPUU and LPVV.
+   *
+   * NOTE: Do not use grid.it_uv_dis here, which enables the lagged
+   * bookkeeping that yields numerical stability for the leapfrog scheme,
+   * since the hyperviscosity is applied directly to the variables, with a
+   * forward (Euler) step.
+   */
+  memcpy(lpuu, var.u.value + grid.it_uv * Nelem3d, Nelem3d * sizeof(double));
+  memcpy(lpvv, var.v.value + grid.it_uv * Nelem3d, Nelem3d * sizeof(double));
 
+  sign = -1;
+  for (itmp = 2; itmp <= nu_order; itmp += 2) {
+    sign *= -1;
+    ptmp = uu;
+    uu = lpuu;
+    lpuu = ptmp;
+    ptmp = vv;
+    vv = lpvv;
+    lpvv = ptmp;
+
+    laplacian_uv(kstart, kend, uu, vv, visc_coef, lpuu, lpvv);
+  }
+
+  /*
+   * Apply hyperviscosity. Use a forward (Euler) step.
+   */
   for (K = kstart; K <= kend; K++) {
     kk = 2 * K;
 
-    /*
-     * Copy U and V into LPUU and LPVV.
-     *
-     * NOTE: Do not use grid.it_uv_dis here, which enables the lagged
-     * bookkeeping that yields numerical stability for the leapfrog scheme,
-     * since the hyperviscosity is applied directly to the variables, with a
-     * forward (Euler) step.
-     */
-    memcpy(lpuu, var.u.value + (K - Kshift) * Nelem2d + grid.it_uv * Nelem3d,
-           Nelem2d * sizeof(double));
-    memcpy(lpvv, var.v.value + (K - Kshift) * Nelem2d + grid.it_uv * Nelem3d,
-           Nelem2d * sizeof(double));
-
-    sign = -1;
-    for (itmp = 2; itmp <= nu_order; itmp += 2) {
-      sign *= -1;
-      ptmp = uu;
-      uu = lpuu;
-      lpuu = ptmp;
-      ptmp = vv;
-      vv = lpvv;
-      lpvv = ptmp;
-
-      laplacian_uv(K, uu, vv, visc_coef, lpuu, lpvv, buff1, buff2);
-    }
-
-    /*
-     * Apply hyperviscosity. Use a forward (Euler) step.
-     */
     for (J = JLO; J <= JHI; J++) {
       /*
        * Taper viscosity coefficient to prevent numerical instability
@@ -987,7 +982,7 @@ void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D) {
 
       tmp = DT * (double)sign * taper;
       for (I = ILO; I <= IHI; I++) {
-        U(grid.it_uv, K, J, I) += tmp * LPUU(J, I);
+        U(grid.it_uv, K, J, I) += tmp * LPUU(K, J, I);
       }
     }
 
@@ -1000,7 +995,7 @@ void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D) {
 
       tmp = DT * (double)sign * taper;
       for (I = ILO; I <= IHI; I++) {
-        V(grid.it_uv, K, J, I) += tmp * LPVV(J, I);
+        V(grid.it_uv, K, J, I) += tmp * LPVV(K, J, I);
       }
     }
   }
@@ -1031,11 +1026,12 @@ void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D) {
  *  Pointers to memory for two working JI-plane buffers
  *  are passed in as buff1 and buff2.
  */
-void laplacian_uv(int K, double *uu, double *vv, double viscosity, double *lpuu,
-                  double *lpvv, double *buff1, double *buff2) {
-  int J, I, kk = 2 * K;
+void laplacian_uv(int kstart, int kend, double *uu, double *vv,
+                  double viscosity, double *lpuu, double *lpvv) {
+  static int initialized;
+  int J, I, K, kk;
   double m_2j, n_2j, m_2jp1, n_2jp1;
-  double *ze, *di;
+  static double *ze, *di;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
    */
@@ -1054,44 +1050,58 @@ void laplacian_uv(int K, double *uu, double *vv, double viscosity, double *lpuu,
     epic_error(dbmsname, Message);
   }
 
-  ze = buff1;
-  di = buff2;
+  if (!initialized) {
+    ze = dvector(0, Nelem3d - 1, dbmsname);
+    di = dvector(0, Nelem3d - 1, dbmsname);
+  }
 
   /*
    * Calculate relative vorticity, ze, and horizontal divergence, di.
    */
-  vorticity(ON_SIGMATHETA, RELATIVE, kk, uu, vv, NULL, ze);
-  divergence(kk, uu, vv, di);
+
+  for (K = kstart; K <= kend; K++) {
+    kk = 2 * K;
+    vorticity(ON_SIGMATHETA, RELATIVE, kk, uu + (K - Kshift) * Nelem2d,
+              vv + (K - Kshift) * Nelem2d, NULL, ze + (K - Kshift) * Nelem2d);
+    divergence(kk, uu + (K - Kshift) * Nelem2d, vv + (K - Kshift) * Nelem2d,
+               di + (K - Kshift) * Nelem2d);
+  }
 
   /* Zero output arrays */
-  memset(lpuu, 0, Nelem2d * sizeof(double));
-  memset(lpvv, 0, Nelem2d * sizeof(double));
+  memset(lpuu, 0, Nelem3d * sizeof(double));
+  memset(lpvv, 0, Nelem3d * sizeof(double));
 
   /*
    * Compute zonal component of the Laplacian.
    */
-  for (J = JLO; J <= JHI; J++) {
-    m_2jp1 = viscosity * grid.m[kk][2 * J + 1];
-    n_2jp1 = viscosity * grid.n[kk][2 * J + 1];
-    for (I = ILO; I <= IHI; I++) {
-      LPUU(J, I) = -n_2jp1 * (ZE(J + 1, I) - ZE(J, I)) +
-                   m_2jp1 * (DI(J, I) - DI(J, I - 1));
+  for (K = kstart; K <= kend; K++) {
+    kk = 2 * K;
+    for (J = JLO; J <= JHI; J++) {
+      m_2jp1 = viscosity * grid.m[kk][2 * J + 1];
+      n_2jp1 = viscosity * grid.n[kk][2 * J + 1];
+      for (I = ILO; I <= IHI; I++) {
+        LPUU(K, J, I) = -n_2jp1 * (ZE(K, J + 1, I) - ZE(K, J, I)) +
+                        m_2jp1 * (DI3D(K, J, I) - DI3D(K, J, I - 1));
+      }
     }
   }
-  bc_lateral(lpuu, TWODIM);
+  bc_lateral(lpuu, THREEDIM);
 
   /*
    * Compute meridional component of the Laplacian.
    */
-  for (J = JFIRST; J <= JHI; J++) {
-    m_2j = viscosity * grid.m[kk][2 * J];
-    n_2j = viscosity * grid.n[kk][2 * J];
-    for (I = ILO; I <= IHI; I++) {
-      LPVV(J, I) =
-          m_2j * (ZE(J, I + 1) - ZE(J, I)) + n_2j * (DI(J, I) - DI(J - 1, I));
+  for (K = kstart; K <= kend; K++) {
+    kk = 2 * K;
+    for (J = JFIRST; J <= JHI; J++) {
+      m_2j = viscosity * grid.m[kk][2 * J];
+      n_2j = viscosity * grid.n[kk][2 * J];
+      for (I = ILO; I <= IHI; I++) {
+        LPVV(K, J, I) = m_2j * (ZE(K, J, I + 1) - ZE(K, J, I)) +
+                        n_2j * (DI3D(K, J, I) - DI3D(K, J - 1, I));
+      }
     }
   }
-  bc_lateral(lpvv, TWODIM);
+  bc_lateral(lpvv, THREEDIM);
 
   /*
    * NOTE: The domain's northern and southern boundaries of LPVV(J,I)

@@ -143,7 +143,7 @@
 #define SQRT15 3.8729833462074170
 #define ONE_3 0.3333333333333333
 
-#undef  DEG
+#undef DEG
 #define DEG (M_PI / 180.)
 
 #define DT ((double)grid.dt)
@@ -595,7 +595,8 @@ extern int Ishift, Jshift, Kshift, Iadim, Jadim, Kadim, Nelem2d, Nelem3d, Shift2
 #define VV(j, i) vv[i + (j) * Iadim - Shift2d]
 #define HH(j, i) hh[i + (j) * Iadim - Shift2d]
 #define HH3D(k, j, i) hh[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
-#define ZE(j, i) ze[i + (j) * Iadim - Shift2d]
+#define ZE(k, j, i) ze[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
+#define DI3D(k, j, i) di[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define DI(j, i) di[i + (j) * Iadim - Shift2d]
 #define DIV(j, i) div[i + (j) * Iadim - Shift2d]
 #define GH1(k, j, i) gh1[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
@@ -693,12 +694,12 @@ void init_with_ref(void);
 
 void init_fpara_as_fpe(void);
 
-void init_species(  init_defaultspec   *def, int prompt_mode);
+void init_species(init_defaultspec *def, int prompt_mode);
 void change_species(change_defaultspec *def, int prompt_mode, int reinit_mode);
 
 void init_vmr_via_deep_value(int is, double *x, double *mole_fraction,
-                             double *mole_fraction_over_solar, double *rh_max, 
-                             double *vmr_slope, double *vmr_pcrit, int prompt_mode);
+                             double *mole_fraction_over_solar, double *rh_max, double *vmr_slope,
+                             double *vmr_pcrit, int prompt_mode);
 
 void init_vmr_via_obs(int is, double *x, double *mole_fraction, int prompt_mode);
 
@@ -803,7 +804,8 @@ void read_spacing_file(init_defaultspec *def, int mode);
 
 int read_t_vs_p(int portion);
 
-void read_meridional_plane(char *infile, int portion, int *np, int *nlat, double *logp, double *lat, double *value);
+void read_meridional_plane(char *infile, int portion, int *np, int *nlat, double *logp, double *lat,
+                           double *value);
 
 double t_yp(double p, double latr, int mode, init_defaultspec *def);
 
@@ -880,7 +882,8 @@ double return_density(double fp, double p, double theta, double mu, int temp_typ
 
 double p_from_t_rho_mu(double temperature, double rho, double mu);
 
-double return_theta(double fp, double p, double temperature, double *theta_ortho, double *theta_para);
+double return_theta(double fp, double p, double temperature, double *theta_ortho,
+                    double *theta_para);
 
 double return_press(double fp, double temperature, double theta);
 
@@ -929,7 +932,8 @@ extern double ERC_J2, ERC_c3w2_GM;
 
 double p_sigmatheta(double theta, double sigmatheta, double pbot, double hi_p, double lo_p);
 
-double return_enthalpy(double fp, double pressure, double temperature, double *fgibb, double *fpe, double *uoup);
+double return_enthalpy(double fp, double pressure, double temperature, double *fgibb, double *fpe,
+                       double *uoup);
 
 double return_fpe(double temperature);
 
@@ -1012,12 +1016,13 @@ void perturbation_heating(void);
  */
 void openmars_make_arrays(openmars_gridspec *openmars_grid);
 void openmars_free_arrays(openmars_gridspec *openmars_grid);
-void openmars_var_read(openmars_gridspec *openmars_grid, char *openmars_infile, int portion, int itime);
+void openmars_var_read(openmars_gridspec *openmars_grid, char *openmars_infile, int portion,
+                       int itime);
 
 void openmars_epic_nc(void);
 
-void openmars_conversion(openmars_gridspec *openmars_grid, char *openmars_infile, char *openmars_outfile_qb,
-                         char *openmars_outfile_uvpt);
+void openmars_conversion(openmars_gridspec *openmars_grid, char *openmars_infile,
+                         char *openmars_outfile_qb, char *openmars_outfile_uvpt);
 
 #define OPENMARS_PS(j, i) openmars_grid->ps[i + openmars_grid->ni * (j)]
 #define OPENMARS_TSURF(j, i) openmars_grid->tsurf[i + openmars_grid->ni * (j)]
@@ -1042,8 +1047,8 @@ void emars_var_read(emars_gridspec *emars_grid, char *emars_infile, int portion,
 
 void emars_epic_nc(void);
 
-void emars_conversion(emars_gridspec *emars_grid, char *emars_infile,
-                      char *emars_outfile_qb, char *emars_outfile_uvpt);
+void emars_conversion(emars_gridspec *emars_grid, char *emars_infile, char *emars_outfile_qb,
+                      char *emars_outfile_uvpt);
 
 #define EMARS_PS(j, i) emars_grid->ps[i + emars_grid->ni * (j)]
 #define EMARS_TSURF(j, i) emars_grid->tsurf[i + emars_grid->ni * (j)]
