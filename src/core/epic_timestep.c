@@ -194,29 +194,29 @@ void timestep(int      action,
      * Apply high-latitude, low-pass filter to scalar prognostic variables.
      * Ensure positive-definite status as appropriate.
      */
-    for (K = KLO; K <= KHI; K++){
-      shift = (K-Kshift)*Nelem2d;
+    // for (K = KLO; K <= KHI; K++){
+    //   shift = (K-Kshift)*Nelem2d;
 
-      if (var.h.on) {
-        zonal_filter(H_INDEX,var.h.value+shift);
-      }
-
-      if (var.theta.on) {
-        zonal_filter(THETA_INDEX,var.theta.value+shift);
-      }
-
-      if (var.fpara.on) {
-        zonal_filter(FPARA_INDEX,var.fpara.value+shift);
-      }
-
-      if (var.nu_turb.on) {
-        zonal_filter(NU_TURB_INDEX,var.nu_turb.value+shift);
-      }
-
-      for (iq = 0; iq < grid.nq; iq++) {
-        zonal_filter(grid.is[iq],var.species[grid.is[iq]].phase[grid.ip[iq]].q+shift);
-      }
+    if (var.h.on) {
+      zonal_filter(H_INDEX,var.h.value);
     }
+
+    if (var.theta.on) {
+      zonal_filter(THETA_INDEX,var.theta.value);
+    }
+
+    if (var.fpara.on) {
+      zonal_filter(FPARA_INDEX,var.fpara.value);
+    }
+
+    if (var.nu_turb.on) {
+      zonal_filter(NU_TURB_INDEX,var.nu_turb.value);
+    }
+
+    for (iq = 0; iq < grid.nq; iq++) {
+      zonal_filter(grid.is[iq],var.species[grid.is[iq]].phase[grid.ip[iq]].q);
+    }
+    // }
 
     if(var.h.on) restore_mass(H_INDEX,NO_PHASE);
     if(var.theta.on) restore_mass(THETA_INDEX,NO_PHASE);
@@ -298,10 +298,8 @@ void timestep(int      action,
     /*
      * Apply high-latitude, low-pass filter to prevent numerical instability.
      */
-    for(K = KLO;K <= KHI; K++){
-      zonal_filter(U_INDEX,var.u.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d);
-      zonal_filter(V_INDEX,var.v.value+(K-Kshift)*Nelem2d+grid.it_uv*Nelem3d);
-    }
+    zonal_filter(U_INDEX,var.u.value+grid.it_uv*Nelem3d);
+    zonal_filter(V_INDEX,var.v.value+grid.it_uv*Nelem3d);
 
     /*
      *  Advance time:
