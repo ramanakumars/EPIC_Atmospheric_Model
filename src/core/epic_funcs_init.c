@@ -1040,6 +1040,7 @@ void init_phi_surface(void)
   /*
    * Call with negative index to cause function re-initialization on next call.
    */
+  fprintf(stderr, "Calling PHI_SURFACE zonal filter. This is not working as intended!\n");
   zonal_filter(-PHI_SURFACE_INDEX,var.phi_surface.value);
 
   /*

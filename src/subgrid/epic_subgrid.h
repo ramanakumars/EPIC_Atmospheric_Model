@@ -90,7 +90,7 @@ void uv_horizontal_subgrid(double **Buff2D);
 
 void uv_horizontal_diffusion(double **Buff2D);
 
-void divergence_damping(int K, double nudiv_nondim, double **Buff2D);
+void divergence_damping(double nudiv_nondim, double **Buff2D);
 
 void uv_hyperviscosity(int nu_order, double nu_hyper, double **Buff2D);
 

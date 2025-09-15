@@ -594,11 +594,14 @@ extern int Ishift, Jshift, Kshift, Iadim, Jadim, Kadim, Nelem2d, Nelem3d, Shift2
 #define UU(j, i) uu[i + (j) * Iadim - Shift2d]
 #define VV(j, i) vv[i + (j) * Iadim - Shift2d]
 #define HH(j, i) hh[i + (j) * Iadim - Shift2d]
+#define UU3D(k, j, i) uu[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
+#define VV3D(k, j, i) vv[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define HH3D(k, j, i) hh[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define ZE(k, j, i) ze[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define DI3D(k, j, i) di[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define DI(j, i) di[i + (j) * Iadim - Shift2d]
-#define DIV(j, i) div[i + (j) * Iadim - Shift2d]
+#define DI3D(k, j, i) di[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
+#define DIV(k, j, i) div[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define GH1(k, j, i) gh1[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define GH2(k, j, i) gh2[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
 #define LPH(k, j, i) lph[i + (j) * Iadim + (k) * Nelem2d - Shift3d]
@@ -833,7 +836,7 @@ void relative_humidity(int species_index, double *buffji, int K);
 
 void vertical_modes(int J, int I);
 
-void divergence(int kk, double *uu, double *vv, double *di);
+void divergence(int kstart, int kend, double *uu, double *vv, double *di);
 
 void vorticity(int surface_type, int type, int kk, double *uu, double *vv, double *hh,
                double *pv2d);

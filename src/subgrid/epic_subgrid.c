@@ -73,6 +73,7 @@
  *                                                                 *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include "epic_datatypes.h"
 #include "epic_funcs_util.h"
 #include <epic.h>
 
@@ -1063,9 +1064,8 @@ void laplacian_uv(int kstart, int kend, double *uu, double *vv,
     kk = 2 * K;
     vorticity(ON_SIGMATHETA, RELATIVE, kk, uu + (K - Kshift) * Nelem2d,
               vv + (K - Kshift) * Nelem2d, NULL, ze + (K - Kshift) * Nelem2d);
-    divergence(kk, uu + (K - Kshift) * Nelem2d, vv + (K - Kshift) * Nelem2d,
-               di + (K - Kshift) * Nelem2d);
   }
+  divergence(kstart, kend, uu, vv, di);
 
   /* Zero output arrays */
   memset(lpuu, 0, Nelem3d * sizeof(double));
@@ -1876,12 +1876,9 @@ void uv_horizontal_subgrid(double **Buff2D) {
      * otherwise, set
      *   kstart = KLO;
      */
-    kstart = KLO;
-    kend = KHI;
 
-    for (K = kstart; K <= kend; K++) {
-      divergence_damping(K, grid.nudiv_nondim, Buff2D);
-    }
+    divergence_damping(grid.nudiv_nondim, Buff2D);
+
   }
 
   /*
@@ -2153,12 +2150,12 @@ void uv_horizontal_diffusion(double **Buff2D) {
  * See Skamarock and Klemp (1992, Mon. Wea. Rev. 120, 2109-2127).
  */
 
-void divergence_damping(int K, double nudiv_nondim, double **Buff2D) {
-  register int J, I, kay, kk = 2 * K;
+void divergence_damping(double nudiv_nondim, double **Buff2D) {
+  register int J, I, kay, K, kk = 2 * K;
   register double nudiv, coef, rln;
   static int initialized = FALSE;
   static double max_nu_horizontal[MAX_NU_ORDER + 1];
-  double *div;
+  static double *div;
   static double *m0;
   /*
    * The following are part of DEBUG_MILESTONE(.) statements:
@@ -2177,6 +2174,8 @@ void divergence_damping(int K, double nudiv_nondim, double **Buff2D) {
       m0[kay] = 1. / (rln * grid.dln * DEG);
     }
 
+    div = dvector(0, Nelem3d - 1, dbmsname);
+
     initialized = TRUE;
   }
 
@@ -2192,11 +2191,12 @@ void divergence_damping(int K, double nudiv_nondim, double **Buff2D) {
   /*
    * Use grid.it_uv_dis for numerical stability (e.g. leapfrog timestep).
    */
-  div = Buff2D[0];
 
   divergence(
-      kk, var.u.value + (K - Kshift) * Nelem2d + grid.it_uv_dis * Nelem3d,
-      var.v.value + (K - Kshift) * Nelem2d + grid.it_uv_dis * Nelem3d, div);
+      KLO, KHI, var.u.value + grid.it_uv_dis * Nelem3d,
+      var.v.value +  grid.it_uv_dis * Nelem3d, div);
+  
+  zonal_filter(DIV_UV2_INDEX, div);
 
   /*
    * High-latitude, low-pass filter to prevent numerical instability.
@@ -2207,20 +2207,23 @@ void divergence_damping(int K, double nudiv_nondim, double **Buff2D) {
    *       arrange to have the taper outside of the laplacian, since only
    *       the first derivative is actually applied.
    */
-  zonal_filter(DIV_UV2_INDEX, div);
+  // zonal_filter(DIV_UV2_INDEX, div);
 
-  for (J = JFIRST; J <= JHI; J++) {
-    coef = nudiv * grid.n[kk][2 * J];
-    for (I = ILO; I <= IHI; I++) {
-      DVDT(grid.it_uv_tend, K, J, I) += coef * (DIV(J, I) - DIV(J - 1, I));
+  for (K=KLO; K<=KHI; K++) {
+    kk = 2 * K;
+    for (J = JFIRST; J <= JHI; J++) {
+      coef = nudiv * grid.n[kk][2 * J];
+      for (I = ILO; I <= IHI; I++) {
+        DVDT(grid.it_uv_tend, K, J, I) += coef * (DIV(K, J, I) - DIV(K, J - 1, I));
+      }
     }
-  }
-  /* No need to call bc_lateral() here. */
+    /* No need to call bc_lateral() here. */
 
-  for (J = JLO; J <= JHI; J++) {
-    coef = nudiv * grid.m[kk][2 * J + 1];
-    for (I = ILO; I <= IHI; I++) {
-      DUDT(grid.it_uv_tend, K, J, I) += coef * (DIV(J, I) - DIV(J, I - 1));
+    for (J = JLO; J <= JHI; J++) {
+      coef = nudiv * grid.m[kk][2 * J + 1];
+      for (I = ILO; I <= IHI; I++) {
+        DUDT(grid.it_uv_tend, K, J, I) += coef * (DIV(K, J, I) - DIV(K, J, I - 1));
+      }
     }
   }
   /* No need to call bc_lateral() here. */

@@ -4027,14 +4027,14 @@ void store_diag(void)
   /*
    * Calculate horizontal divergence.
    */
-  for (K = KLO; K <= KHI; K++) {
-    shift = (K-Kshift)*Nelem2d;
-    div   = var.div_uv2.value+shift;
-
-    divergence(2*K,var.u.value+shift+grid.it_uv*Nelem3d,
-                   var.v.value+shift+grid.it_uv*Nelem3d,
-                   div);
-  }
+  // for (K = KLO; K <= KHI; K++) {
+  //   shift = (K-Kshift)*Nelem2d;
+  //   div   = var.div_uv2.value+shift;
+  //
+  divergence(KLO, KHI, var.u.value+grid.it_uv*Nelem3d,
+                 var.v.value+grid.it_uv*Nelem3d,
+                 var.div_uv2.value);
+  // }
 
   /*
    * Calculate Richardson number array.
@@ -4071,13 +4071,13 @@ void store_diag(void)
  * UU, VV, and DI, are assumed to be 2D arrays on the staggered C grid.
  */
 
-void divergence(int     kk,
+void divergence(int     kstart, int kend,
                 double *uu,
                 double *vv,
                 double *di)
 {
   int
-    J,I,
+    K, J,I, kk,
     jj;
   double
     m_2j_inv,m_2jp2_inv,
@@ -4091,37 +4091,40 @@ void divergence(int     kk,
   static char
     dbmsname[]="divergence";
 
-  for (J = JLO; J <= JHI; J++) {
-    jj = 2*J+1;
-    /*
-     * Map factors needed for divergence calculation.
-     * NOTE: mn != m*n at the poles, because the area is triangular. 
-     */
-    n_2jp1     = grid.n[kk][jj];
-    n_2jp1_inv = 1./n_2jp1;
-    mn_2jp1    = grid.mn[kk][jj];
+  for(K=kstart; K<=kend; K++) {
+    kk = 2 * K;
+    for (J = JLO; J <= JHI; J++) {
+      jj = 2*J+1;
+      /*
+       * Map factors needed for divergence calculation.
+       * NOTE: mn != m*n at the poles, because the area is triangular. 
+       */
+      n_2jp1     = grid.n[kk][jj];
+      n_2jp1_inv = 1./n_2jp1;
+      mn_2jp1    = grid.mn[kk][jj];
 
-    if (J == grid.jlo && IS_SPOLE) {
-      m_2j_inv = 0.;
-    }
-    else {
-      m_2j_inv = 1./grid.m[kk][jj-1];
-    }
+      if (J == grid.jlo && IS_SPOLE) {
+        m_2j_inv = 0.;
+      }
+      else {
+        m_2j_inv = 1./grid.m[kk][jj-1];
+      }
 
-    if (J == grid.nj && IS_NPOLE) {
-      m_2jp2_inv = 0.;
-    }
-    else {
-      m_2jp2_inv = 1./grid.m[kk][jj+1];
-    }
+      if (J == grid.nj && IS_NPOLE) {
+        m_2jp2_inv = 0.;
+      }
+      else {
+        m_2jp2_inv = 1./grid.m[kk][jj+1];
+      }
 
-    for (I = ILO; I <= IHI; I++) {
-      DI(J,I) = mn_2jp1*( (UU(J,  I+1)*n_2jp1_inv-UU(J,I)*n_2jp1_inv)
-                         +(VV(J+1,I  )*m_2jp2_inv-VV(J,I)*m_2j_inv  ) );
+      for (I = ILO; I <= IHI; I++) {
+        DI3D(K,J,I) = mn_2jp1*( (UU3D(K, J,  I+1)*n_2jp1_inv-UU3D(K, J,I)*n_2jp1_inv)
+                           +(VV3D(K, J+1,I  )*m_2jp2_inv-VV3D(K, J,I)*m_2j_inv  ) );
+      }
     }
   }
   /* Need to apply bc_lateral() here. */
-  bc_lateral(di,TWODIM);
+  bc_lateral(di,THREEDIM);
 
   return;
 }
