@@ -33,7 +33,7 @@
  *           enthalpy_change_H_2O(), etc.                          *
  *           sat_vapor_p_H_2O(), etc.                              *
  *           dynvisc()                                             *
- *           conductivity()                                        *
+ *           thermal_conductivity()                                *
  *                                                                 *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -1877,88 +1877,103 @@ double dynvisc(char   *globe,
 
 /*============================== end of dynvisc() ================================*/
 
-/*=============================== conductivity() =================================*/
+/*============================== thermal_conductivity() ==========================*/
 
 /*
- * Code for calculating thermal coductivity
+ * Code for calculating thermal conductivity [W/m/K] for current planet.
  *           CJP *A*   4/12/2004
- *        Jupiter: C.F. Hansen (1979)
+ * 
+ * T. Dowling, 8 July 2025: modified function name, planet argument, and
+ *                          Jupiter-case spline
  */
 
-double conductivity(char   *globe,
-                    double  temp)
+double thermal_conductivity(double temperature)
 {
-  double 
-    x1, x2,n1,n2,q1,q2,q3,r1,r2,k,k1,k2,v;
-  static double 
-    condx[65],condy[65],conda[2];
-  int 
-    i,
-    n = 64;
-  double 
-    temperature;
-  static int
-    initialized=0;
- /*
+  double
+    k;
+  /*
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
   int
     idbms=0;
   static char
-    dbmsname[]="conductivity";
-    
-  
-  if (strcmp(globe,"Jupiter") == 0 ) {
-    if (!initialized) {
-      initialized = TRUE;
-  
+    dbmsname[]="thermal_conductivity";
+
+  switch (planet->index) {
+    case SATURN_INDEX:
+    case URANUS_INDEX:
+    case NEPTUNE_INDEX:
       /*
-       * Note: Unit conversion between micropoise and kg/m/s : 1 micropoise = 1.e-7 kg/m/s
+       * NOTE: Gas giant cases are currently defaulting to the Hansen (1979) dry-air
+       *       formulation, calculated using planet->x_h2 and planet->x_he.
        */
+    case JUPITER_INDEX: {
+      /*
+       * Hansen (1979), Viscosity and Thermal Conductivity
+       *     of Model Jupiter Atmospheres, NASA Tech. Memo. 78556
+       */
+      int
+        i,
+        n = 65;
+      static int
+        ii          = -2,
+        initialized = FALSE;
+      static double_triplet
+        *k_table;
+      double 
+        k1,k2,
+        x1,x2,n1,n2,
+        q1,q2,q3,r1,r2,v;
+      double 
+        temp,k_d;
 
-      x1 = planet->x_h2;                    /* Mol fraction of H_2   */
-      x2 = planet->x_he;                    /* Mol fraction of He    */
+      if (!initialized) {
+        /*
+         * Allocate memory
+         */
+        k_table = dtriplet(0,n-1,dbmsname);
 
-      for (i=0; i<=n; i++) {   
-        
-	temperature = 100. + i*(500.-100.)/n;
-	
-        k1 = .11*pow(temperature/300.,.6983)/(1.+49.4/temperature);
-        v  = 3079.5/temperature;
-        v  = 2.*v/(exp(v)-exp(-v));
-        k1 = k1*(4.75+v*v);                                 /*  conductivity of H_2 in millical/cm/deg/sec */
-        k2 = .3418*pow(temperature/300.,.7412)/(1.-13.74/temperature); /*  conductivity of He in millical/cm/deg/sec */
-        q1 = 26.1*(1.+49.4/temperature)*pow(300./temperature,.1983);
-        q2 = 5.96*(1.-13.74/temperature)*pow(300./temperature,.2412);
-        q3 = (sqrt(q1)+sqrt(q2))/2.;
-        q3 = q3*q3;
-        r1 = 1.+0.7698*(x2/x1)*(q3/q1);
-        r2 = 1.+1.0887*(x1/x2)*(q3/q2);
-        k  = k1/r1 + k2/r2 ;              /*  conductivity of atmosphere in millical/cm/deg/sec */
-        k  = .4186 * k;                   /*  conductivity of atmosphere in J/m/K/s             */
+        x1 = planet->x_h2;                  /* mole fraction of H_2 */
+        x2 = planet->x_he;                  /* mole fraction of He  */
+
+        for (i = 0; i < n; i++) {   
+	  temp = 100.+(double)i*(500.-100.)/(double)n;
+          k1   = .11*pow(temp/300.,.6983)/(1.+49.4/temp);
+          v    = 3079.5/temp;
+          v    = 2.*v/(exp(v)-exp(-v));
+          k1   = k1*(4.75+v*v);                              /* conductivity of H_2 in millical/cm/deg/sec */
+          k2   = .3418*pow(temp/300.,.7412)/(1.-13.74/temp); /* conductivity of He  in millical/cm/deg/sec */
+          q1   = 26.1*(1.+49.4/temp)*pow(300./temp,.1983);
+          q2   = 5.96*(1.-13.74/temp)*pow(300./temp,.2412);
+          q3   = (sqrt(q1)+sqrt(q2))/2.;
+          q3   = q3*q3;
+          r1   = 1.+0.7698*(x2/x1)*(q3/q1);
+          r2   = 1.+1.0887*(x1/x2)*(q3/q2);
+          k    = k1/r1+k2/r2 ;              /* thermal conductivity [millical/cm/deg/sec] */
+          k   *= .4186;                     /* convert to [W/m/K]                         */
       
-        condx[i] = temperature;
-	condy[i] = k;
+          k_table[i].x = temp;
+          k_table[i].y = k;
+        }
+        spline_pchip(n,k_table);
+
+        initialized = TRUE;
       }
-      least_squares(condx,condy,n,conda);
-
-    }  
-    /* End of initialization. */
-    
-    k = conda[0] + conda[1]*temp;   
-
-  }  /* End of Jupiter case */
-
-  else {
-    k = K_a;         /* K_a defined in epic_microphysics.h */
-                     /* grub : might be better to incorporate it into the planet-structure */
+      
+      ii = hunt_place_in_table(n,k_table,temperature,&k_d,ii);
+      k  = splint_pchip(n,k_table+ii,k_d);
+    } break;
+    default:
+      /*
+       * NOTE: Need better functions here.
+       */
+      k = planet->k_a; 
+    break;
   }
-
- 
-  return(k);
+    
+  return k;
 }
 
-
-/*=========================== end of conductivity() =============================*/
+/*=========================== end of thermal_conductivity() ======================*/
 
 /* * * * * * * * * * * * * * * end of epic_microphysics_funcs.c * * * * * * * * * */

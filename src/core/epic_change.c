@@ -398,7 +398,7 @@ int main(int   argc,
    * Store diagnostic variables. 
    */
   if (!openmars && !emars) {
-    fprintf(stdout,"\nCalculating and storing diagnostic variables...");
+    fprintf(stdout,"\nCalculating and storing diagnostic variables...");fflush(stdout);
   }
 
   /*

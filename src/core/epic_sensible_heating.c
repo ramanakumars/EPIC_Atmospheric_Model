@@ -31,6 +31,7 @@
  *                                                                 *
  *       radiative_heating()                                       *
  *       heating_from_file()                                       *
+ *       global_heating_cooling()                                  *
  *       newtonian_cooling()                                       *
  *         t_rad()                                                 *
  *         temp_eq()                                               *
@@ -240,13 +241,18 @@ void heating_from_file(int action)
 
 /*====================== end of heating_from_file() =========================*/
 
-#define SIGMOID(x) 1. / (1. + exp(-(x)))
-#define HEAT_FALLOFF 3
 /*======================== global_heating_cooling() =========================*/
+
+#undef  SIGMOID
+#define SIGMOID(x)   (1./(1.+exp(-(x))))
+
+#undef  HEAT_FALLOFF
+#define HEAT_FALLOFF 3
 
 void global_heating_cooling(int action)
 {
-  int K, J, I;
+  int
+    K,J,I;
   /* 
    * The following are part of DEBUG_MILESTONE(.) statements: 
    */
@@ -256,40 +262,46 @@ void global_heating_cooling(int action)
     dbmsname[]="global_heating_cooling";
 
   double
-    pressure, fp, latitude, latscale, heat;
+    pressure,fpara,heat,
+    latitude,latscale;
 
-  if(action!=EPIC_APPLY) return;
+  if (action != EPIC_APPLY) return;
 
   for (J = JLO; J <= JHI; J++) {
-    latitude = grid.lat[2 * J + 1];
-    latscale = SIGMOID((latitude - grid.globe_latbot) / grid.dlt - HEAT_FALLOFF) * SIGMOID((grid.globe_lattop - latitude) / grid.dlt - HEAT_FALLOFF);
+    latitude = grid.lat[2*J+1];
+    latscale = SIGMOID((latitude         -grid.globe_latbot)/grid.dlt-HEAT_FALLOFF)
+              *SIGMOID((grid.globe_lattop-latitude         )/grid.dlt-HEAT_FALLOFF);
 
-    for(int I = ILO; I <= IHI; I++) {
+    for (I = ILO; I <= IHI; I++) {
       for (K = KLO; K < KHI; K++) {
-        pressure = P3(K, J, I);
-          if(var.fpara.on) {
-            fp = FPARA(K, J, I);
-          }
-          else {
-            fp = 0.25;
-          }
+        pressure = P3(K,J,I);
+        if(var.fpara.on) {
+          fpara = FPARA(K,J,I);
+        }
+        else {
+          fpara = return_fpe(T3(K,J,I));
+        }
 
-          if(pressure <= grid.cool_bot_pressure) {
-            heat = -grid.cool_rate * return_cp(fp,pressure,T3(K,J,I));
-          }
+        if(pressure <= grid.cool_bot_pressure) {
+          heat = -grid.cool_rate*return_cp(fpara,pressure,T3(K,J,I));
+        }
 
-         if(pressure >= grid.heat_top_pressure) {
-           heat = grid.heat_rate * return_cp(fp,pressure,T3(K,J,I));
-         }
+        if(pressure >= grid.heat_top_pressure) {
+          heat = grid.heat_rate*return_cp(fpara,pressure,T3(K,J,I));
+        }
 
-         // scale the heat by the sigmoid function so that we zero out the edges over HEAT_FALLOFF gridcells
-         HEAT3(K, J, I) += latscale*heat;
+        /*
+         * Scale the heat by the sigmoid function so that we zero out the edges
+         * over HEAT_FALLOFF gridcells.
+         */
+        HEAT3(K,J,I) += latscale*heat;
       }
     }
   }
 
   return;
 }
+
 /*==================== end of global_heating_cooling() ======================*/
 
 /*====================== newtonian_cooling() ================================*/

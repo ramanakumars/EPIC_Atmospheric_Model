@@ -1813,19 +1813,27 @@ void var_write(char         *outfile,
     /*
      * Write parameter and key diagnostic arrays.
      */
-    if (var.dzdt2.on) {
-      if ((portion == EXTRACT_DATA && var.dzdt2.extract_on) ||
-          (portion != EXTRACT_DATA)                           ) {
-        write_array(node,FOURDIM,start,end,stretch_ni,var.dzdt2.info[0].name,
-                    var.dzdt2.info[0].index,var.dzdt2.value,DOUBLE_ARRAY,nc_id);
-      }
-    }
-
     if (var.phi_surface.on) {
       if ((portion == EXTRACT_DATA && var.phi_surface.extract_on) ||
           (portion != EXTRACT_DATA)                                 ) {
         write_array(node,TWODIM,start,end,stretch_ni,var.phi_surface.info[0].name,
                     var.phi_surface.info[0].index,var.phi_surface.value,DOUBLE_ARRAY,nc_id);
+      }
+    }
+
+    if (var.pbot.on) {
+      if ((portion == EXTRACT_DATA && var.pbot.extract_on) ||
+          (portion != EXTRACT_DATA)                          ) {
+        write_array(node,TWODIM,start,end,stretch_ni,var.pbot.info[0].name,
+                    var.pbot.info[0].index,var.pbot.value,DOUBLE_ARRAY,nc_id);
+      }
+    }
+
+    if (var.dzdt2.on) {
+      if ((portion == EXTRACT_DATA && var.dzdt2.extract_on) ||
+          (portion != EXTRACT_DATA)                           ) {
+        write_array(node,FOURDIM,start,end,stretch_ni,var.dzdt2.info[0].name,
+                    var.dzdt2.info[0].index,var.dzdt2.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
@@ -1845,14 +1853,6 @@ void var_write(char         *outfile,
           (portion != EXTRACT_DATA)                              ) {
         write_array(node,FOURDIM,start,end,stretch_ni,var.u_spinup.info[0].name,
                     var.u_spinup.info[0].index,var.u_spinup.value,DOUBLE_ARRAY,nc_id);
-      }
-    }
-
-    if (var.pbot.on) {
-      if ((portion == EXTRACT_DATA && var.pbot.extract_on) ||
-          (portion != EXTRACT_DATA)                          ) {
-        write_array(node,TWODIM,start,end,stretch_ni,var.pbot.info[0].name,
-                    var.pbot.info[0].index,var.pbot.value,DOUBLE_ARRAY,nc_id);
       }
     }
 
@@ -3235,24 +3235,21 @@ void define_netcdf(int portion,
     }
   }
 
-  if (var.gravity2.on) {
-    if ((portion == EXTRACT_HEADER_DATA && var.gravity2.extract_on) ||
-        (portion != EXTRACT_HEADER_DATA)                              ) {
-      DEFINE_NC_KJ(gravity2,h,NEEDS_STANDARD_NAME);
+  if (var.pbot.on) {
+    if ((portion == EXTRACT_HEADER_DATA && var.pbot.extract_on) ||
+        (portion != EXTRACT_HEADER_DATA)                                ) {
+      DEFINE_NC_JI(pbot,h,NEEDS_STANDARD_NAME);
     }
+  }
+
+  if (var.gravity2.on) {
+    DEFINE_NC_KJ(gravity2,h,NEEDS_STANDARD_NAME);
   }
 
   if (var.u_spinup.on) {
     if ((portion == EXTRACT_HEADER_DATA && var.u_spinup.extract_on) ||
         (portion != EXTRACT_HEADER_DATA)                           ) {
       DEFINE_NC_VAR(u_spinup,u,num,on_array,HAS_STANDARD_NAME);
-    }
-  }
-
-  if (var.pbot.on) {
-    if ((portion == EXTRACT_HEADER_DATA && var.pbot.extract_on) ||
-        (portion != EXTRACT_HEADER_DATA)                                ) {
-      DEFINE_NC_JI(pbot,h,NEEDS_STANDARD_NAME);
     }
   }
 
@@ -3745,8 +3742,6 @@ void prompt_extract_on(char *def_extract_str,
   }
 
   if (var.phi_surface.on) {PRINT_EXTRACT_ON(phi_surface,PHI_SURFACE_INDEX);}
-  PRINT_EXTRACT_ON(gravity2,GRAVITY2_INDEX);
-
   fprintf(stdout,"\n");
   sprintf(Message,"On one line, input the indices of variables to be included in extract.nc\n");
   input_string(Message,def_extract_str,extract_str,modify);
@@ -3807,7 +3802,6 @@ void prompt_extract_on(char *def_extract_str,
         case HEAT_MC_INDEX:              var.heat_mc.extract_on              = TRUE; break;
         case CLOUD_BASE_INDEX:           var.cloud_base.extract_on           = TRUE; break;
         case PHI_SURFACE_INDEX:          var.phi_surface.extract_on          = TRUE; break;
-        case GRAVITY2_INDEX:             var.gravity2.extract_on             = TRUE; break;
         case PBOT_INDEX:                 var.pbot.extract_on                 = TRUE; break;
         default:
           if (index < FIRST_SPECIES || index > LAST_SPECIES) {
@@ -5246,3 +5240,7 @@ void declare_copyright(void)
 /*======================= end of declare_copyright() =========================*/
 
 /* * * * * * * * * * * * *  end of epic_funcs_io.c  * * * * * * * * * * * * * */
+
+
+
+

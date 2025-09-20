@@ -410,29 +410,21 @@ void scalar_horizontal_subgrid(double **Buff2D)
   static char
     dbmsname[]="scalar_horizontal_subgrid";
 
-  if (strcmp(grid.turbulence_scheme,"on") == 0) {
-    scalar_horizontal_diffusion(Buff2D);
-  }
-  else if (strcmp(grid.turbulence_scheme,"on_vertical_only") == 0 ||
-           strcmp(grid.turbulence_scheme,"off")              == 0)  {
-    ;
-  }
-  else {
-    sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
-    epic_error(dbmsname,Message);
-  }
+  /*
+   * Apply molecular diffusion and
+   * optionally apply turbulent diffusion.
+   */
+  scalar_horizontal_diffusion(Buff2D);
 
- /*
-  * To avoid the sponge layers at the top of the model, set
-  *   kstart = IMAX(KLO,grid.k_sponge+1);
-  * otherwise, set
-  *   kstart = KLO;
-  */
+  /*
+   * Apply hyperviscosity.
+   *
+   * To avoid the sponge layers at the top of the model, set
+   *   kstart = IMAX(KLO,grid.k_sponge+1);
+   * otherwise, set
+   *   kstart = KLO;
+   */
   kstart = KLO;
-
-  /*-----------------------*
-   * Apply hyperviscosity. *
-   *-----------------------*/
 
   /*
    * The iq loop is set up to reference only the species/phase fields that have been turned on.
@@ -509,7 +501,6 @@ void scalar_horizontal_diffusion(double **Buff2D)
   register double
     dt,
     rln,
-    taper,
     tmp;
   const double
     sigma_inv = 3./2.;
@@ -548,52 +539,92 @@ void scalar_horizontal_diffusion(double **Buff2D)
   dt = (double)grid.dt;
 
   /*
-   * Apply diffusion to THETA.
-   *
-   * NOTE: We have not included molecular diffusion for THETA.
-   *       If it is added, may have to deal with
-   *       density weighting and units of the transport coefficient.
+   * Apply molecular heat conduction by adding the heating term to HEAT3(K,J,I).  
+   * The model then updates THETA, T3, and W3 elsewhere accordingly. 
    */
-  switch(grid.coord_type) {
-    case COORD_ISENTROPIC:
-      ;
-    break;
-    case COORD_ISOBARIC:
-    case COORD_HYBRID:
-      for (K = KLO; K < KHI; K++) {
-        kk = 2*K+1;
+  for (K = KLO; K < KHI; K++) {
+    kk = 2*K+1;
 
-        /* Copy DIFFUSION_COEF_THETA(K,J,I) into DIFF_COEF(J,I)  */
-        a = var.diffusion_coef_theta.value+(K-Kshift)*Nelem2d;
-        memcpy(diff_coef,a,Nelem2d*sizeof(double));
+    /* Assign thermal conductivity to DIFF_COEF(J,I) */
+    for (J = JLOPAD; J <= JHIPAD; J++) {
+      for (I = ILOPAD; I <= IHIPAD; I++) {
+        DIFF_COEF(J,I) = thermal_conductivity(T3(K,J,I));
+      }
+    }
+    /* No need to apply bc_lateral() here. */
 
-        /* Copy THETA(K,J,I) into HH(J,I)  */
-        a = var.theta.value+(K-Kshift)*Nelem2d;
-        memcpy(hh,a,Nelem2d*sizeof(double));
+    /* Copy T3(K,J,I) into HH(J,I) */
+    a = var.t3.value+(K-Kshift)*Nelem2d;
+    memcpy(hh,a,Nelem2d*sizeof(double));
 
-        laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
+    laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
 
-        for (J = JLO; J <= JHI; J++) {
-          /*
-           * Old taper to help prevent numerical instability:
-           *
-           * taper = MIN(1.,pow(m0[K]/grid.m[kk][2*J+1],2.));
-           */
-          taper = 1.;
+    for (J = JLO; J <= JHI; J++) {
+      for (I = ILO; I <= IHI; I++) {
+        HEAT3(K,J,I) += LAPH(J,I)/RHO3(K,J,I);
+      }
+    }
+    /* No need to apply bc_lateral() here. */
+  }
 
-          tmp   = dt*taper;
-          for (I = ILO; I <= IHI; I++) {
-            THETA(K,J,I) += tmp*LAPH(J,I);
+  if (var.nu_turb.on) {
+    /*
+     * Apply turbulent (eddy) diffusion to THETA.
+     */
+    switch(grid.coord_type) {
+      case COORD_ISENTROPIC:
+        ;
+      break;
+      case COORD_ISOBARIC:
+        for (K = KLO; K < KHI; K++) {
+          kk = 2*K+1;
+
+          /* Copy DIFFUSION_COEF_THETA(K,J,I) into DIFF_COEF(J,I)  */
+          a = var.diffusion_coef_theta.value+(K-Kshift)*Nelem2d;
+          memcpy(diff_coef,a,Nelem2d*sizeof(double));
+
+          /* Copy THETA(K,J,I) into HH(J,I)  */
+          a = var.theta.value+(K-Kshift)*Nelem2d;
+          memcpy(hh,a,Nelem2d*sizeof(double));
+
+          laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
+
+          for (J = JLO; J <= JHI; J++) {
+            for (I = ILO; I <= IHI; I++) {
+              THETA(K,J,I) += dt*LAPH(J,I);
+            }
           }
         }
-      }
-      /* Need to apply bc_lateral() here. */
-      bc_lateral(var.theta.value,THREEDIM);
-    break;
-    default:
-      sprintf(Message,"grid.coord_type=%d not yet implemented",grid.coord_type);
-      epic_error(dbmsname,Message);
-    break;
+        /* Need to apply bc_lateral() here. */
+        bc_lateral(var.theta.value,THREEDIM);
+      case COORD_HYBRID:
+        for (K = grid.k_sigma; K < KHI; K++) {
+          kk = 2*K+1;
+
+          /* Copy DIFFUSION_COEF_THETA(K,J,I) into DIFF_COEF(J,I)  */
+          a = var.diffusion_coef_theta.value+(K-Kshift)*Nelem2d;
+          memcpy(diff_coef,a,Nelem2d*sizeof(double));
+
+          /* Copy THETA(K,J,I) into HH(J,I)  */
+          a = var.theta.value+(K-Kshift)*Nelem2d;
+          memcpy(hh,a,Nelem2d*sizeof(double));
+
+          laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
+
+          for (J = JLO; J <= JHI; J++) {
+            for (I = ILO; I <= IHI; I++) {
+              THETA(K,J,I) += dt*LAPH(J,I);
+            }
+          }
+        }
+        /* Need to apply bc_lateral() here. */
+        bc_lateral(var.theta.value,THREEDIM);
+      break;
+      default:
+        sprintf(Message,"grid.coord_type=%d not yet implemented",grid.coord_type);
+        epic_error(dbmsname,Message);
+      break;
+    }
   }
 
   /*
@@ -633,16 +664,8 @@ void scalar_horizontal_diffusion(double **Buff2D)
         laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
 
         for (J = JLO; J <= JHI; J++) {
-          /*
-           * Old taper to help prevent numerical instability:
-           *
-           * taper = MIN(1.,pow(m0[K]/grid.m[kk][2*J+1],2.));
-           */
-          taper = 1.;
-
-          tmp   = dt*taper;
           for (I = ILO; I <= IHI; I++) {
-            Q(is,ip,K,J,I) += tmp*LAPH(J,I);
+            Q(is,ip,K,J,I) += dt*LAPH(J,I);
           }
         }
       }
@@ -661,43 +684,45 @@ void scalar_horizontal_diffusion(double **Buff2D)
    */
   set_p2_etc(UPDATE_THETA);
 
-  /*
-   * Apply diffusion to NU_TURB.
-   */
-  for (K = KLO; K <= KHI; K++) {
-    kk = 2*K;
+  if (strcmp(grid.turbulence_scheme,"on") == 0) {
+    /*
+     * Apply diffusion to NU_TURB.
+     */
+    for (K = KLO; K <= KHI; K++) {
+      kk = 2*K;
 
-    for (J = JLOPAD; J <= JHIPAD; J++) {
-      for (I = ILOPAD; I <= IHIPAD; I++) {
-        DIFF_COEF(J,I) = sigma_inv*(planet->kinvisc+HH(J,I));
+      /* Copy NU_TURB(K,J,I) into HH(J,I)  */
+      a = var.nu_turb.value+(K-Kshift)*Nelem2d;
+      memcpy(hh,a,Nelem2d*sizeof(double));
+
+      for (J = JLOPAD; J <= JHIPAD; J++) {
+        for (I = ILOPAD; I <= IHIPAD; I++) {
+          DIFF_COEF(J,I) = sigma_inv*(planet->kinvisc+HH(J,I));
+        }
+      }
+      /* No need to apply bc_lateral() here. */
+
+      laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
+
+      for (J = JLO; J <= JHI; J++) {
+        for (I = ILO; I <= IHI; I++) {
+          NU_TURB(K,J,I) += dt*LAPH(J,I);
+        }
       }
     }
-    /* No need to apply bc_lateral() here. */
+    /* Need to apply bc_lateral() here. */
+    bc_lateral(var.nu_turb.value,THREEDIM);
 
-    /* Copy NU_TURB(K,J,I) into HH(J,I)  */
-    a = var.nu_turb.value+(K-Kshift)*Nelem2d;
-    memcpy(hh,a,Nelem2d*sizeof(double));
-
-    laplacian_h(kk,hh,diff_coef,laph,Buff2D[3],Buff2D[4]);
-
-    for (J = JLO; J <= JHI; J++) {
-      /*
-       * Old taper to help prevent numerical instability:
-       *
-       * taper = MIN(1.,pow(m0[K]/grid.m[kk][2*J+1],2.));
-       */
-      taper = 1.;
-
-      tmp   = dt*taper;
-      for (I = ILO; I <= IHI; I++) {
-        NU_TURB(K,J,I) += tmp*LAPH(J,I);
-      }
-    }
+    restore_mass(NU_TURB_INDEX,NO_PHASE);
   }
-  /* Need to apply bc_lateral() here. */
-  bc_lateral(var.nu_turb.value,THREEDIM);
-
-  restore_mass(NU_TURB_INDEX,NO_PHASE);
+  else if (strcmp(grid.turbulence_scheme,"on_vertical_only") == 0 ||
+           strcmp(grid.turbulence_scheme,"off")              == 0)  {
+    ;
+  }
+  else {
+    sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
+    epic_error(dbmsname,Message);
+  }
 
   return;
 }
@@ -714,6 +739,9 @@ void scalar_horizontal_diffusion(double **Buff2D)
  *
  *  Pointers to memory for two working JI-plane buffers
  *  are passed in as buff1 and buff2.
+ *
+ *  NOTE: The input array DIFF_COEF(J,I) is multiplied before taking
+ *        the divergence and should come in with bc_lateral() applied.
  */
 
 void laplacian_h(int     kk,
@@ -775,6 +803,7 @@ void laplacian_h(int     kk,
     }
   }
   /* update gh1 edges below */
+
   for (J = JFIRST; J <= JHI; J++) {
     n_2j = grid.n[kk][2*J];
     for (I = ILO; I <= IHI; I++) {
@@ -824,10 +853,6 @@ void laplacian_h(int     kk,
     }
   }
   /* update gh2 edges below */
-
-  /* Update edges for gh1, gh2: */
-  bc_lateral(gh1,TWODIM);
-  bc_lateral(gh2,TWODIM);
 
   /*
    * Multiply by DIFF_COEF.
@@ -1003,7 +1028,6 @@ void uv_hyperviscosity(int      nu_order,
       /*
        * Taper viscosity coefficient to prevent numerical instability
        */
-
       taper = MIN(1.,(max_nu_horizontal[nu_order]/nu_hyper)*pow(m0[K]/grid.m[kk][2*J+1],nu_order));
 
       tmp   = DT*(double)sign*taper;
@@ -1153,23 +1177,15 @@ void scalar_vertical_subgrid(double **Buff2D)
   static char
     dbmsname[]="scalar_vertical_subgrid";
 
-  if (strcmp(grid.turbulence_scheme,"on")               == 0 ||
-      strcmp(grid.turbulence_scheme,"on_vertical_only") == 0)  {
-    /*
-     * NOTE: The vertical diffusion includes a provision for handling convectively unstable regions.
-     */
-    scalar_vertical_diffusion(Buff2D);
-  }
-  else if (strcmp(grid.turbulence_scheme,"off") == 0) {
-    /*
-     * Adjust convectively unstable regions to be neutrally stable.
-     */
-    adiabatic_adjustment();
-  }
-  else {
-    sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
-    epic_error(dbmsname,Message);
-  }
+  /*
+   * Apply molecular diffusion and optionally apply turbulent diffusion.
+   */
+  scalar_vertical_diffusion(Buff2D);
+
+  /*
+   * Relax convectively unstable regions towards neutral stability.
+   */
+  adiabatic_adjustment();
 
   return;
 }
@@ -1178,39 +1194,31 @@ void scalar_vertical_subgrid(double **Buff2D)
 
 /*============== scalar_vertical_diffusion() ======================*/
 
-/*
- * In superadiabatic regions (for non-isentropic coordinates), 
- * convective adjustment is handled by increasing the
- * vertical turbulent diffusion for appropriate fields.
- */
-
-#undef  STAB_MULT
-#define STAB_MULT(k,j,i) stab_mult[i+(j)*Iadim+(k)*Nelem2d-Shift3d]
-
 void scalar_vertical_diffusion(double **Buff2D)
 {
   int
     K,J,I,
-    kay,kturb,delta_k_convect,
+    kay,delta_k_convect,
     iq;
   static int
     nnk,
-    initialized = FALSE;
+    initialized   = FALSE,
+    onetime_THETA = FALSE;
   double
     diffusion_coeff,
     delta_z_convect,
     brunt2,
+    fpara,
    *tau_wall;
   const double
     sigma_inv = 3./2.;
   static double
-    *stab_factor,
     *nu_convect,
     *zee,
     *aaa,
     *dee,
-    *ans,
-    *stab_mult;
+    *rho,
+    *ans;
   unsigned long
     nbytes_2d;
   /* 
@@ -1230,95 +1238,127 @@ void scalar_vertical_diffusion(double **Buff2D)
     nnk = KHI-KLO+1;
 
     /* Allocate memory: */
-    stab_factor = dvector(0,2*KHI+1,  dbmsname);
     zee         = dvector(0,KHI+2,    dbmsname);
     aaa         = dvector(0,KHI+2,    dbmsname);
     dee         = dvector(0,KHI+2,    dbmsname);
+    rho          = dvector(0,KHI+1,  dbmsname);
     ans         = dvector(0,KHI+2,    dbmsname);
     nu_convect  = dvector(0,KHI+1,    dbmsname);
-    stab_mult   = dvector(0,Nelem3d-1,dbmsname);
 
     initialized = TRUE;
   }
 
   /*
-   * Calculate STAB_MULT
+   * Add vertical component of heat conduction heating.
+   * We use Crank-Nicholson for numerical stability, then convert the result back into
+   * the corresponding heating term. 
    */
   for (J = JLO; J <= JHI; J++) {
     for (I = ILO; I <= IHI; I++) {
-      stability_factor(J,I,stab_factor);
       for (K = KLO; K <= KHI; K++) {
-        STAB_MULT(K,J,I) = stab_factor[2*K];
+        kay      = KHI-K;
+        dee[kay] = thermal_conductivity(T2(K,J,I));
+      }
+
+      /*
+       * Use fixed boundary conditions at bottom and top.
+       */
+      for (K = KLO-1; K <= KHI; K++) {
+        /*
+         * Load in positive-z direction (which unfortunately
+         * fights against the top-down K numbering of layers).
+         */
+        kay      = KHI-K;
+        aaa[kay] = T3(K,J,I);
+        zee[kay] = Z3(K,J,I);
+
+        if (var.fpara.on) {
+          fpara = get_var(FPARA_INDEX,NO_PHASE,grid.it_h,2*K+1,J,I);
+        }
+        else {
+          fpara = return_fpe(T3(K,J,I));
+        }
+        rho[kay] = RHO3(K,J,I)*return_cp(fpara,P3(K,J,I),T3(K,J,I));
+      }
+
+      crank_nicolson(KHI-KLO,DT,zee,aaa,dee,rho,ans);
+
+      for (K = KLO; K < KHI; K++) {
+        kay           = KHI-K;
+        /*
+         * Convert temperature change into corresponding heating.
+         */
+        if (var.fpara.on) {
+          fpara = get_var(FPARA_INDEX,NO_PHASE,grid.it_h,2*K+1,J,I);
+        }
+        else {
+          fpara = return_fpe(T3(K,J,I));
+        }
+        HEAT3(K,J,I) += return_cp(fpara,P3(K,J,I),T3(K,J,I))*(ans[kay]-T3(K,J,I))/DT;
       }
     }
   }
   /* No need to apply bc_lateral() here. */
 
+  /*
+   * Apply turbulent (eddy) vertical diffusion to THETA, 
+   * which is carried on the layer interfaces.
+   */
   if (grid.coord_type == COORD_ISENTROPIC) {
     ;
   }
   else if (grid.coord_type == COORD_HYBRID) {
-    sprintf(Message,"not yet implemented for grid.coord_type == COORD_HYBRID");
-    epic_error(dbmsname,Message);
-  }
-  else if (grid.coord_type == COORD_ISOBARIC) {
     /*
-     * Apply vertical diffusion to THETA, 
-     * which is carried on the layer interfaces.
-     *
-     * NOTE: Have not yet included molecular diffusion for THETA.
-     *
-     * NOTE: This scheme is not yet working well for the hybrid-coordinate model.
-     *       Crossing the seam between the hybrid and sigma regions, even just to load for the crank_nicolson() routine,
+     * NOTE: This is not yet working well for the hybrid-coordinate model.
+     *       Crossing the seam between the hybrid and sigma regions, even just to load the crank_nicolson() routine,
      *       can lead to a numerical instability at the seam.
      */
+    if (!onetime_THETA) {
+      if (IAMNODE == NODE0) {
+        /*
+         * Print one-time warning.
+         */
+        sprintf(Message,"vertical turbulent diffusion of THETA is not yet implemented for COORD_HYBRID");
+        epic_warning(dbmsname,Message);
+      }
+      onetime_THETA = TRUE;
+    }
+  }
+  else if (grid.coord_type == COORD_ISOBARIC) {
+    for (J = JLO; J <= JHI; J++) {
+      for (I = ILO; I <= IHI; I++) {
+        for (K = KLO; K <= KHI; K++) {
+          kay      = KHI-K;
+          dee[kay] = .5*(DIFFUSION_COEF_THETA(K,J,I)+DIFFUSION_COEF_THETA(K-1,J,I));
+        }
 
-    /*
-     * We handle convective adjustment via vertical turbulent diffusion of THETA.
-     * The parameter kturb refers to K for the highest-altitude (lowest K) THETA that is changed
-     * by vertical turbulent diffusion. Currently not implemented for the hybrid-coordinate case.
-     *
-     * To turn on:  set kturb < KHI
-     * To turn off: set kturb = KHI
-     */
-    kturb = KLO;
-
-    if (kturb < KHI) {
-      for (J = JLO; J <= JHI; J++) {
-        for (I = ILO; I <= IHI; I++) {
-          for (K = kturb; K <= KHI; K++) {
-            kay      = KHI-K;
-            dee[kay] = STAB_MULT(K,J,I)*.5*(DIFFUSION_COEF_THETA(K,J,I)+DIFFUSION_COEF_THETA(K-1,J,I));
-          }
-
+        /*
+         * Use fixed boundary conditions at bottom and top.
+         */
+        for (K = KLO-1; K <= KHI; K++) {
           /*
-           * Use fixed boundary conditions at bottom and top.
+           * Load in positive-z direction (which unfortunately
+           * fights against the top-down K numbering of layers).
            */
-          for (K = kturb-1; K <= KHI; K++) {
-            /*
-             * Load in positive-z direction (which unfortunately
-             * fights against the top-down K numbering of layers).
-             */
-            kay      = KHI-K;
-            aaa[kay] = THETA(K,J,I);
-            zee[kay] = Z3(K,J,I);
-          }
+          kay      = KHI-K;
+          aaa[kay] = THETA(K,J,I);
+          zee[kay] = Z3(K,J,I);
+        }
 
-          crank_nicolson(KHI-kturb,DT,zee,aaa,dee,NULL,ans);
+        crank_nicolson(KHI-KLO,DT,zee,aaa,dee,NULL,ans);
 
-          for (K = kturb; K < KHI; K++) {
-            kay          = KHI-K;
-            THETA(K,J,I) = ans[kay];
-          }
+        for (K = KLO; K < KHI; K++) {
+          kay          = KHI-K;
+          THETA(K,J,I) = ans[kay];
         }
       }
-      /* Need to apply bc_lateral() here. */
-      bc_lateral(var.theta.value,THREEDIM);
-      /*
-       * Clean up any negative potential temperature introduced by diffusion truncation errors.
-       */
-      restore_mass(THETA_INDEX,NO_PHASE);
     }
+    /* Need to apply bc_lateral() here. */
+    bc_lateral(var.theta.value,THREEDIM);
+    /*
+     * Clean up any negative potential temperature introduced by diffusion truncation errors.
+     */
+    restore_mass(THETA_INDEX,NO_PHASE);
   }
   else {
     sprintf(Message,"not implemented for grid.coord_type == %d",grid.coord_type);
@@ -1329,13 +1369,13 @@ void scalar_vertical_diffusion(double **Buff2D)
    * NOTE: Not applying diffusion to H.
    */
 
-  /*
-   * Apply vertical diffusion to mixing ratios, Q,
-   * which are carried on the layer interfaces.
-   *
-   * Loop over all activated species/phase variables.
-   */
   if (grid.cloud_microphysics != OFF) {
+    /*
+     * Apply vertical diffusion to mixing ratios, Q,
+     * which are carried on the layer interfaces.
+     *
+     * Loop over all activated species/phase variables.
+     */
     for (iq = 0; iq < grid.nq; iq++) {
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
@@ -1349,13 +1389,13 @@ void scalar_vertical_diffusion(double **Buff2D)
             for (K = KLO; K <= KHI; K++) {
               kay      = KHI-K;
               dee[kay] = mass_diffusivity(grid.is[iq],T2(K,J,I),P2(K,J,I))
-                        +STAB_MULT(K,J,I)*DIFFUSION_COEF_MASS(K,J,I);
+                        +DIFFUSION_COEF_MASS(K,J,I);
             }
           }
           else {
             for (K = KLO; K <= KHI; K++) {
               kay      = KHI-K;
-              dee[kay] = STAB_MULT(K,J,I)*DIFFUSION_COEF_MASS(K,J,I);
+              dee[kay] = DIFFUSION_COEF_MASS(K,J,I);
             }
           }
 
@@ -1382,12 +1422,12 @@ void scalar_vertical_diffusion(double **Buff2D)
     }
   }
 
-  /*
-   * Apply vertical diffusion to FPARA,
-   * which are carried on the layer interfaces.
-   * Using DIFFUSION_COEF_MASS.
-   */
   if (var.fpara.on) {
+    /*
+     * Apply vertical diffusion to FPARA,
+     * which are carried on the layer interfaces.
+     * Using DIFFUSION_COEF_MASS.
+     */
     for (J = JLO; J <= JHI; J++) {
       for (I = ILO; I <= IHI; I++) {
         /*
@@ -1395,7 +1435,7 @@ void scalar_vertical_diffusion(double **Buff2D)
          */
         for (K = KLO; K <= KHI; K++) {
           kay      = KHI-K;
-          dee[kay] = STAB_MULT(K,J,I)*DIFFUSION_COEF_MASS(K,J,I);
+          dee[kay] = DIFFUSION_COEF_MASS(K,J,I);
         }
 
         for (K = KLO-1; K <= KHI; K++) {
@@ -1425,13 +1465,13 @@ void scalar_vertical_diffusion(double **Buff2D)
    */
   set_p2_etc(UPDATE_THETA);
 
-  /*
-   * Apply vertical diffusion to NU_TURB, which is carried in the layer.
-   * Not modifying for superadiabatic regions.
-   *
-   * NOTE: The function tau_surface() currently sets TAU_WALL to zero for the gas-giant case.
-   */
   if (var.nu_turb.on) {
+    /*
+     * Apply vertical diffusion to NU_TURB, which is carried in the layer.
+     * Not modifying for superadiabatic regions.
+     *
+     * NOTE: The function tau_surface() currently sets TAU_WALL to zero for the gas-giant case.
+     */
     tau_surface(NU_TURB_INDEX,tau_wall,Buff2D[1]);
 
     for (J = JLO; J <= JHI; J++) {
@@ -1875,17 +1915,7 @@ void uv_horizontal_subgrid(double **Buff2D)
   static char
     dbmsname[]="uv_horizontal_subgrid";
 
-  if (strcmp(grid.turbulence_scheme,"on") == 0) {
-    uv_horizontal_diffusion(Buff2D);
-  }
-  else if (strcmp(grid.turbulence_scheme,"on_vertical_only") == 0 ||
-           strcmp(grid.turbulence_scheme,"off")              == 0)  {
-    ;
-  }
-  else {
-    sprintf(Message,"Unrecognzied grid.turbulence_scheme=%s",grid.turbulence_scheme);
-    epic_error(dbmsname,Message);
-  }
+  uv_horizontal_diffusion(Buff2D);
 
   if (grid.nudiv_nondim > 0.) {
     /*
@@ -1951,10 +1981,9 @@ void uv_horizontal_diffusion(double **Buff2D)
     K,J,I,
     kk,jj;
   register double
-    rho,rho_inv,nu,
+    rho_inv,nu,
     rln,rln_inv,rlt_inv,
-    e11,e12,e22,
-    taper;
+    e11,e12,e22;
   double
     *tau11,*tau12,*tau22,
     *uu,*vv,
@@ -2009,7 +2038,7 @@ void uv_horizontal_diffusion(double **Buff2D)
 
     for (J = JLOPAD; J <= JHIPAD; J++) {
       for (I = ILOPAD; I <= IHIPAD; I++) {
-        COEFFD(J,I) = planet->dynvisc+RHO2(K,J,I)*DIFFUSION_COEF_UV(K,J,I);
+        COEFFD(J,I) = RHO2(K,J,I)*DIFFUSION_COEF_UV(K,J,I);
       }
     }
     /* No need to apply bc_lateral() here. */
@@ -2135,18 +2164,12 @@ void uv_horizontal_diffusion(double **Buff2D)
       rln_inv = 1./grid.rln[kk][jj+1];
       m_2jp1  = grid.m[kk][jj+1];
       n_2jp1  = grid.n[kk][jj+1];
-      /*
-       * Old taper to help prevent numerical instability:
-       *
-       * taper = MIN(1.,pow(m0[K]/m_2jp1,2.));
-       */
-      taper = 1.;
 
       for (I = ILO; I <= IHI; I++) {
         rho_inv                      = 2./(RHO2(K,J,I)+RHO2(K,J,I-1));
-    	DUDT(grid.it_uv_tend,K,J,I) += taper*rho_inv*(m_2jp1*(TAU11(J,I)-TAU11(J,I-1))
-                                                     +n_2jp1*rln_inv*(grid.rln[kk][jj+2]*TAU12(J+1,I)-grid.rln[kk][jj]*TAU12(J,I)
-                                                           +.5*(TAU12(J+1,I)+TAU12(J,I))*(grid.rln[kk][jj+2]-grid.rln[kk][jj])));
+    	DUDT(grid.it_uv_tend,K,J,I) += rho_inv*(m_2jp1*(TAU11(J,I)-TAU11(J,I-1))
+                                                +n_2jp1*rln_inv*(grid.rln[kk][jj+2]*TAU12(J+1,I)-grid.rln[kk][jj]*TAU12(J,I)
+                                                        +.5*(TAU12(J+1,I)+TAU12(J,I))*(grid.rln[kk][jj+2]-grid.rln[kk][jj])));
       }
     }
 
@@ -2158,18 +2181,12 @@ void uv_horizontal_diffusion(double **Buff2D)
       rln_inv = 1./grid.rln[kk][jj];
       m_2j    = grid.m[kk][jj];
       n_2j    = grid.n[kk][jj];
-      /*
-       * Old taper to help prevent numerical instability:
-       *
-       * taper = MIN(1.,pow(m0[K]/m_2j,2.));
-       */
-      taper = 1.;
 
       for (I = ILO; I <= IHI; I++) {
         rho_inv                      = 2./(RHO2(K,J,I)+RHO2(K,J-1,I));
-    	DVDT(grid.it_uv_tend,K,J,I) += taper*rho_inv*(m_2j*(TAU12(J,I)-TAU12(J,I-1))
-                                                     -n_2j*rln_inv*(grid.rln[kk][jj+1]*TAU22(J,I)-grid.rln[kk][jj-1]*TAU22(J-1,I)
-                                                           -.5*(TAU11(J,I)+TAU11(J-1,I))*(grid.rln[kk][jj+1]-grid.rln[kk][jj-1])));
+    	DVDT(grid.it_uv_tend,K,J,I) += rho_inv*(m_2j*(TAU12(J,I)-TAU12(J,I-1))
+                                               -n_2j*rln_inv*(grid.rln[kk][jj+1]*TAU22(J,I)-grid.rln[kk][jj-1]*TAU22(J-1,I)
+                                                     -.5*(TAU11(J,I)+TAU11(J-1,I))*(grid.rln[kk][jj+1]-grid.rln[kk][jj-1])));
       }
     }
   }
@@ -2289,20 +2306,7 @@ void uv_vertical_subgrid(double **Buff2D)
   static char
     dbmsname[]="uv_vertical_subgrid";
 
-  if (strcmp(grid.turbulence_scheme,"on")               == 0 ||
-      strcmp(grid.turbulence_scheme,"on_vertical_only") == 0)  {
-    uv_vertical_diffusion(Buff2D);
-  }
-  else if (strcmp(grid.turbulence_scheme,"off") == 0) {
-    /*
-     * NOTE: convective adjustment is not currently applied to the horizonal momentum.
-     */
-    ;
-  }
-  else {
-    sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
-    epic_error(dbmsname,Message);
-  }
+  uv_vertical_diffusion(Buff2D);
 
   return;
 }
@@ -2393,8 +2397,7 @@ void uv_vertical_diffusion(double **Buff2D)
        */
       for (K = KLO; K < KHI; K++) {
         kay     = KHI-K;
-        mu[kay] = planet->dynvisc
-                 +.5*(RHO3(K,J,I  )*.5*(DIFFUSION_COEF_UV(K,J,I  )+DIFFUSION_COEF_UV(K+1,J,I  ))
+        mu[kay] = .5*(RHO3(K,J,I  )*.5*(DIFFUSION_COEF_UV(K,J,I  )+DIFFUSION_COEF_UV(K+1,J,I  ))
                      +RHO3(K,J,I-1)*.5*(DIFFUSION_COEF_UV(K,J,I-1)+DIFFUSION_COEF_UV(K+1,J,I-1)));
       }
       K       = KLO-1;
@@ -2448,8 +2451,7 @@ void uv_vertical_diffusion(double **Buff2D)
        */
       for (K = KLO; K < KHI; K++) {
         kay     = KHI-K;
-        mu[kay] = planet->dynvisc
-                 +.5*(RHO3(K,J,  I)*.5*(DIFFUSION_COEF_UV(K,J,  I)+DIFFUSION_COEF_UV(K+1,J,  I))
+        mu[kay] = .5*(RHO3(K,J,  I)*.5*(DIFFUSION_COEF_UV(K,J,  I)+DIFFUSION_COEF_UV(K+1,J,  I))
                      +RHO3(K,J-1,I)*.5*(DIFFUSION_COEF_UV(K,J-1,I)+DIFFUSION_COEF_UV(K+1,J-1,I)));
       }
       K       = KLO-1;
@@ -2567,12 +2569,15 @@ void init_subgrid(void)
 
 /*======================= set_diffusion_coef() =====================*/
 
-/*
-  * Calculate turbulent diffusion coefficients.
+ /*
+  * Set molecular diffusion coefficients and optionally
+  * include turbulent diffusion coefficients.
+  * 
   * h-grid:  DIFFUSION_COEF_MASS, DIFFUSION_COEF_UV
   * p3-grid: DIFFUSION_COEF_THETA
   *
-  * Molecular diffusion should be accounted for elsewhere.
+  *
+  * NOTE: The molecular values are largely placeholders and need significant development.
   */
 
 void set_diffusion_coef(void)
@@ -2608,145 +2613,189 @@ void set_diffusion_coef(void)
     initialized = TRUE;
   }
 
-  if (strcmp(planet->type,"terrestrial") == 0) {
-    /*
-     * DIFFUSION_COEF_UV and DIFFUSION_COEF_MASS, both on the h-grid.
-     * For terrestrial planets, the bottom layer, K = KHI,
-     * is treated separately below.
-     */
-    for (K = KLO; K < KHI; K++) {
-      for (J = JLO; J <= JHI; J++) {
-        for (I = ILO; I <= IHI; I++) {
-          nu_turb  = NU_TURB(K,J,I);
-          chi3     = nu_turb/planet->kinvisc;
-          chi3    *= chi3*chi3;
-          fv1      = chi3/(chi3+cv1_3);
-          turb     = fv1*nu_turb;
-          tmp      = turb;
-          tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
-          DIFFUSION_COEF_UV(K,J,I) = tmp;
+  /*
+   * Start with molecular diffusion coefficients for dry air. 
+   *
+   * Molecular mass diffusivity for dry air is set to zero.
+   *
+   * NOTE: Diffusivities for optional specific humidities are included via mass_diffusivity() in
+   *       scalar_horizontal_diffusion() and scalar_vertical_diffusion().
+   */
+  memset(var.diffusion_coef_mass.value,0,Nelem3d*sizeof(double));
 
-          /*
-           * Mass diffusivity.
-           * Currently using the same value for turbulent mass diffusivity
-           * as for temperature.
-           */
-          DIFFUSION_COEF_MASS(K,J,I) = tmp;
-        }
-      }
-    }
+  /*
+   * DIFFUSION_COEF_THETA is on the p3-grid.
+   * It only holds the turbulent (eddy) diffusion, because molecular heat conduction is
+   * calculated by adding the heating term to HEAT3(K,J,I), so zero it out here.
+   */
+  memset(var.diffusion_coef_theta.value,0,Nelem3d*sizeof(double));
 
-    /*
-     * DIFFUSION_COEF_UV and DIFFUSION_COEF_MASS, K = KHI
-     */
-    dwall_SA(d_wall);
-
-    K   = KHI;
-    kk  = 2*K;
-    u2d = var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv_dis)*Nelem3d;
-    v2d = var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv_dis)*Nelem3d;
-    for (J = JLO; J <= JHI; J++) {
-      for (I = ILO; I <= IHI; I++) {
-        nu_turb = NU_TURB(K,J,I);
-        kin     = get_kin(u2d,v2d,kk,J,I);
-        u_tan   = sqrt(2.*kin);
-        turb    = law_of_the_wall(K,J,I,NU_TURB_INDEX,u_tan);
-        tmp     = turb+planet->kinvisc;
-        tmp     = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
-        DIFFUSION_COEF_UV(KHI,J,I)   = tmp;
-        DIFFUSION_COEF_MASS(KHI,J,I) = tmp;
-      }
-    }
-
-    /*
-     * DIFFUSION_COEF_THETA is on the p3-grid.
-     */
-    for (K = KLO; K < KHI; K++) {
-      for (J = JLO; J <= JHI; J++) {
-        for (I = ILO; I <= IHI; I++) {
-          /*
-           * Take the turbulent Prandtl number to be unity,
-           * following Collins et al. (2004, NCAR/TN-464+STR).
-           * THETA is on the p3-grid.
-           */
-          nu_turb  = .5*(NU_TURB(K,J,I)+NU_TURB(K+1,J,I));
-          chi3     = nu_turb/planet->kinvisc;
-          chi3    *= chi3*chi3;
-          fv1      = chi3/(chi3+cv1_3);
-          turb     = fv1*nu_turb;
-          tmp      = turb;
-          tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
-          DIFFUSION_COEF_THETA(K,J,I) = tmp;
-        }
-      }
-    }
-    for (J = JLO; J <= JHI; J++) {
-      for (I = ILO; I <= IHI; I++) {
-        /* THETA is on the p3-grid. */
-        DIFFUSION_COEF_THETA(0,  J,I) = 0.;
-        DIFFUSION_COEF_THETA(KHI,J,I) = 0.;
+  for (J = JLO; J <= JHI; J++) {
+    for (I = ILO; I <= IHI; I++) {
+      /*
+       * DIFFUSION_COEF_UV is on the h-grid.
+       */
+      for (K = KLO; K <= KHI; K++) {
+        /* 
+         * Molecular kinematic viscosity for dry air
+         */
+        DIFFUSION_COEF_UV(K,J,I) = planet->dynvisc/RHO2(K,J,I);
       }
     }
   }
-  else if (strcmp(planet->type,"gas-giant") == 0) {
+
+  if (strcmp(grid.turbulence_scheme,"on")               == 0 ||
+      strcmp(grid.turbulence_scheme,"on_vertical_only") == 0)  {
     /*
-     * DIFFUSION_COEF_UV and DIFFUSION_COEF_MASS, both on the h-grid.
-     * For gas-giant planets, the bottom layer is treated the same as
-     * the other layers.
+     * Add turbulent diffusion coefficients.
      */
-    for (K = KLO; K <= KHI; K++) {
+    if (strcmp(planet->type,"terrestrial") == 0) {
+      /*
+       * DIFFUSION_COEF_UV and DIFFUSION_COEF_MASS, both on the h-grid.
+       * For terrestrial planets, the bottom layer, K = KHI,
+       * is treated separately below.
+       */
+      for (K = KLO; K < KHI; K++) {
+        for (J = JLO; J <= JHI; J++) {
+          for (I = ILO; I <= IHI; I++) {
+            nu_turb  = NU_TURB(K,J,I);
+            chi3     = nu_turb/planet->kinvisc;
+            chi3    *= chi3*chi3;
+            fv1      = chi3/(chi3+cv1_3);
+            turb     = fv1*nu_turb;
+            tmp      = turb;
+            tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
+            DIFFUSION_COEF_UV(K,J,I) += tmp;
+
+            /*
+             * Currently using the same value for turbulent mass diffusivity.
+             */
+            DIFFUSION_COEF_MASS(K,J,I) += tmp;
+          }
+        }
+      }
+
+      /*
+       * DIFFUSION_COEF_UV and DIFFUSION_COEF_MASS, K = KHI
+       */
+      dwall_SA(d_wall);
+
+      K   = KHI;
+      kk  = 2*K;
+      u2d = var.u.value+(K-Kshift)*Nelem2d+(grid.it_uv_dis)*Nelem3d;
+      v2d = var.v.value+(K-Kshift)*Nelem2d+(grid.it_uv_dis)*Nelem3d;
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
-          nu_turb  = NU_TURB(K,J,I);
-          chi3     = nu_turb/planet->kinvisc;
-          chi3    *= chi3*chi3;
-          fv1      = chi3/(chi3+cv1_3);
-          turb     = fv1*nu_turb;
-          tmp      = turb;
-          tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
-          DIFFUSION_COEF_UV(K,J,I) = tmp;
+          nu_turb = NU_TURB(K,J,I);
+          kin     = get_kin(u2d,v2d,kk,J,I);
+          u_tan   = sqrt(2.*kin);
+          turb    = law_of_the_wall(K,J,I,NU_TURB_INDEX,u_tan);
+          tmp     = turb+planet->kinvisc;
+          tmp     = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
+          DIFFUSION_COEF_UV(KHI,J,I)   += tmp;
 
-          /*
-           * Mass diffusivity.
-           * Currently using the same value for turbulent mass diffusivity
-           * as for temperature.
-           */
-          DIFFUSION_COEF_MASS(K,J,I) = tmp;
+            /*
+             * Currently using the same value for turbulent mass diffusivity.
+             */
+          DIFFUSION_COEF_MASS(KHI,J,I) += tmp;
+        }
+      }
+
+      /*
+       * DIFFUSION_COEF_THETA is on the p3-grid.
+       */
+      for (K = KLO; K < KHI; K++) {
+        for (J = JLO; J <= JHI; J++) {
+          for (I = ILO; I <= IHI; I++) {
+            /*
+             * Take the turbulent Prandtl number to be unity,
+             * following Collins et al. (2004, NCAR/TN-464+STR).
+             * THETA is on the p3-grid.
+             */
+            nu_turb  = .5*(NU_TURB(K,J,I)+NU_TURB(K+1,J,I));
+            chi3     = nu_turb/planet->kinvisc;
+            chi3    *= chi3*chi3;
+            fv1      = chi3/(chi3+cv1_3);
+            turb     = fv1*nu_turb;
+            tmp      = turb;
+            tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
+            DIFFUSION_COEF_THETA(K,J,I) += tmp;
+          }
+        }
+      }
+      for (J = JLO; J <= JHI; J++) {
+        for (I = ILO; I <= IHI; I++) {
+          /* THETA is on the p3-grid. */
+          DIFFUSION_COEF_THETA(0,  J,I) += 0.;
+          DIFFUSION_COEF_THETA(KHI,J,I) += 0.;
         }
       }
     }
+    else if (strcmp(planet->type,"gas-giant") == 0) {
+      /*
+       * DIFFUSION_COEF_UV and DIFFUSION_COEF_MASS, both on the h-grid.
+       * For gas-giant planets, the bottom layer is treated the same as
+       * the other layers.
+       */
+      for (K = KLO; K <= KHI; K++) {
+        for (J = JLO; J <= JHI; J++) {
+          for (I = ILO; I <= IHI; I++) {
+            nu_turb  = NU_TURB(K,J,I);
+            chi3     = nu_turb/planet->kinvisc;
+            chi3    *= chi3*chi3;
+            fv1      = chi3/(chi3+cv1_3);
+            turb     = fv1*nu_turb;
+            tmp      = turb;
+            tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
+            DIFFUSION_COEF_UV(K,J,I) += tmp;
 
-    /*
-     * DIFFUSION_COEF_THETA is on the p3-grid.
-     */
-    for (K = KLO; K < KHI; K++) {
+            /*
+             * Currently using the same value for turbulent mass diffusivity.
+             */
+            DIFFUSION_COEF_MASS(K,J,I) += tmp;
+          }
+        }
+      }
+
+      /*
+       * DIFFUSION_COEF_THETA is on the p3-grid.
+       */
+      for (K = KLO; K < KHI; K++) {
+        for (J = JLO; J <= JHI; J++) {
+          for (I = ILO; I <= IHI; I++) {
+            /*
+             * Take the turbulent Prandtl number to be unity,
+             * following Collins et al. (2004, NCAR/TN-464+STR).
+             */
+            nu_turb  = .5*(NU_TURB(K,J,I)+NU_TURB(K+1,J,I));
+            chi3     = nu_turb/planet->kinvisc;
+            chi3    *= chi3*chi3;
+            fv1      = chi3/(chi3+cv1_3);
+            turb     = fv1*nu_turb;
+            tmp      = turb;
+            tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
+            DIFFUSION_COEF_THETA(K,J,I) += tmp;
+          }
+        }
+      }
       for (J = JLO; J <= JHI; J++) {
         for (I = ILO; I <= IHI; I++) {
-          /*
-           * Take the turbulent Prandtl number to be unity,
-           * following Collins et al. (2004, NCAR/TN-464+STR).
-           */
-          nu_turb  = .5*(NU_TURB(K,J,I)+NU_TURB(K+1,J,I));
-          chi3     = nu_turb/planet->kinvisc;
-          chi3    *= chi3*chi3;
-          fv1      = chi3/(chi3+cv1_3);
-          turb     = fv1*nu_turb;
-          tmp      = turb;
-          tmp      = LIMIT_RANGE(0.,tmp,max_nu_horizontal[2]);
-          DIFFUSION_COEF_THETA(K,J,I) = tmp;
+          /* THETA is on the p3-grid. */
+          DIFFUSION_COEF_THETA(0,  J,I) += 0.;
+          DIFFUSION_COEF_THETA(KHI,J,I) += 0.;
         }
       }
     }
-    for (J = JLO; J <= JHI; J++) {
-      for (I = ILO; I <= IHI; I++) {
-        /* THETA is on the p3-grid. */
-        DIFFUSION_COEF_THETA(0,  J,I) = 0.;
-        DIFFUSION_COEF_THETA(KHI,J,I) = 0.;
-      }
+    else {
+      sprintf(Message,"unrecognized planet->type=%s",planet->type);
+      epic_error(dbmsname,Message);
     }
+  }
+  else if (strcmp(grid.turbulence_scheme,"off") == 0) {
+    ;
   }
   else {
-    sprintf(Message,"unrecognized planet->type=%s",planet->type);
+    sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
     epic_error(dbmsname,Message);
   }
  
@@ -3457,7 +3506,7 @@ void tau_surface(int     index,
     epic_error(dbmsname,Message);
   }
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /*
    * Screen for nan.
    */

@@ -133,8 +133,8 @@ int main(int   argc,
    *p,*h,
     sum;
   unsigned int
-    progress_frequency = INT_MAX,
-    time_index         = 0;
+    itprogress = INT_MAX,
+    time_index = 0;
   static double
     *Buff2D[NUM_WORKING_BUFFERS];
   /* 
@@ -224,8 +224,8 @@ int main(int   argc,
       else if (strcmp(sflag,"-itrun") == 0) {
         sscanf(argv[++count],"%d",&grid.itrun);
       }
-      else if (strcmp(sflag,"-progress") == 0) {
-        sscanf(argv[++count],"%d",&progress_frequency);
+      else if (strcmp(sflag,"-itprogress") == 0) {
+        sscanf(argv[++count],"%d",&itprogress);
       }
       else {
         if (count == argc-1) {
@@ -442,7 +442,7 @@ int main(int   argc,
       grid.itrun = grid.itime;
     }
 
-    if ( (grid.itime)%(progress_frequency) == 0 && grid.itime > 0) {
+    if ( (grid.itime)%(itprogress) == 0 && grid.itime > 0) {
       if (IAMNODE == NODE0) { 
         fprintf(stdout,"EPIC: Completed timestep %06d\n",grid.itime);
       }

@@ -66,7 +66,7 @@
  *           avg_molar_mass()                                                *
  *           sync_x_to_q()                                                   *
  *           molar_mass()                                                    *
- *           diffusivity()                                                   *
+ *           mass_diffusivity()                                              *
  *           timeplane_bookkeeping()                                         *
  *           check_nan()                                                     *
  *           u_venus, u_jupiter(), etc.                                      *
@@ -449,6 +449,7 @@ void set_var_props(void)
   SET_DIAG(PV2_INDEX,pv2,potential_vorticity,potential vorticity,m^2/s K/kg);
   SET_DIAG(EDDY_PV2_INDEX,eddy_pv2,eddy_potential_vorticity,eddy potential vorticity,m^2/s K/kg);
   SET_DIAG(MOLAR_MASS3_INDEX,molar_mass3,mean_molar_mass,mean molar mass,kg/kmol);
+  SET_DIAG(NSQUARED2_INDEX,Nsquared2,square_of_brunt_vaisala_frequency_in_air,square of buoyancy frequency,1/s^2);
   SET_DIAG(RI2_INDEX,ri2,local_richardson_number,local Richardson number,s^2/s^2);
   SET_DIAG(REL_VORT2_INDEX,rel_vort2,atmosphere_relative_vorticity,relative vorticity,1/s);
   SET_DIAG(EDDY_REL_VORT2_INDEX,eddy_rel_vort2,eddy_relative_vorticity,eddy relative vorticity,1/s);
@@ -669,6 +670,7 @@ void free_var_props(void)
   FREE_DIAG(pv2);
   FREE_DIAG(eddy_pv2);
   FREE_DIAG(molar_mass3);
+  FREE_DIAG(Nsquared2);
   FREE_DIAG(ri2);
   FREE_DIAG(rel_vort2);
   FREE_DIAG(eddy_rel_vort2);
@@ -1204,8 +1206,14 @@ void make_arrays(void)
   if (var.extract_on_list[KIN2_INDEX] == LISTED_AND_ON) {
     var.kinetic_energy2.extract_on = TRUE;
   }
+  if (var.extract_on_list[NSQUARED2_INDEX] == LISTED_AND_ON) {
+    var.Nsquared2.extract_on = TRUE;
+  }
   if (var.extract_on_list[MOLAR_MASS3_INDEX] == LISTED_AND_ON) {
     var.molar_mass3.extract_on = TRUE;
+  }
+  if (var.extract_on_list[NSQUARED2_INDEX] == LISTED_AND_ON) {
+    var.Nsquared2.extract_on = TRUE;
   }
 
   var.w3.on          = TRUE;
@@ -2223,7 +2231,7 @@ double get_p(int index,
   static char
     dbmsname[]="get_p";
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /*
    * Check validity of kk:
    */
@@ -3021,7 +3029,7 @@ double get_kin(double *u2d,
 
   kin   = alpha*kin_c+(1.-alpha)*kin_s;
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /*
    * Screen for nan.
    */
@@ -3043,7 +3051,7 @@ double get_kin(double *u2d,
  * A.P. Showman, 8/31/99.
  * See notes dated 8/31/99.
  *
- * Option of smooth derivative of Drho_Dp added by T. Dowling, 11/03/05.
+ * Option for smooth derivative of Drho_Dp added by T. Dowling, 11/03/05.
  *
  * Calculates and returns the squared Brunt-Vaisala (buoyancy) frequency at
  * position kk/2,J,I.  The formula used holds for any equation of state. It
@@ -3246,7 +3254,7 @@ double get_brunt2(int kk,
   brunt2 = g*g*(Drho_Dp-drho_dp_T
                 +temperature/(cp*density*density)*drho_dT_p*drho_dT_p);
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   if (!isfinite(brunt2)) {
     sprintf(Message,"brunt2=%g, temperature=%g, pressure=%g, density=%g, cp=%g, mu=%g",
                      brunt2,temperature,pressure,density,cp,mu);
@@ -4047,19 +4055,9 @@ void store_diag(void)
   bc_lateral(var.ri2.value,THREEDIM);
 
   /*
-   * Calculate turbulence-model variables.
+   * Calculate molecular and optional turbulence diffusion coefficients for mass, momentum, and energy.
    */
-  if (strcmp(grid.turbulence_scheme,"on")               == 0 ||
-      strcmp(grid.turbulence_scheme,"on_vertical_only") == 0)  {
-    set_diffusion_coef();
-  }
-  else if (strcmp(grid.turbulence_scheme,"off") == 0) {
-    ;
-  }
-  else {
-    sprintf(Message,"Unrecognized grid.turbulence_scheme=%s",grid.turbulence_scheme);
-    epic_error(dbmsname,Message);
-  }
+  set_diffusion_coef();
 
   return;
 }
@@ -4914,7 +4912,7 @@ void relative_humidity(int     is,
   static char
     dbmsname[]="relative_humidity";
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /*
    * Check that 'is' is valid.
    */
@@ -4936,7 +4934,7 @@ void relative_humidity(int     is,
     return;
   }
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /*
    * Check that the phase VAPOR is on for the species.
    */
@@ -4981,6 +4979,8 @@ void source_sink(void)
 {
   register int
     K,J,I;
+  static int
+    initialized = FALSE;
   register double
     dfpdt,
     fpara,pressure,temperature,
@@ -4994,6 +4994,21 @@ void source_sink(void)
     idbms=0;
   static char
     dbmsname[]="source_sink";
+
+  if (!initialized) {
+    int
+      is;
+    /* 
+     * Make an initial call to enthalpy_change() for each species, to initialize its data.
+     */
+    for (is = FIRST_SPECIES; is <= LAST_SPECIES; is++) {
+      if (var.species[is].on) {
+        var.species[is].enthalpy_change(VAPOR,LIQUID,T_triple_pt(is));
+      }
+    }
+
+    initialized = TRUE;
+  }
 
   if (var.fpara.on) {
     /*
@@ -5062,11 +5077,18 @@ void source_sink(void)
           for (K = KLO; K < KHI; K++) {
             THETA(K,J,I) += DT*HEAT3(K,J,I)/EXNER3(K,J,I);
           }
-          if(grid.moist_convection != OFF) {
+
+          if (grid.moist_convection == ACTIVE) {
+            /*
+             * Modify THETA(K,J,I) from subgrid-scale moist convection
+             *
+             * NOTE: There is not a corresponding modification to W3(K,J,I).
+             */
             for (K = KLO; K < KHI; K++) {
               THETA(K,J,I) += DT*HEAT_MC(K,J,I)/EXNER3(K,J,I);
             }
           }
+
           /*
            * Extrapolate THETA to the top of the model.
            */
@@ -5085,7 +5107,13 @@ void source_sink(void)
           for (K = grid.k_sigma; K < KHI; K++) {
             THETA(K,J,I) += DT*HEAT3(K,J,I)/EXNER3(K,J,I);
           }
-          if(grid.moist_convection != OFF) {
+
+          if (grid.moist_convection == ACTIVE) {
+            /*
+             * Modify THETA(K,J,I) from subgrid-scale moist convection
+             *
+             * NOTE: There is not a corresponding modification to W3(K,J,I).
+             */
             for (K = grid.k_sigma; K < KHI; K++) {
               THETA(K,J,I) += DT*HEAT_MC(K,J,I)/EXNER3(K,J,I);
             }
@@ -5652,9 +5680,9 @@ double mass_diffusivity(int    vapor_index,
   return diff*1.e-4;
 }
 
-/*====================== end of mass_diffusivity() ===========================*/
+/*====================== end of mass_diffusivity() =========================*/
 
-/*======================= timeplane_bookkeeping() ===========================*/
+/*====================== timeplane_bookkeeping() ===========================*/
 
 /*
  * Set the time index for the current time for the prognostic variables

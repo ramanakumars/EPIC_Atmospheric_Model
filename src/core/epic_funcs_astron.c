@@ -880,7 +880,7 @@ double solar_fraction(char *species,
     }
   }
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /* Sanity check on ii_min: */
   if (ii_min < 0) {
     epic_error(dbmsname,"ii_min < 0");

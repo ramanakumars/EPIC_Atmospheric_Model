@@ -855,6 +855,8 @@ double molar_mass(int index);
 
 double mass_diffusivity(int vapor_index, double temperature, double pressure);
 
+double thermal_conductivity(double temperature);
+
 double u_venus(double p, double lat), u_earth(double p, double lat), u_mars(double p, double lat),
     u_jupiter(double p, double lat), u_saturn(double p, double lat), u_titan(double p, double lat),
     u_uranus(double p, double lat), u_neptune(double p, double lat), u_triton(double p, double lat),
@@ -1113,9 +1115,6 @@ void emars_conversion(emars_gridspec *emars_grid, char *emars_infile,
 #define ANT_BS(is) planet->cloud[is - FIRST_SPECIES].b_s
 #define ANT_AL(is) planet->cloud[is - FIRST_SPECIES].a_l
 #define ANT_BL(is) planet->cloud[is - FIRST_SPECIES].b_l
-
-/* Thermal conductivity of air  [J/m/s/K] */
-#define K_a (planet->k_a)
 
 /* Schmidt parameter D89 p3103 eq.B13 */
 #define SC(k, j, i) (dynvis / (rho * mass_diffusivity(is, T3(k, j, i), P3(k, j, i))))

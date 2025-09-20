@@ -62,7 +62,7 @@ variablespec
  *     lon_ascending_node[deg],lon_perihelion[deg],mean_lon[deg],
  *     orbit_period[yrs],
  *     vernal_equinox_anomaly [deg],
- *     kinvisc[m^2/s],dynvisc[kg/m/s],k_a[J/m/s/K],
+ *     kinvisc[m^2/s],dynvisc[kg/m/s],k_a[W/m/K],
  *     u(p,lat[deg]),
  *     cloud[MAX_NUM_SPECIES]}
  *
@@ -118,8 +118,10 @@ variablespec
  *  Weast et al (1987, CRC Handbook of Chemistry and Physics). For CO_2 and N_2
  *  atmospheres, one can use the gas viscosity calculator at
  *  http://lmnoeng.com/Flow/GasViscosity.htm.
- *  The parameter k_a is a crude value for the thermal conductivity of dry air [W/m/K]. 
- *  NOTE: thermal conductivity should be a temperature-dependent function. 
+ *
+ *  The parameter k_a is a placeholder value for the thermal conductivity of dry air [W/m/K] and IS NOT RELIABLE.
+ *  NOTE: thermal conductivity should be a temperature-dependent function.  For Jupiter, see Hansen (1979, Viscosity and
+ *        Thermal Conductivity of Model Jupiter Atmospheres). 
  *  
  *  The quantity planet->rgas should refer to the dry-air gas constant,
  *  R_GAS/mu_dry, where mu_dry is the typical molar mass of dry air for

@@ -42,8 +42,8 @@
 /*========================== cloud_microphysics() ============================*/
 
   /*
-   * Add latent heating to HEAT and transfer mass between the phases of each species,
-   * as appropriate.
+   * Add latent heating to HEAT3(K,J,I) and transfer mass between the phases
+   * of each species, as appropriate.
    */
 
 void cloud_microphysics(void)
@@ -87,11 +87,6 @@ void cloud_microphysics(void)
         GAMMA_ICE( is) = gamma_nr(3.+COEFF_YS(is));
         GAMMA_SNOW(is) = gamma_nr(4.+COEFF_YS(is));
         GAMMA_RAIN(is) = gamma_nr(4.+COEFF_YR(is));
-        /* 
-         * Make an initial call to Lc() for each species, to initialize
-         * the associated enthalpy change data.
-         */
-        Lc(is,VAPOR,LIQUID,T_triple_pt(is));
       }
     }
     initialized = TRUE;
@@ -349,7 +344,7 @@ void finite_rate_processes(int is,
   }  /*====== End of PCOND ======*/
 
   /* PINIT + PDEPI: ice condensation/sublimation */
-  A_S = (SQR(Ls(is))/(GAS_R(is)*t3)-1.)/(conductivity(planet->name,t3)*t3);
+  A_S = (SQR(Ls(is))/(GAS_R(is)*t3)-1.)/(thermal_conductivity(t3)*t3);
   B_S = 1./(mass_diffusivity(is,T3(K,J,I),P3(K,J,I))*q_sat*rho); 
   N_I = COEFF_C(is)*pow(rho*q_ice,COEFF_D(is)); 
   
@@ -456,7 +451,7 @@ void finite_rate_processes(int is,
   /* Evaporation of precipitation takes place if gridbox is subsaturated after cloud evaporation */
   if (q_rain > Q_MIN && warm && subcritical) {
     A_R    = (SQR(Lc(is,VAPOR,LIQUID,t3))/(GAS_R(is)*t3)-1.)
-            /(conductivity(planet->name,t3)*t3);
+            /(thermal_conductivity(t3)*t3);
     B_R    = 1./(mass_diffusivity(is,T3(K,J,I),P3(K,J,I))*q_sat*rho);
     tmp    = (f1r(is)/SQR(lambda_r))+f2r(is)*pow(SC(K,J,I),ONE_3)*sqrt(COEFF_XR(is)*rho/dynvis)*pow(P_REF/P3(K,J,I),P_EXP_LIQ(is)/2.)
              *gamma_nr((COEFF_YR(is)+5.)/2.)/pow(lambda_r,(COEFF_YR(is)+5.)/2.);
@@ -490,7 +485,7 @@ void finite_rate_processes(int is,
     }
   }   /*====== End of PREVAP ======*/
   else if (q_snow > Q_MIN && !warm) { 
-    A_S    = Ls(is)*rho*(Ls(is)-GAS_R(is)*t3)/(conductivity(planet->name,t3)*GAS_R(is)*SQR(t3));
+    A_S    = Ls(is)*rho*(Ls(is)-GAS_R(is)*t3)/(thermal_conductivity(t3)*GAS_R(is)*SQR(t3));
     B_S    = 1./(mass_diffusivity(is,T3(K,J,I),P3(K,J,I))*q_sat);
     tmp    = (f1s(is)/SQR(lambda_s))+f2s(is)*pow(SC(K,J,I),ONE_3)*sqrt(COEFF_XS(is)*rho/dynvis)*pow(P_REF/P3(K,J,I),P_EXP_ICE(is)/2.)
              *gamma_nr((COEFF_YS(is)+5.)/2.)/pow(lambda_s,(COEFF_YS(is)+5.)/2.);
@@ -856,7 +851,6 @@ void moist_convection(void)
   /* Need to apply bc_lateral() to the moist-convection heating array. */
   bc_lateral(var.heat_mc.value,THREEDIM);
 
-
   if (grid.coord_type != COORD_ISOBARIC) {
     /*
      * Solve tridiagonal problem in log(H) to find H on the layers given H3 on the interfaces.
@@ -1177,7 +1171,6 @@ void RAS_flux(int     is,
 
       /* hst is h** */
       ras[kk].hst = ras[kk].hsat-(ras[kk].nu*ras[kk].Lt)/(1.+ras[kk].nu*qsat)*(qsat-qvap);
-
 
       /* * * * * * * * *
        * On the layer  *
@@ -1665,8 +1658,23 @@ void RAS_flux(int     is,
       kk = 2*K+1;
       t  = T3(K,J,I);
 
-      /* Calculate the moist convection heating rate, Cp*(dT/dt). */
+      /* 
+       * Calculate the moist convection heating rate, Cp*(dT/dt).
+       *
+       * NOTE: HEAT_MC(K,J,I) is not added to HEAT3(K,J,I) because it is 
+       *       a subgrid-scale bookkeeping array for the relaxed Arakawa-Schubert
+       *       moist convection scheme. 
+       */
       HEAT_MC(K,J,I) += Mb*ras3[K].gammas;
+
+      /*
+       * Issue a warning when |HEAT_MC| is high.
+       */
+      if (fabs(DT*HEAT_MC(K,J,I)/EXNER3(K,J,I)) >= 10.) {
+        sprintf(Message,"|HEAT_MC=%#.3g K| >= 10.0 K  ptop=%#.3g hPa  Mb=%#.3g kg/s/m^2  dAdt=%#.3g W/kg  Ki=%#.3g m^4/s^2/kg  Ai=%#.3g J/kg\n",
+                        DT*HEAT_MC(K,J,I)/EXNER3(K,J,I),P3(ktop,J,I)/100.,Mb,dAdt,Fll,Ai);
+        epic_warning(dbmsname,Message);
+      }
 
       /*
        * Calculate dqdt from moist convection for the different phases,
@@ -1692,14 +1700,6 @@ void RAS_flux(int     is,
       dqdt = ras3[K].gammal*Mb/GET_DQDW(kk,Q(is,LIQUID,K,J,I));
 
       DQDT_MC(is,LIQUID,K,J,I) += dqdt;
-
-      if (fabs(DT*HEAT_MC(K,J,I)/EXNER3(K,J,I)) > 10.) {
-        sprintf(Message,
-                "HEAT: %.3e > 10 [K]; ptop: %.3f Mb: %.3e dAdt: %.3e Ki: %.3e Ai: "
-                "%.3e\n",
-                DT*HEAT_MC(K,J,I)/EXNER3(K,J,I),P3(ktop,J,I),Mb,dAdt,Fll,Ai);
-        epic_warning(dbmsname,Message);
-      }
     }
 
     /* 
@@ -1771,6 +1771,7 @@ void RAS_flux(int     is,
         }
       }
     }
+
   } /* end of mc_it loop */
 
   return;

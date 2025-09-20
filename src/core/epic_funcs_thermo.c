@@ -334,7 +334,7 @@ double return_temp(double fp,
   static char
     dbmsname[]="return_temp";
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /* Sanity checks: */
   if (p <= 0.) {
     sprintf(Message,"p=%e <= 0",p);
@@ -366,7 +366,7 @@ double return_temp(double fp,
   }
   else {
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
     /* Sanity checks: */
     if (fp < 0. || fp > 1.) {
       sprintf(Message,"fp=%e",fp);
@@ -810,7 +810,7 @@ double return_press(double fp,
   static char
     dbmsname[]="return_press";
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
   /* Sanity checks: */
   if (temperature <= 0.) {
     sprintf(Message,"temperature = %e <= 0",temperature);
@@ -845,7 +845,7 @@ double return_press(double fp,
      * Iterate to get pressure that satisfies theta-return_theta(pressure) = 0.
      */
 
-#if EPIC_CHECK == 1
+#if EPIC_CHECK == TRUE
     /* Sanity checks: */
     if (fp <= 0.) {
       sprintf(Message,"fp = %e <= 0",fp);

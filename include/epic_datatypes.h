@@ -145,29 +145,30 @@
 #define PV2_INDEX                  (LAST_PROG+19)
 #define EDDY_PV2_INDEX             (LAST_PROG+20)
 #define MOLAR_MASS3_INDEX          (LAST_PROG+21)
-#define RI2_INDEX                  (LAST_PROG+22)
-#define REL_VORT2_INDEX            (LAST_PROG+23)
-#define EDDY_REL_VORT2_INDEX       (LAST_PROG+24)
-#define ABS_VORT2_INDEX            (LAST_PROG+25)
-#define KIN2_INDEX                 (LAST_PROG+26)
-#define DIV_UV2_INDEX              (LAST_PROG+27)
-#define W3_INDEX                   (LAST_PROG+28)
-#define Z2_INDEX                   (LAST_PROG+29)
-#define Z3_INDEX                   (LAST_PROG+30)
-#define DZDT2_INDEX                (LAST_PROG+31)
+#define NSQUARED2_INDEX            (LAST_PROG+22)
+#define RI2_INDEX                  (LAST_PROG+23)
+#define REL_VORT2_INDEX            (LAST_PROG+24)
+#define EDDY_REL_VORT2_INDEX       (LAST_PROG+25)
+#define ABS_VORT2_INDEX            (LAST_PROG+26)
+#define KIN2_INDEX                 (LAST_PROG+27)
+#define DIV_UV2_INDEX              (LAST_PROG+28)
+#define W3_INDEX                   (LAST_PROG+29)
+#define Z2_INDEX                   (LAST_PROG+30)
+#define Z3_INDEX                   (LAST_PROG+31)
+#define DZDT2_INDEX                (LAST_PROG+32)
 
 /*
  * Turbulence-model variables.
  */
-#define DIFFUSION_COEF_UV_INDEX    (LAST_PROG+32)
-#define DIFFUSION_COEF_THETA_INDEX (LAST_PROG+33)
-#define DIFFUSION_COEF_MASS_INDEX  (LAST_PROG+34)
+#define DIFFUSION_COEF_UV_INDEX    (LAST_PROG+33)
+#define DIFFUSION_COEF_THETA_INDEX (LAST_PROG+34)
+#define DIFFUSION_COEF_MASS_INDEX  (LAST_PROG+35)
 
 /*
  * Moist convection variables.
  */
-#define HEAT_MC_INDEX              (LAST_PROG+35)
-#define CLOUD_BASE_INDEX           (LAST_PROG+36)
+#define HEAT_MC_INDEX              (LAST_PROG+36)
+#define CLOUD_BASE_INDEX           (LAST_PROG+37)
 
 /*
  * 3D parameters.
@@ -176,12 +177,12 @@
 /*
  * 2D parameters.
  */
-#define PHI_SURFACE_INDEX          (LAST_PROG+37)
-#define GRAVITY2_INDEX             (LAST_PROG+38)
-#define U_SPINUP_INDEX             (LAST_PROG+39)
-#define PBOT_INDEX                 (LAST_PROG+40)
+#define PHI_SURFACE_INDEX          (LAST_PROG+38)
+#define GRAVITY2_INDEX             (LAST_PROG+39)
+#define U_SPINUP_INDEX             (LAST_PROG+40)
+#define PBOT_INDEX                 (LAST_PROG+41)
 
-#define LAST_INDEX                 (LAST_PROG+40)
+#define LAST_INDEX                 (LAST_PROG+41)
 
 #define FILE_STR 256
 #define GEOM_STR        16   /* geometry string length                          */
@@ -705,6 +706,7 @@ typedef struct {
     pv2,                  /* potential vorticity in layer                                   */
     eddy_pv2,             /* pv minus zonal average in layer                                */
     molar_mass3,          /* average molar mass [kg/kmol] on interface                      */
+    Nsquared2,            /* buoyancy (Brunt-Vaisala) freq. squared, N^2, in layer [1/s^2]  */
     ri2,                  /* Richardson number in layer                                     */
     rel_vort2,            /* relative vorticity in layer                                    */
     eddy_rel_vort2,       /* relative vorticty minus zonal average in layer                 */
