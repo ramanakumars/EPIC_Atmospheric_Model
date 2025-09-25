@@ -817,8 +817,6 @@ void laplacian_h(int kstart, int kend, double *hh, double *diff_coef,
     }
   }
   /* Update edges for gh1, gh2: */
-  bc_lateral(gh1, THREEDIM);
-  bc_lateral(gh2, THREEDIM);
   /*
    * Multiply by DIFF_COEF.
    */

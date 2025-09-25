@@ -725,8 +725,7 @@ typedef struct {
     phi_surface,          /* geopotential at bottom of model                                */
     gravity2,             /* gravity as a function of layer and latitude [m/s^2]            */
     u_spinup,             /* Rayleigh-drag zonal wind                                 [m/s] */
-    pbot,                 /* pressure at bottom of gas giant, used as a boundary condition  */
-    Nsquared2;            /* N^2 (Brunt-Vaisalla frequency-squared */
+    pbot;                 /* pressure at bottom of gas giant, used as a boundary condition  */
   double_triplet
     *t_cool_table;        /* Profile for time constant used in Newtonian cooling            */
   time_variable
