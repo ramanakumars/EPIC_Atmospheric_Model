@@ -513,17 +513,19 @@ void scalar_horizontal_diffusion(double **Buff2D) {
 
       laplacian_h(KLO, KHI, hh, diff_coef, laph);
 
-      for (J = JLO; J <= JHI; J++) {
-        /*
-         * Old taper to help prevent numerical instability:
-         *
-         * taper = MIN(1.,pow(m0[K]/grid.m[kk][2*J+1],2.));
-         */
-        taper = 1.;
+      for (K = KLO; K < KHI; K++) {
+        for (J = JLO; J <= JHI; J++) {
+          /*
+           * Old taper to help prevent numerical instability:
+           *
+           * taper = MIN(1.,pow(m0[K]/grid.m[kk][2*J+1],2.));
+           */
+          taper = 1.;
 
-        tmp = dt * taper;
-        for (I = ILO; I <= IHI; I++) {
-          Q(is, ip, K, J, I) += tmp * LAPH(K, J, I);
+          tmp = dt * taper;
+          for (I = ILO; I <= IHI; I++) {
+            Q(is, ip, K, J, I) += tmp * LAPH(K, J, I);
+          }
         }
       }
       /* Need to apply bc_lateral() here. */
@@ -1876,7 +1878,6 @@ void uv_horizontal_subgrid(double **Buff2D) {
      */
 
     divergence_damping(grid.nudiv_nondim, Buff2D);
-
   }
 
   /*
@@ -2190,10 +2191,9 @@ void divergence_damping(double nudiv_nondim, double **Buff2D) {
    * Use grid.it_uv_dis for numerical stability (e.g. leapfrog timestep).
    */
 
-  divergence(
-      KLO, KHI, var.u.value + grid.it_uv_dis * Nelem3d,
-      var.v.value +  grid.it_uv_dis * Nelem3d, div);
-  
+  divergence(KLO, KHI, var.u.value + grid.it_uv_dis * Nelem3d,
+             var.v.value + grid.it_uv_dis * Nelem3d, div);
+
   zonal_filter(DIV_UV2_INDEX, div);
 
   /*
@@ -2207,12 +2207,13 @@ void divergence_damping(double nudiv_nondim, double **Buff2D) {
    */
   // zonal_filter(DIV_UV2_INDEX, div);
 
-  for (K=KLO; K<=KHI; K++) {
+  for (K = KLO; K <= KHI; K++) {
     kk = 2 * K;
     for (J = JFIRST; J <= JHI; J++) {
       coef = nudiv * grid.n[kk][2 * J];
       for (I = ILO; I <= IHI; I++) {
-        DVDT(grid.it_uv_tend, K, J, I) += coef * (DIV(K, J, I) - DIV(K, J - 1, I));
+        DVDT(grid.it_uv_tend, K, J, I) +=
+            coef * (DIV(K, J, I) - DIV(K, J - 1, I));
       }
     }
     /* No need to call bc_lateral() here. */
@@ -2220,7 +2221,8 @@ void divergence_damping(double nudiv_nondim, double **Buff2D) {
     for (J = JLO; J <= JHI; J++) {
       coef = nudiv * grid.m[kk][2 * J + 1];
       for (I = ILO; I <= IHI; I++) {
-        DUDT(grid.it_uv_tend, K, J, I) += coef * (DIV(K, J, I) - DIV(K, J, I - 1));
+        DUDT(grid.it_uv_tend, K, J, I) +=
+            coef * (DIV(K, J, I) - DIV(K, J, I - 1));
       }
     }
   }
