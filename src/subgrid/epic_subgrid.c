@@ -1054,6 +1054,7 @@ void laplacian_uv(int kstart, int kend, double *uu, double *vv,
   if (!initialized) {
     ze = dvector(0, Nelem3d - 1, dbmsname);
     di = dvector(0, Nelem3d - 1, dbmsname);
+    initialized = 1;
   }
 
   /*
